@@ -6,13 +6,15 @@ module pe_tb;
 
     logic signed [7:0] a_in;
     logic signed [7:0] b_in;
-    logic valid_in;
+    logic a_valid_in;
+    logic b_valid_in;
     logic clear;
 
     // 2. DUT 返回的输出
     logic signed [7:0]  a_out;
     logic signed [7:0]  b_out;
-    logic               valid_out;
+    logic               a_valid_out;
+    logic               b_valid_out;
     logic signed [31:0] acc_out;
 
     // 3. 实例化 PE
@@ -22,13 +24,15 @@ module pe_tb;
 
         .a_in      (a_in),
         .b_in      (b_in),
-        .valid_in  (valid_in),
+        .a_valid_in  (a_valid_in),
+        .b_valid_in  (b_valid_in),
 
         .clear     (clear),
 
         .a_out     (a_out),
         .b_out     (b_out),
-        .valid_out (valid_out),
+        .a_valid_out (a_valid_out),
+        .b_valid_out (b_valid_out),
 
         .acc_out   (acc_out)
     );
@@ -42,7 +46,8 @@ module pe_tb;
         // 初始输入
         reset    = 1'b1;
         clear    = 1'b0;
-        valid_in = 1'b0;
+        a_valid_in = 1'b0;
+        b_valid_in = 1'b0;
         a_in     = 8'sd0;
         b_in     = 8'sd0;
 
@@ -57,8 +62,13 @@ module pe_tb;
             $finish;
         end
 
-        if (valid_out !== 1'b0) begin
-            $display("RESET TEST FAIL: valid_out = %b", valid_out);
+        if (a_valid_out !== 1'b0) begin
+            $display("RESET TEST FAIL: a_valid_out = %b", a_valid_out);
+            $finish;
+        end
+
+        if (b_valid_out !== 1'b0) begin
+            $display("RESET TEST FAIL: b_valid_out = %b", b_valid_out);
             $finish;
         end
 
@@ -82,7 +92,8 @@ module pe_tb;
         @(negedge clk);
         a_in     = 8'sd3;
         b_in     = -8'sd4;
-        valid_in = 1'b1;
+        a_valid_in = 1'b1;
+        b_valid_in = 1'b1;
 
         @(posedge clk);
         #1;
