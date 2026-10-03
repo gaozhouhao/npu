@@ -5,6 +5,25 @@ PE_TB  = sim/tb/pe_tb.sv
 
 .PHONY: pe clean
 
+MATRIX_RTL = \
+	rtl/compute/pe.sv \
+	rtl/compute/input_skew.sv \
+	rtl/compute/systolic_array.sv \
+	rtl/compute/matrix_engine.sv
+
+MATRIX_TB = sim/tb/matrix_engine_tb.sv
+
+.PHONY: matrix
+
+matrix:
+	$(VERILATOR) --binary --timing \
+		-Wall \
+		-Wno-TIMESCALEMOD \
+		--top-module matrix_engine_tb \
+		$(MATRIX_RTL) $(MATRIX_TB)
+
+	./obj_dir/Vmatrix_engine_tb
+
 pe:
 	$(VERILATOR) --binary --timing \
 		-Wall \
