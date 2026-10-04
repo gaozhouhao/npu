@@ -32,5 +32,14 @@ pe:
 
 	./obj_dir/Vpe_tb
 
+controller:
+	verilator --binary --timing \
+		-Wno-TIMESCALEMOD \
+		rtl/core/matrix_controller.sv \
+		sim/tb/matrix_controller_tb.sv \
+		--top-module matrix_controller_tb
+
+	./obj_dir/Vmatrix_controller_tb
+
 clean:
 	rm -rf obj_dir
