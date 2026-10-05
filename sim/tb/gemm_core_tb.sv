@@ -49,7 +49,16 @@ module gemm_core_tb;
 
 
     // ============================================================
-    // GEMM result
+    // C scratchpad read port
+    // ============================================================
+
+    logic                           c_ren;
+    logic [ADDR_WIDTH-1:0]          c_raddr;
+    logic [ACC_WIDTH-1:0]           c_rdata;
+
+
+    // ============================================================
+    // Debug accumulator output
     // ============================================================
 
     logic signed [ACC_WIDTH-1:0]
@@ -79,14 +88,22 @@ module gemm_core_tb;
         .busy        (busy),
         .done        (done),
 
+        // A preload
         .a_wen       (a_wen),
         .a_waddr     (a_waddr),
         .a_wdata     (a_wdata),
 
+        // B preload
         .b_wen       (b_wen),
         .b_waddr     (b_waddr),
         .b_wdata     (b_wdata),
 
+        // C read
+        .c_ren       (c_ren),
+        .c_raddr     (c_raddr),
+        .c_rdata     (c_rdata),
+
+        // Debug
         .acc_out     (acc_out)
     );
 
@@ -97,6 +114,7 @@ module gemm_core_tb;
 
     initial begin
         clk = 1'b0;
+
         forever #5 clk = ~clk;
     end
 
@@ -154,124 +172,53 @@ module gemm_core_tb;
 
 
     // ============================================================
-    // Check result
+    // Read and check one C SRAM word
+    //
+    // C SRAM is synchronous-read:
+    //
+    // negedge:
+    //      set c_ren / c_raddr
+    //
+    // next posedge:
+    //      SRAM captures address and updates c_rdata
+    //
+    // #1:
+    //      check result
     // ============================================================
 
-    task automatic check_result;
+    task automatic check_c(
+        input logic [ADDR_WIDTH-1:0] addr,
+        input integer                expected
+    );
     begin
 
-        // Expected:
-        //
-        // 38   44   50   56
-        // 83   98  113  128
-        // 128 152  176  200
-        // 173 206  239  272
+        @(negedge clk);
 
-        assert (acc_out[0][0] == 38)
+        c_ren   = 1'b1;
+        c_raddr = addr;
+
+        @(posedge clk);
+        #1;
+
+        assert ($signed(c_rdata) == expected)
             else $fatal(
-                "C[0][0] error: got %0d",
-                acc_out[0][0]
+                1,
+                "C SRAM[%0d] error: got %0d, expected %0d",
+                addr,
+                $signed(c_rdata),
+                expected
             );
 
-        assert (acc_out[0][1] == 44)
-            else $fatal(
-                "C[0][1] error: got %0d",
-                acc_out[0][1]
-            );
+        $display(
+            "C SRAM[%0d] = %0d : PASS",
+            addr,
+            $signed(c_rdata)
+        );
 
-        assert (acc_out[0][2] == 50)
-            else $fatal(
-                "C[0][2] error: got %0d",
-                acc_out[0][2]
-            );
+        @(negedge clk);
 
-        assert (acc_out[0][3] == 56)
-            else $fatal(
-                "C[0][3] error: got %0d",
-                acc_out[0][3]
-            );
-
-
-        assert (acc_out[1][0] == 83)
-            else $fatal(
-                "C[1][0] error: got %0d",
-                acc_out[1][0]
-            );
-
-        assert (acc_out[1][1] == 98)
-            else $fatal(
-                "C[1][1] error: got %0d",
-                acc_out[1][1]
-            );
-
-        assert (acc_out[1][2] == 113)
-            else $fatal(
-                "C[1][2] error: got %0d",
-                acc_out[1][2]
-            );
-
-        assert (acc_out[1][3] == 128)
-            else $fatal(
-                "C[1][3] error: got %0d",
-                acc_out[1][3]
-            );
-
-
-        assert (acc_out[2][0] == 128)
-            else $fatal(
-                "C[2][0] error: got %0d",
-                acc_out[2][0]
-            );
-
-        assert (acc_out[2][1] == 152)
-            else $fatal(
-                "C[2][1] error: got %0d",
-                acc_out[2][1]
-            );
-
-        assert (acc_out[2][2] == 176)
-            else $fatal(
-                "C[2][2] error: got %0d",
-                acc_out[2][2]
-            );
-
-        assert (acc_out[2][3] == 200)
-            else $fatal(
-                "C[2][3] error: got %0d",
-                acc_out[2][3]
-            );
-
-
-        assert (acc_out[3][0] == 173)
-            else $fatal(
-                "C[3][0] error: got %0d",
-                acc_out[3][0]
-            );
-
-        assert (acc_out[3][1] == 206)
-            else $fatal(
-                "C[3][1] error: got %0d",
-                acc_out[3][1]
-            );
-
-        assert (acc_out[3][2] == 239)
-            else $fatal(
-                "C[3][2] error: got %0d",
-                acc_out[3][2]
-            );
-
-        assert (acc_out[3][3] == 272)
-            else $fatal(
-                "C[3][3] error: got %0d",
-                acc_out[3][3]
-            );
-
-
-        $display("");
-        $display("========================================");
-        $display("GEMM TEST PASSED");
-        $display("========================================");
-        $display("");
+        c_ren   = 1'b0;
+        c_raddr = '0;
 
     end
     endtask
@@ -288,6 +235,7 @@ module gemm_core_tb;
         // --------------------------------------------------------
 
         reset       = 1'b1;
+
         start       = 1'b0;
         tile_k_size = '0;
 
@@ -298,6 +246,9 @@ module gemm_core_tb;
         b_wen       = 1'b0;
         b_waddr     = '0;
         b_wdata     = '0;
+
+        c_ren       = 1'b0;
+        c_raddr     = '0;
 
 
         // --------------------------------------------------------
@@ -310,37 +261,54 @@ module gemm_core_tb;
         reset = 1'b0;
 
 
+        // --------------------------------------------------------
+        // Controller should initially be idle
+        // --------------------------------------------------------
+
+        assert (busy == 1'b0)
+            else $fatal(
+                1,
+                "busy should be 0 before start"
+            );
+
+        assert (done == 1'b0)
+            else $fatal(
+                1,
+                "done should be 0 before start"
+            );
+
+
         // ========================================================
+        //
+        // Test matrix
         //
         // A = 4x3
         //
-        //  1   2   3
-        //  4   5   6
-        //  7   8   9
-        // 10  11  12
+        //   1   2   3
+        //   4   5   6
+        //   7   8   9
+        //  10  11  12
         //
         //
         // B = 3x4
         //
-        //  1   2   3   4
-        //  5   6   7   8
-        //  9  10  11  12
+        //   1   2   3   4
+        //   5   6   7   8
+        //   9  10  11  12
         //
         //
         // C = A * B
         //
-        //  38   44   50   56
-        //  83   98  113  128
-        // 128  152  176  200
-        // 173  206  239  272
+        //   38   44   50   56
+        //   83   98  113  128
+        //  128  152  176  200
+        //  173  206  239  272
         //
         // ========================================================
 
 
         // ========================================================
         // Load A scratchpad
-        //
-        // Layout:
         //
         // SRAM[k] =
         // {
@@ -350,6 +318,10 @@ module gemm_core_tb;
         //     A[0][k]
         // }
         //
+        // a_rdata[7:0]   -> row 0
+        // a_rdata[15:8]  -> row 1
+        // a_rdata[23:16] -> row 2
+        // a_rdata[31:24] -> row 3
         // ========================================================
 
         write_a(
@@ -386,8 +358,6 @@ module gemm_core_tb;
         // ========================================================
         // Load B scratchpad
         //
-        // Layout:
-        //
         // SRAM[k] =
         // {
         //     B[k][3],
@@ -396,6 +366,10 @@ module gemm_core_tb;
         //     B[k][0]
         // }
         //
+        // b_rdata[7:0]   -> col 0
+        // b_rdata[15:8]  -> col 1
+        // b_rdata[23:16] -> col 2
+        // b_rdata[31:24] -> col 3
         // ========================================================
 
         write_b(
@@ -428,16 +402,6 @@ module gemm_core_tb;
             }
         );
 
-        // ========================================================
-        // Check idle state before start
-        // ========================================================
-
-        assert (busy == 1'b0)
-            else $fatal("busy should be 0 before start");
-
-        assert (done == 1'b0)
-            else $fatal("done should be 0 before start");
-
 
         // ========================================================
         // Start GEMM
@@ -454,18 +418,44 @@ module gemm_core_tb;
 
 
         // ========================================================
-        // Wait for completion
+        // Controller should become busy
+        // ========================================================
+
+        wait(busy == 1'b1);
+
+        $display("");
+        $display("GEMM started: busy asserted");
+
+
+        // ========================================================
+        // Wait for:
+        //
+        // CLEAR
+        // FEED
+        // DRAIN
+        // WRITEBACK
+        // DONE
         // ========================================================
 
         wait(done == 1'b1);
 
 
+        // DONE is still considered busy in current controller
+        assert (busy == 1'b1)
+            else $fatal(
+                1,
+                "busy should remain 1 while done is asserted"
+            );
+
+        $display("GEMM completed: done asserted");
+
+
         // ========================================================
-        // Display result
+        // Debug: display raw acc_out
         // ========================================================
 
         $display("");
-        $display("Result matrix:");
+        $display("Accumulator matrix:");
 
         for (int r = 0; r < ROWS; r++) begin
 
@@ -479,14 +469,139 @@ module gemm_core_tb;
 
         end
 
+
+        // ========================================================
+        // Wait until controller returns to IDLE
+        // ========================================================
+
+        @(posedge clk);
+        #1;
+
+        assert (busy == 1'b0)
+            else $fatal(
+                1,
+                "busy should return to 0 after DONE"
+            );
+
+        assert (done == 1'b0)
+            else $fatal(
+                1,
+                "done should only stay high for one cycle"
+            );
+
+
+        // ========================================================
+        // Read C SRAM and verify complete writeback
+        //
+        // Row-major:
+        //
+        // addr 0  -> C[0][0]
+        // addr 1  -> C[0][1]
+        // ...
+        // addr 15 -> C[3][3]
+        // ========================================================
+
         $display("");
+        $display("Checking C SRAM...");
+
+
+        // Row 0
+        check_c(
+            ADDR_WIDTH'(0),
+            38
+        );
+
+        check_c(
+            ADDR_WIDTH'(1),
+            44
+        );
+
+        check_c(
+            ADDR_WIDTH'(2),
+            50
+        );
+
+        check_c(
+            ADDR_WIDTH'(3),
+            56
+        );
+
+
+        // Row 1
+        check_c(
+            ADDR_WIDTH'(4),
+            83
+        );
+
+        check_c(
+            ADDR_WIDTH'(5),
+            98
+        );
+
+        check_c(
+            ADDR_WIDTH'(6),
+            113
+        );
+
+        check_c(
+            ADDR_WIDTH'(7),
+            128
+        );
+
+
+        // Row 2
+        check_c(
+            ADDR_WIDTH'(8),
+            128
+        );
+
+        check_c(
+            ADDR_WIDTH'(9),
+            152
+        );
+
+        check_c(
+            ADDR_WIDTH'(10),
+            176
+        );
+
+        check_c(
+            ADDR_WIDTH'(11),
+            200
+        );
+
+
+        // Row 3
+        check_c(
+            ADDR_WIDTH'(12),
+            173
+        );
+
+        check_c(
+            ADDR_WIDTH'(13),
+            206
+        );
+
+        check_c(
+            ADDR_WIDTH'(14),
+            239
+        );
+
+        check_c(
+            ADDR_WIDTH'(15),
+            272
+        );
 
 
         // ========================================================
-        // Check result
+        // PASS
         // ========================================================
 
-        check_result();
+        $display("");
+        $display("========================================");
+        $display("SRAM-BACKED GEMM + WRITEBACK TEST PASSED");
+        $display("========================================");
+        $display("");
 
 
         // ========================================================
@@ -494,6 +609,7 @@ module gemm_core_tb;
         // ========================================================
 
         #20;
+
         $finish;
 
     end
@@ -505,10 +621,11 @@ module gemm_core_tb;
 
     initial begin
 
-        #5000;
+        #10000;
 
         $fatal(
-            "Timeout: GEMM test did not finish"
+            1,
+            "Timeout: GEMM core test did not finish"
         );
 
     end

@@ -6,17 +6,16 @@ module gemm_core #(
 
     parameter int DEPTH        = 256,
     parameter int ADDR_WIDTH   = $clog2(DEPTH),
-    parameter int K_SIZE_WIDTH = $clog2(DEPTH + 1)
+    parameter int K_SIZE_WIDTH = $clog2(DEPTH + 1),
+
+    parameter int C_INDEX_WIDTH =
+        (ROWS * COLS <= 1) ? 1 : $clog2(ROWS * COLS)
 ) (
     input logic clk,
     input logic reset,
 
     // ============================================================
     // GEMM control
-    //
-    // tile_k_size:
-    // 当前装入 scratchpad 的 local K tile 大小
-    // 0 ~ DEPTH
     // ============================================================
 
     input logic                    start,
@@ -25,22 +24,35 @@ module gemm_core #(
     output logic busy,
     output logic done,
 
-
     // ============================================================
-    // Scratchpad preload ports
+    // A scratchpad preload
     // ============================================================
 
     input logic                           a_wen,
     input logic [ADDR_WIDTH-1:0]          a_waddr,
     input logic [ROWS*DATA_WIDTH-1:0]     a_wdata,
 
+    // ============================================================
+    // B scratchpad preload
+    // ============================================================
+
     input logic                           b_wen,
     input logic [ADDR_WIDTH-1:0]          b_waddr,
     input logic [COLS*DATA_WIDTH-1:0]     b_wdata,
 
+    // ============================================================
+    // C scratchpad external read
+    //
+    // 当前主要给 testbench 使用
+    // ============================================================
+
+    input logic                           c_ren,
+    input logic [ADDR_WIDTH-1:0]          c_raddr,
+
+    output logic [ACC_WIDTH-1:0]          c_rdata,
 
     // ============================================================
-    // GEMM result
+    // Debug result
     // ============================================================
 
     output logic signed [ACC_WIDTH-1:0]
@@ -49,22 +61,22 @@ module gemm_core #(
 
 
     // ============================================================
-    // Controller <-> Scratchpad
+    // Controller signals
     // ============================================================
 
     logic clear;
 
-    logic read_en;
-
-    // SRAM真正的地址
+    logic                  read_en;
     logic [ADDR_WIDTH-1:0] read_addr;
 
-    // SRAM response data valid
     logic feed_valid;
+
+    logic                     c_wen;
+    logic [C_INDEX_WIDTH-1:0] c_index;
 
 
     // ============================================================
-    // Scratchpad read side
+    // Scratchpad A/B read
     // ============================================================
 
     logic [ROWS*DATA_WIDTH-1:0] a_rdata;
@@ -72,7 +84,7 @@ module gemm_core #(
 
 
     // ============================================================
-    // Matrix engine inputs
+    // Matrix engine input
     // ============================================================
 
     logic signed [DATA_WIDTH-1:0] a_in [ROWS];
@@ -83,15 +95,26 @@ module gemm_core #(
 
 
     // ============================================================
+    // C writeback
+    // ============================================================
+
+    logic [ADDR_WIDTH-1:0] c_waddr;
+    logic [ACC_WIDTH-1:0]  c_wdata;
+
+
+    // ============================================================
     // 1. Matrix controller
     // ============================================================
 
     matrix_controller #(
-        .ROWS         (ROWS),
-        .COLS         (COLS),
-        .DEPTH        (DEPTH),
-        .ADDR_WIDTH   (ADDR_WIDTH),
-        .K_SIZE_WIDTH (K_SIZE_WIDTH)
+        .ROWS          (ROWS),
+        .COLS          (COLS),
+
+        .DEPTH         (DEPTH),
+        .ADDR_WIDTH    (ADDR_WIDTH),
+        .K_SIZE_WIDTH  (K_SIZE_WIDTH),
+
+        .C_INDEX_WIDTH (C_INDEX_WIDTH)
     ) u_controller (
         .clk         (clk),
         .reset       (reset),
@@ -106,6 +129,9 @@ module gemm_core #(
 
         .feed_valid  (feed_valid),
 
+        .c_wen       (c_wen),
+        .c_index     (c_index),
+
         .busy        (busy),
         .done        (done)
     );
@@ -118,38 +144,52 @@ module gemm_core #(
     scratchpad #(
         .ROWS       (ROWS),
         .COLS       (COLS),
+
         .DATA_WIDTH (DATA_WIDTH),
-        .ADDR_WIDTH (ADDR_WIDTH),
-        .DEPTH      (DEPTH)
+        .ACC_WIDTH  (ACC_WIDTH),
+
+        .DEPTH      (DEPTH),
+        .ADDR_WIDTH (ADDR_WIDTH)
     ) u_scratchpad (
         .clk     (clk),
 
-        // A write
+        // A
         .a_wen   (a_wen),
         .a_waddr (a_waddr),
         .a_wdata (a_wdata),
 
-        // B write
+        // B
         .b_wen   (b_wen),
         .b_waddr (b_waddr),
         .b_wdata (b_wdata),
 
-        // Shared read
+        // A/B shared read
         .ren     (read_en),
         .raddr   (read_addr),
 
         .a_rdata (a_rdata),
-        .b_rdata (b_rdata)
+        .b_rdata (b_rdata),
+
+        // C write
+        .c_wen   (c_wen),
+        .c_waddr (c_waddr),
+        .c_wdata (c_wdata),
+
+        // C external read
+        .c_ren   (c_ren),
+        .c_raddr (c_raddr),
+        .c_rdata (c_rdata)
     );
 
 
     // ============================================================
-    // 3. Unpack SRAM word -> Matrix Engine lanes
+    // 3. Unpack A SRAM word
     // ============================================================
 
     genvar i;
 
     generate
+
         for (i = 0; i < ROWS; i++) begin : GEN_A_UNPACK
 
             assign a_in[i] =
@@ -162,10 +202,16 @@ module gemm_core #(
             assign a_valid_in[i] = feed_valid;
 
         end
+
     endgenerate
 
 
+    // ============================================================
+    // 4. Unpack B SRAM word
+    // ============================================================
+
     generate
+
         for (i = 0; i < COLS; i++) begin : GEN_B_UNPACK
 
             assign b_in[i] =
@@ -178,11 +224,12 @@ module gemm_core #(
             assign b_valid_in[i] = feed_valid;
 
         end
+
     endgenerate
 
 
     // ============================================================
-    // 4. Matrix engine
+    // 5. Matrix engine
     // ============================================================
 
     matrix_engine #(
@@ -204,5 +251,42 @@ module gemm_core #(
     );
 
 
-endmodule
+    // ============================================================
+    // 6. C writeback address
+    //
+    // Row-major:
+    //
+    // 0  1  2  3
+    // 4  5  6  7
+    // ...
+    // ============================================================
 
+    assign c_waddr = ADDR_WIDTH'(c_index);
+
+
+    // ============================================================
+    // 7. Select accumulator for writeback
+    // ============================================================
+
+    always_comb begin
+
+        c_wdata = '0;
+
+        for (int r = 0; r < ROWS; r++) begin
+
+            for (int c = 0; c < COLS; c++) begin
+
+                if (c_index == C_INDEX_WIDTH'(r * COLS + c)) begin
+
+                    c_wdata = acc_out[r][c];
+
+                end
+
+            end
+
+        end
+
+    end
+
+
+endmodule

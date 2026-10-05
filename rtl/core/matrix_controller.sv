@@ -4,32 +4,51 @@ module matrix_controller #(
 
     parameter int DEPTH        = 256,
     parameter int ADDR_WIDTH   = $clog2(DEPTH),
-    parameter int K_SIZE_WIDTH = $clog2(DEPTH + 1)
+    parameter int K_SIZE_WIDTH = $clog2(DEPTH + 1),
+
+    parameter int C_INDEX_WIDTH =
+        (ROWS * COLS <= 1) ? 1 : $clog2(ROWS * COLS)
 ) (
     input  logic clk,
     input  logic reset,
 
     input  logic start,
 
-    // 当前 local K tile 的大小
-    // 合法范围：0 ~ DEPTH
+    // Current local K tile size
+    // Legal range: 1 ~ DEPTH
     input  logic [K_SIZE_WIDTH-1:0] tile_k_size,
 
+    // Clear matrix accumulators
     output logic clear,
 
-    // SRAM request
+    // ============================================================
+    // A/B Scratchpad read request
+    // ============================================================
+
     output logic                  read_en,
     output logic [ADDR_WIDTH-1:0] read_addr,
 
     // SRAM response -> matrix engine
     output logic feed_valid,
 
+    // ============================================================
+    // C Scratchpad writeback control
+    // ============================================================
+
+    output logic                     c_wen,
+    output logic [C_INDEX_WIDTH-1:0] c_index,
+
+    // ============================================================
+    // Status
+    // ============================================================
+
     output logic busy,
     output logic done
 );
 
+
     // ============================================================
-    // Drain parameters
+    // Parameters
     // ============================================================
 
     localparam int DRAIN_CYCLES = ROWS + COLS - 2;
@@ -39,6 +58,11 @@ module matrix_controller #(
 
     localparam logic [DRAIN_WIDTH-1:0] DRAIN_LAST =
         DRAIN_WIDTH'(DRAIN_CYCLES - 1);
+
+    localparam int RESULT_COUNT = ROWS * COLS;
+
+    localparam logic [C_INDEX_WIDTH-1:0] C_INDEX_LAST =
+        C_INDEX_WIDTH'(RESULT_COUNT - 1);
 
 
     // ============================================================
@@ -50,6 +74,7 @@ module matrix_controller #(
         CLEAR,
         FEED,
         DRAIN,
+        WRITEBACK,
         DONE
     } state_t;
 
@@ -60,45 +85,34 @@ module matrix_controller #(
     // Registers
     // ============================================================
 
-    // 锁存本次 local tile 的 K 大小
+    // Latched K size for current local tile
     logic [K_SIZE_WIDTH-1:0] tile_k_size_q;
 
-    // 已经发出了多少个 SRAM read request
-    //
-    // 注意：
-    // 需要能够表示 DEPTH，
-    // 例如 DEPTH=256 时 issue_count 需要 9 bit
+    // Number of SRAM read requests already issued
     logic [K_SIZE_WIDTH-1:0] issue_count;
 
-    // SRAM 是 1-cycle synchronous read
-    // 所以将 request valid 延迟一拍作为 response valid
+    // SRAM response tracking
+    // SRAM read latency = 1 cycle
     logic rsp_valid_q;
-
-    // 标记“上一拍发出的 request 是最后一个”
     logic rsp_last_q;
 
+    // Systolic array drain counter
     logic [DRAIN_WIDTH-1:0] drain_counter;
+
+    // C SRAM writeback counter
+    logic [C_INDEX_WIDTH-1:0] wb_count;
 
 
     // ============================================================
-    // SRAM request generation
+    // A/B SRAM request generation
     // ============================================================
 
     assign read_en =
         (state == FEED) &&
         (issue_count < tile_k_size_q);
 
-    // 当前只访问 local scratchpad
-    //
-    // issue_count:
-    //     0 ... tile_k_size_q-1
-    //
-    // read_addr:
-    //     0 ... DEPTH-1
-    //
-    // 当 tile_k_size = DEPTH 时，
-    // 最后一次 request 的 issue_count = DEPTH-1，
-    // 所以不会产生地址 DEPTH。
+    // issue_count is wider because it must represent DEPTH.
+    // SRAM address itself only needs ADDR_WIDTH bits.
     assign read_addr =
         issue_count[ADDR_WIDTH-1:0];
 
@@ -109,18 +123,21 @@ module matrix_controller #(
 
     always_ff @(posedge clk) begin
         if (reset) begin
+
             rsp_valid_q <= 1'b0;
             rsp_last_q  <= 1'b0;
+
         end else begin
 
-            // SRAM data corresponding to this request
-            // will be available in the next cycle
+            // Request issued this cycle ->
+            // SRAM data valid next cycle
             rsp_valid_q <= read_en;
 
-            // 记录当前 request 是否为最后一个 K
+            // Remember whether this request was the final K element
             rsp_last_q <=
                 read_en &&
                 (issue_count == tile_k_size_q - 1'b1);
+
         end
     end
 
@@ -133,6 +150,7 @@ module matrix_controller #(
     // ============================================================
 
     always_ff @(posedge clk) begin
+
         if (reset) begin
 
             state           <= IDLE;
@@ -140,43 +158,53 @@ module matrix_controller #(
             tile_k_size_q   <= '0;
             issue_count     <= '0;
             drain_counter   <= '0;
+            wb_count        <= '0;
 
         end else begin
 
             case (state)
 
-                // ------------------------------------------------
+                // =================================================
                 // IDLE
-                // ------------------------------------------------
+                // =================================================
 
                 IDLE: begin
 
                     issue_count   <= '0;
                     drain_counter <= '0;
+                    wb_count      <= '0;
 
                     if (start) begin
 
-                        // 锁存当前 tile 的 K 大小
                         tile_k_size_q <= tile_k_size;
 
-                        // K=0 不进行任何计算
-                        if (tile_k_size == 0)
+                        // Invalid / empty operation
+                        if (
+                            (tile_k_size == 0) ||
+                            (tile_k_size > K_SIZE_WIDTH'(DEPTH))
+                        ) begin
+
                             state <= DONE;
-                        else
+
+                        end else begin
+
                             state <= CLEAR;
 
+                        end
+
                     end
+
                 end
 
 
-                // ------------------------------------------------
+                // =================================================
                 // CLEAR
-                // ------------------------------------------------
+                //
+                // Clear accumulators before a new GEMM tile
+                // =================================================
 
                 CLEAR: begin
 
-                    // 清 accumulator
-                    // 并确保新任务从 SRAM addr 0 开始
                     issue_count <= '0;
 
                     state <= FEED;
@@ -184,21 +212,27 @@ module matrix_controller #(
                 end
 
 
-                // ------------------------------------------------
+                // =================================================
                 // FEED
-                // ------------------------------------------------
+                //
+                // Issue SRAM reads and feed returned data into
+                // matrix_engine.
+                // =================================================
 
                 FEED: begin
 
-                    // 发出 SRAM read request
-                    if (read_en)
+                    if (read_en) begin
+
                         issue_count <= issue_count + 1'b1;
 
+                    end
 
-                    // 最后一个 SRAM response 已经在这一拍
-                    // 被送入 matrix_engine
+
+                    // Do NOT enter DRAIN when the final address is
+                    // issued.
                     //
-                    // 此时才真正进入 DRAIN
+                    // Enter DRAIN only after the final SRAM response
+                    // has actually reached matrix_engine.
                     if (rsp_valid_q && rsp_last_q) begin
 
                         drain_counter <= '0;
@@ -206,30 +240,66 @@ module matrix_controller #(
                         state <= DRAIN;
 
                     end
+
                 end
 
 
-                // ------------------------------------------------
+                // =================================================
                 // DRAIN
-                // ------------------------------------------------
+                //
+                // Wait for the systolic wavefront to propagate to
+                // the furthest PE.
+                // =================================================
 
                 DRAIN: begin
 
                     if (drain_counter == DRAIN_LAST) begin
 
-                        state <= DONE;
+                        wb_count <= '0;
+
+                        state <= WRITEBACK;
 
                     end else begin
 
                         drain_counter <= drain_counter + 1'b1;
 
                     end
+
                 end
 
 
-                // ------------------------------------------------
+                // =================================================
+                // WRITEBACK
+                //
+                // Write one INT32 accumulator to C SRAM per cycle.
+                //
+                // For 4x4:
+                // c_index = 0  -> C[0][0]
+                // c_index = 1  -> C[0][1]
+                // ...
+                // c_index = 15 -> C[3][3]
+                // =================================================
+
+                WRITEBACK: begin
+
+                    if (wb_count == C_INDEX_LAST) begin
+
+                        state <= DONE;
+
+                    end else begin
+
+                        wb_count <= wb_count + 1'b1;
+
+                    end
+
+                end
+
+
+                // =================================================
                 // DONE
-                // ------------------------------------------------
+                //
+                // One-cycle done pulse
+                // =================================================
 
                 DONE: begin
 
@@ -238,9 +308,9 @@ module matrix_controller #(
                 end
 
 
-                // ------------------------------------------------
+                // =================================================
                 // Default
-                // ------------------------------------------------
+                // =================================================
 
                 default: begin
 
@@ -259,10 +329,11 @@ module matrix_controller #(
 
     assign clear = (state == CLEAR);
 
-    assign busy  = (state != IDLE);
+    assign c_wen   = (state == WRITEBACK);
+    assign c_index = wb_count;
 
-    assign done  = (state == DONE);
+    assign busy = (state != IDLE);
+    assign done = (state == DONE);
 
 
 endmodule
-
