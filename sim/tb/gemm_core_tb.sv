@@ -2,6 +2,7 @@
 
 module gemm_core_tb;
 
+
     // ============================================================
     // Parameters
     // ============================================================
@@ -26,39 +27,42 @@ module gemm_core_tb;
     logic                    start;
     logic [K_SIZE_WIDTH-1:0] tile_k_size;
 
+    logic clear_acc;
+    logic writeback_en;
+
     logic busy;
     logic done;
 
 
     // ============================================================
-    // A scratchpad write port
+    // A Scratchpad write
     // ============================================================
 
-    logic                           a_wen;
-    logic [ADDR_WIDTH-1:0]          a_waddr;
-    logic [ROWS*DATA_WIDTH-1:0]     a_wdata;
-
-
-    // ============================================================
-    // B scratchpad write port
-    // ============================================================
-
-    logic                           b_wen;
-    logic [ADDR_WIDTH-1:0]          b_waddr;
-    logic [COLS*DATA_WIDTH-1:0]     b_wdata;
+    logic                       a_wen;
+    logic [ADDR_WIDTH-1:0]      a_waddr;
+    logic [ROWS*DATA_WIDTH-1:0] a_wdata;
 
 
     // ============================================================
-    // C scratchpad read port
+    // B Scratchpad write
     // ============================================================
 
-    logic                           c_ren;
-    logic [ADDR_WIDTH-1:0]          c_raddr;
-    logic [ACC_WIDTH-1:0]           c_rdata;
+    logic                       b_wen;
+    logic [ADDR_WIDTH-1:0]      b_waddr;
+    logic [COLS*DATA_WIDTH-1:0] b_wdata;
 
 
     // ============================================================
-    // Debug accumulator output
+    // C Buffer read
+    // ============================================================
+
+    logic                       c_ren;
+    logic [ADDR_WIDTH-1:0]      c_raddr;
+    logic [COLS*ACC_WIDTH-1:0] c_rdata;
+
+
+    // ============================================================
+    // Debug
     // ============================================================
 
     logic signed [ACC_WIDTH-1:0]
@@ -79,32 +83,31 @@ module gemm_core_tb;
         .ADDR_WIDTH   (ADDR_WIDTH),
         .K_SIZE_WIDTH (K_SIZE_WIDTH)
     ) dut (
-        .clk         (clk),
-        .reset       (reset),
+        .clk          (clk),
+        .reset        (reset),
 
-        .start       (start),
-        .tile_k_size (tile_k_size),
+        .start        (start),
+        .tile_k_size  (tile_k_size),
 
-        .busy        (busy),
-        .done        (done),
+        .clear_acc    (clear_acc),
+        .writeback_en (writeback_en),
 
-        // A preload
-        .a_wen       (a_wen),
-        .a_waddr     (a_waddr),
-        .a_wdata     (a_wdata),
+        .busy         (busy),
+        .done         (done),
 
-        // B preload
-        .b_wen       (b_wen),
-        .b_waddr     (b_waddr),
-        .b_wdata     (b_wdata),
+        .a_wen        (a_wen),
+        .a_waddr      (a_waddr),
+        .a_wdata      (a_wdata),
 
-        // C read
-        .c_ren       (c_ren),
-        .c_raddr     (c_raddr),
-        .c_rdata     (c_rdata),
+        .b_wen        (b_wen),
+        .b_waddr      (b_waddr),
+        .b_wdata      (b_wdata),
 
-        // Debug
-        .acc_out     (acc_out)
+        .c_ren        (c_ren),
+        .c_raddr      (c_raddr),
+        .c_rdata      (c_rdata),
+
+        .acc_out      (acc_out)
     );
 
 
@@ -113,14 +116,16 @@ module gemm_core_tb;
     // ============================================================
 
     initial begin
+
         clk = 1'b0;
 
         forever #5 clk = ~clk;
+
     end
 
 
     // ============================================================
-    // Write A scratchpad
+    // Write A word
     // ============================================================
 
     task automatic write_a(
@@ -146,7 +151,7 @@ module gemm_core_tb;
 
 
     // ============================================================
-    // Write B scratchpad
+    // Write B word
     // ============================================================
 
     task automatic write_b(
@@ -172,24 +177,65 @@ module gemm_core_tb;
 
 
     // ============================================================
-    // Read and check one C SRAM word
-    //
-    // C SRAM is synchronous-read:
-    //
-    // negedge:
-    //      set c_ren / c_raddr
-    //
-    // next posedge:
-    //      SRAM captures address and updates c_rdata
-    //
-    // #1:
-    //      check result
+    // Launch one local K tile
     // ============================================================
 
-    task automatic check_c(
-        input logic [ADDR_WIDTH-1:0] addr,
-        input integer                expected
+    task automatic run_k_tile(
+        input logic do_clear,
+        input logic do_writeback
     );
+    begin
+
+        @(negedge clk);
+
+        tile_k_size  = K_SIZE_WIDTH'(3);
+
+        clear_acc    = do_clear;
+        writeback_en = do_writeback;
+
+        start = 1'b1;
+
+        @(negedge clk);
+
+        start = 1'b0;
+
+
+        wait(busy == 1'b1);
+
+        wait(done == 1'b1);
+
+
+        @(posedge clk);
+        #1;
+
+        assert (busy == 1'b0)
+            else $fatal(
+                1,
+                "busy did not return to zero"
+            );
+
+    end
+    endtask
+
+
+    // ============================================================
+    // Check one complete C row
+    // ============================================================
+
+    task automatic check_c_row(
+        input logic [ADDR_WIDTH-1:0] addr,
+
+        input integer expected0,
+        input integer expected1,
+        input integer expected2,
+        input integer expected3
+    );
+
+        integer got0;
+        integer got1;
+        integer got2;
+        integer got3;
+
     begin
 
         @(negedge clk);
@@ -200,20 +246,77 @@ module gemm_core_tb;
         @(posedge clk);
         #1;
 
-        assert ($signed(c_rdata) == expected)
+        got0 = $signed(
+            c_rdata[
+                0*ACC_WIDTH +: ACC_WIDTH
+            ]
+        );
+
+        got1 = $signed(
+            c_rdata[
+                1*ACC_WIDTH +: ACC_WIDTH
+            ]
+        );
+
+        got2 = $signed(
+            c_rdata[
+                2*ACC_WIDTH +: ACC_WIDTH
+            ]
+        );
+
+        got3 = $signed(
+            c_rdata[
+                3*ACC_WIDTH +: ACC_WIDTH
+            ]
+        );
+
+
+        assert (got0 == expected0)
             else $fatal(
                 1,
-                "C SRAM[%0d] error: got %0d, expected %0d",
+                "C[%0d][0] got %0d expected %0d",
                 addr,
-                $signed(c_rdata),
-                expected
+                got0,
+                expected0
             );
 
+        assert (got1 == expected1)
+            else $fatal(
+                1,
+                "C[%0d][1] got %0d expected %0d",
+                addr,
+                got1,
+                expected1
+            );
+
+        assert (got2 == expected2)
+            else $fatal(
+                1,
+                "C[%0d][2] got %0d expected %0d",
+                addr,
+                got2,
+                expected2
+            );
+
+        assert (got3 == expected3)
+            else $fatal(
+                1,
+                "C[%0d][3] got %0d expected %0d",
+                addr,
+                got3,
+                expected3
+            );
+
+
         $display(
-            "C SRAM[%0d] = %0d : PASS",
+            "C row %0d = [%0d, %0d, %0d, %0d] : PASS",
             addr,
-            $signed(c_rdata)
+            got0,
+            got1,
+            got2,
+            got3
         );
+
 
         @(negedge clk);
 
@@ -230,106 +333,65 @@ module gemm_core_tb;
 
     initial begin
 
-        // --------------------------------------------------------
-        // Initial values
-        // --------------------------------------------------------
 
-        reset       = 1'b1;
+        // ========================================================
+        // Init
+        // ========================================================
 
-        start       = 1'b0;
-        tile_k_size = '0;
+        reset        = 1'b1;
 
-        a_wen       = 1'b0;
-        a_waddr     = '0;
-        a_wdata     = '0;
+        start        = 1'b0;
+        tile_k_size  = '0;
 
-        b_wen       = 1'b0;
-        b_waddr     = '0;
-        b_wdata     = '0;
+        clear_acc    = 1'b0;
+        writeback_en = 1'b0;
 
-        c_ren       = 1'b0;
-        c_raddr     = '0;
+        a_wen        = 1'b0;
+        a_waddr      = '0;
+        a_wdata      = '0;
+
+        b_wen        = 1'b0;
+        b_waddr      = '0;
+        b_wdata      = '0;
+
+        c_ren        = 1'b0;
+        c_raddr      = '0;
 
 
-        // --------------------------------------------------------
+        // ========================================================
         // Reset
-        // --------------------------------------------------------
+        // ========================================================
 
         repeat (3) @(posedge clk);
 
         @(negedge clk);
+
         reset = 1'b0;
 
 
-        // --------------------------------------------------------
-        // Controller should initially be idle
-        // --------------------------------------------------------
-
-        assert (busy == 1'b0)
-            else $fatal(
-                1,
-                "busy should be 0 before start"
-            );
-
-        assert (done == 1'b0)
-            else $fatal(
-                1,
-                "done should be 0 before start"
-            );
-
-
         // ========================================================
+        // K TILE 0
         //
-        // Test matrix
+        // A0:
         //
-        // A = 4x3
+        //  1  2  3
+        //  7  8  9
+        // 13 14 15
+        // 19 20 21
         //
-        //   1   2   3
-        //   4   5   6
-        //   7   8   9
-        //  10  11  12
+        // B0:
         //
-        //
-        // B = 3x4
-        //
-        //   1   2   3   4
-        //   5   6   7   8
-        //   9  10  11  12
-        //
-        //
-        // C = A * B
-        //
-        //   38   44   50   56
-        //   83   98  113  128
-        //  128  152  176  200
-        //  173  206  239  272
-        //
-        // ========================================================
-
-
-        // ========================================================
-        // Load A scratchpad
-        //
-        // SRAM[k] =
-        // {
-        //     A[3][k],
-        //     A[2][k],
-        //     A[1][k],
-        //     A[0][k]
-        // }
-        //
-        // a_rdata[7:0]   -> row 0
-        // a_rdata[15:8]  -> row 1
-        // a_rdata[23:16] -> row 2
-        // a_rdata[31:24] -> row 3
+        // 1  2  3  4
+        // 5  6  7  8
+        // 9 10 11 12
         // ========================================================
 
         write_a(
             ADDR_WIDTH'(0),
             {
-                8'd10,
+                8'd19,
+                8'd13,
                 8'd7,
-                8'd4,
                 8'd1
             }
         );
@@ -337,9 +399,9 @@ module gemm_core_tb;
         write_a(
             ADDR_WIDTH'(1),
             {
-                8'd11,
+                8'd20,
+                8'd14,
                 8'd8,
-                8'd5,
                 8'd2
             }
         );
@@ -347,30 +409,13 @@ module gemm_core_tb;
         write_a(
             ADDR_WIDTH'(2),
             {
-                8'd12,
+                8'd21,
+                8'd15,
                 8'd9,
-                8'd6,
                 8'd3
             }
         );
 
-
-        // ========================================================
-        // Load B scratchpad
-        //
-        // SRAM[k] =
-        // {
-        //     B[k][3],
-        //     B[k][2],
-        //     B[k][1],
-        //     B[k][0]
-        // }
-        //
-        // b_rdata[7:0]   -> col 0
-        // b_rdata[15:8]  -> col 1
-        // b_rdata[23:16] -> col 2
-        // b_rdata[31:24] -> col 3
-        // ========================================================
 
         write_b(
             ADDR_WIDTH'(0),
@@ -403,64 +448,153 @@ module gemm_core_tb;
         );
 
 
-        // ========================================================
-        // Start GEMM
-        // ========================================================
-
-        @(negedge clk);
-
-        tile_k_size = K_SIZE_WIDTH'(3);
-        start       = 1'b1;
-
-        @(negedge clk);
-
-        start = 1'b0;
-
-
-        // ========================================================
-        // Controller should become busy
-        // ========================================================
-
-        wait(busy == 1'b1);
-
         $display("");
-        $display("GEMM started: busy asserted");
+        $display("Running K tile 0...");
+
+        run_k_tile(
+            1'b1,   // clear accumulator
+            1'b0    // do not write back
+        );
 
 
         // ========================================================
-        // Wait for:
+        // Check partial sums directly in PE accumulator
         //
-        // CLEAR
-        // FEED
-        // DRAIN
-        // WRITEBACK
-        // DONE
+        // Expected:
+        //
+        //  38   44   50   56
+        // 128  152  176  200
+        // 218  260  302  344
+        // 308  368  428  488
         // ========================================================
 
-        wait(done == 1'b1);
+        assert (acc_out[0][0] == 38);
+        assert (acc_out[0][1] == 44);
+        assert (acc_out[0][2] == 50);
+        assert (acc_out[0][3] == 56);
+
+        assert (acc_out[1][0] == 128);
+        assert (acc_out[1][1] == 152);
+        assert (acc_out[1][2] == 176);
+        assert (acc_out[1][3] == 200);
+
+        assert (acc_out[2][0] == 218);
+        assert (acc_out[2][1] == 260);
+        assert (acc_out[2][2] == 302);
+        assert (acc_out[2][3] == 344);
+
+        assert (acc_out[3][0] == 308);
+        assert (acc_out[3][1] == 368);
+        assert (acc_out[3][2] == 428);
+        assert (acc_out[3][3] == 488);
 
 
-        // DONE is still considered busy in current controller
-        assert (busy == 1'b1)
-            else $fatal(
-                1,
-                "busy should remain 1 while done is asserted"
-            );
-
-        $display("GEMM completed: done asserted");
+        $display(
+            "K tile 0 partial sums preserved: PASS"
+        );
 
 
         // ========================================================
-        // Debug: display raw acc_out
+        // K TILE 1
+        //
+        // Overwrite local A/B scratchpad.
+        //
+        // A1:
+        //
+        //  4  5  6
+        // 10 11 12
+        // 16 17 18
+        // 22 23 24
+        //
+        // B1:
+        //
+        // 13 14 15 16
+        // 17 18 19 20
+        // 21 22 23 24
+        // ========================================================
+
+        write_a(
+            ADDR_WIDTH'(0),
+            {
+                8'd22,
+                8'd16,
+                8'd10,
+                8'd4
+            }
+        );
+
+        write_a(
+            ADDR_WIDTH'(1),
+            {
+                8'd23,
+                8'd17,
+                8'd11,
+                8'd5
+            }
+        );
+
+        write_a(
+            ADDR_WIDTH'(2),
+            {
+                8'd24,
+                8'd18,
+                8'd12,
+                8'd6
+            }
+        );
+
+
+        write_b(
+            ADDR_WIDTH'(0),
+            {
+                8'd16,
+                8'd15,
+                8'd14,
+                8'd13
+            }
+        );
+
+        write_b(
+            ADDR_WIDTH'(1),
+            {
+                8'd20,
+                8'd19,
+                8'd18,
+                8'd17
+            }
+        );
+
+        write_b(
+            ADDR_WIDTH'(2),
+            {
+                8'd24,
+                8'd23,
+                8'd22,
+                8'd21
+            }
+        );
+
+
+        $display("");
+        $display("Running K tile 1...");
+
+        run_k_tile(
+            1'b0,   // DO NOT clear accumulator
+            1'b1    // final K tile -> writeback
+        );
+
+
+        // ========================================================
+        // Final accumulator result
         // ========================================================
 
         $display("");
-        $display("Accumulator matrix:");
+        $display("Final accumulator:");
 
         for (int r = 0; r < ROWS; r++) begin
 
             $display(
-                "%0d  %0d  %0d  %0d",
+                "%0d %0d %0d %0d",
                 acc_out[r][0],
                 acc_out[r][1],
                 acc_out[r][2],
@@ -471,125 +605,43 @@ module gemm_core_tb;
 
 
         // ========================================================
-        // Wait until controller returns to IDLE
-        // ========================================================
-
-        @(posedge clk);
-        #1;
-
-        assert (busy == 1'b0)
-            else $fatal(
-                1,
-                "busy should return to 0 after DONE"
-            );
-
-        assert (done == 1'b0)
-            else $fatal(
-                1,
-                "done should only stay high for one cycle"
-            );
-
-
-        // ========================================================
-        // Read C SRAM and verify complete writeback
-        //
-        // Row-major:
-        //
-        // addr 0  -> C[0][0]
-        // addr 1  -> C[0][1]
-        // ...
-        // addr 15 -> C[3][3]
+        // Check banked C Buffer
         // ========================================================
 
         $display("");
-        $display("Checking C SRAM...");
+        $display("Checking final C Buffer...");
 
 
-        // Row 0
-        check_c(
+        check_c_row(
             ADDR_WIDTH'(0),
-            38
+            301,
+            322,
+            343,
+            364
         );
 
-        check_c(
+        check_c_row(
             ADDR_WIDTH'(1),
-            44
+            697,
+            754,
+            811,
+            868
         );
 
-        check_c(
+        check_c_row(
             ADDR_WIDTH'(2),
-            50
+            1093,
+            1186,
+            1279,
+            1372
         );
 
-        check_c(
+        check_c_row(
             ADDR_WIDTH'(3),
-            56
-        );
-
-
-        // Row 1
-        check_c(
-            ADDR_WIDTH'(4),
-            83
-        );
-
-        check_c(
-            ADDR_WIDTH'(5),
-            98
-        );
-
-        check_c(
-            ADDR_WIDTH'(6),
-            113
-        );
-
-        check_c(
-            ADDR_WIDTH'(7),
-            128
-        );
-
-
-        // Row 2
-        check_c(
-            ADDR_WIDTH'(8),
-            128
-        );
-
-        check_c(
-            ADDR_WIDTH'(9),
-            152
-        );
-
-        check_c(
-            ADDR_WIDTH'(10),
-            176
-        );
-
-        check_c(
-            ADDR_WIDTH'(11),
-            200
-        );
-
-
-        // Row 3
-        check_c(
-            ADDR_WIDTH'(12),
-            173
-        );
-
-        check_c(
-            ADDR_WIDTH'(13),
-            206
-        );
-
-        check_c(
-            ADDR_WIDTH'(14),
-            239
-        );
-
-        check_c(
-            ADDR_WIDTH'(15),
-            272
+            1489,
+            1618,
+            1747,
+            1876
         );
 
 
@@ -599,14 +651,10 @@ module gemm_core_tb;
 
         $display("");
         $display("========================================");
-        $display("SRAM-BACKED GEMM + WRITEBACK TEST PASSED");
+        $display("K-TILING TEST PASSED");
         $display("========================================");
         $display("");
 
-
-        // ========================================================
-        // Finish
-        // ========================================================
 
         #20;
 
@@ -616,16 +664,16 @@ module gemm_core_tb;
 
 
     // ============================================================
-    // Timeout protection
+    // Timeout
     // ============================================================
 
     initial begin
 
-        #10000;
+        #20000;
 
         $fatal(
             1,
-            "Timeout: GEMM core test did not finish"
+            "Timeout: K-tiling test did not finish"
         );
 
     end
@@ -638,7 +686,11 @@ module gemm_core_tb;
     initial begin
 
         $dumpfile("gemm_core_tb.vcd");
-        $dumpvars(0, gemm_core_tb);
+
+        $dumpvars(
+            0,
+            gemm_core_tb
+        );
 
     end
 

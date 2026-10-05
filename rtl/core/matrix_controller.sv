@@ -6,37 +6,45 @@ module matrix_controller #(
     parameter int ADDR_WIDTH   = $clog2(DEPTH),
     parameter int K_SIZE_WIDTH = $clog2(DEPTH + 1),
 
-    parameter int C_INDEX_WIDTH =
-        (ROWS * COLS <= 1) ? 1 : $clog2(ROWS * COLS)
+    parameter int ROW_INDEX_WIDTH =
+        (ROWS <= 1) ? 1 : $clog2(ROWS)
 ) (
-    input  logic clk,
-    input  logic reset,
+    input logic clk,
+    input logic reset,
 
-    input  logic start,
+    input logic start,
 
     // Current local K tile size
-    // Legal range: 1 ~ DEPTH
-    input  logic [K_SIZE_WIDTH-1:0] tile_k_size,
+    input logic [K_SIZE_WIDTH-1:0] tile_k_size,
 
-    // Clear matrix accumulators
+    // K-tiling control
+    //
+    // clear_acc = 1:
+    //     clear PE accumulators before this tile
+    //
+    // writeback_en = 1:
+    //     write final result to C buffer after this tile
+    input logic clear_acc,
+    input logic writeback_en,
+
+    // Clear PE accumulators
     output logic clear,
 
     // ============================================================
-    // A/B Scratchpad read request
+    // A/B Scratchpad read
     // ============================================================
 
     output logic                  read_en,
     output logic [ADDR_WIDTH-1:0] read_addr,
 
-    // SRAM response -> matrix engine
     output logic feed_valid,
 
     // ============================================================
-    // C Scratchpad writeback control
+    // C Buffer writeback
     // ============================================================
 
-    output logic                     c_wen,
-    output logic [C_INDEX_WIDTH-1:0] c_index,
+    output logic                       c_wen,
+    output logic [ROW_INDEX_WIDTH-1:0] c_row,
 
     // ============================================================
     // Status
@@ -48,21 +56,27 @@ module matrix_controller #(
 
 
     // ============================================================
-    // Parameters
+    // Systolic drain timing
     // ============================================================
 
-    localparam int DRAIN_CYCLES = ROWS + COLS - 2;
+    localparam int DRAIN_CYCLES =
+        ROWS + COLS - 2;
 
     localparam int DRAIN_WIDTH =
-        (DRAIN_CYCLES <= 1) ? 1 : $clog2(DRAIN_CYCLES);
+        (DRAIN_CYCLES <= 1)
+            ? 1
+            : $clog2(DRAIN_CYCLES);
 
     localparam logic [DRAIN_WIDTH-1:0] DRAIN_LAST =
         DRAIN_WIDTH'(DRAIN_CYCLES - 1);
 
-    localparam int RESULT_COUNT = ROWS * COLS;
 
-    localparam logic [C_INDEX_WIDTH-1:0] C_INDEX_LAST =
-        C_INDEX_WIDTH'(RESULT_COUNT - 1);
+    // ============================================================
+    // C writeback
+    // ============================================================
+
+    localparam logic [ROW_INDEX_WIDTH-1:0] ROW_LAST =
+        ROW_INDEX_WIDTH'(ROWS - 1);
 
 
     // ============================================================
@@ -85,43 +99,42 @@ module matrix_controller #(
     // Registers
     // ============================================================
 
-    // Latched K size for current local tile
     logic [K_SIZE_WIDTH-1:0] tile_k_size_q;
 
-    // Number of SRAM read requests already issued
+    // logic clear_acc_q;
+    logic writeback_en_q;
+
     logic [K_SIZE_WIDTH-1:0] issue_count;
 
-    // SRAM response tracking
-    // SRAM read latency = 1 cycle
+    // SRAM read response tracking
     logic rsp_valid_q;
     logic rsp_last_q;
 
-    // Systolic array drain counter
     logic [DRAIN_WIDTH-1:0] drain_counter;
 
-    // C SRAM writeback counter
-    logic [C_INDEX_WIDTH-1:0] wb_count;
+    logic [ROW_INDEX_WIDTH-1:0] wb_row;
 
 
     // ============================================================
-    // A/B SRAM request generation
+    // SRAM request generation
     // ============================================================
 
     assign read_en =
         (state == FEED) &&
         (issue_count < tile_k_size_q);
 
-    // issue_count is wider because it must represent DEPTH.
-    // SRAM address itself only needs ADDR_WIDTH bits.
     assign read_addr =
         issue_count[ADDR_WIDTH-1:0];
 
 
     // ============================================================
-    // 1-cycle SRAM response tracking
+    // SRAM response tracking
+    //
+    // A/B SRAM has 1-cycle read latency.
     // ============================================================
 
     always_ff @(posedge clk) begin
+
         if (reset) begin
 
             rsp_valid_q <= 1'b0;
@@ -129,16 +142,14 @@ module matrix_controller #(
 
         end else begin
 
-            // Request issued this cycle ->
-            // SRAM data valid next cycle
             rsp_valid_q <= read_en;
 
-            // Remember whether this request was the final K element
             rsp_last_q <=
                 read_en &&
                 (issue_count == tile_k_size_q - 1'b1);
 
         end
+
     end
 
 
@@ -156,9 +167,13 @@ module matrix_controller #(
             state           <= IDLE;
 
             tile_k_size_q   <= '0;
+
+            // clear_acc_q     <= 1'b0;
+            writeback_en_q  <= 1'b0;
+
             issue_count     <= '0;
             drain_counter   <= '0;
-            wb_count        <= '0;
+            wb_row          <= '0;
 
         end else begin
 
@@ -172,13 +187,14 @@ module matrix_controller #(
 
                     issue_count   <= '0;
                     drain_counter <= '0;
-                    wb_count      <= '0;
+                    wb_row        <= '0;
 
                     if (start) begin
 
-                        tile_k_size_q <= tile_k_size;
+                        tile_k_size_q  <= tile_k_size;
+                        // clear_acc_q    <= clear_acc;
+                        writeback_en_q <= writeback_en;
 
-                        // Invalid / empty operation
                         if (
                             (tile_k_size == 0) ||
                             (tile_k_size > K_SIZE_WIDTH'(DEPTH))
@@ -186,9 +202,15 @@ module matrix_controller #(
 
                             state <= DONE;
 
-                        end else begin
+                        end else if (clear_acc) begin
 
                             state <= CLEAR;
+
+                        end else begin
+
+                            // Intermediate K tile:
+                            // keep old partial sums
+                            state <= FEED;
 
                         end
 
@@ -199,8 +221,6 @@ module matrix_controller #(
 
                 // =================================================
                 // CLEAR
-                //
-                // Clear accumulators before a new GEMM tile
                 // =================================================
 
                 CLEAR: begin
@@ -214,25 +234,18 @@ module matrix_controller #(
 
                 // =================================================
                 // FEED
-                //
-                // Issue SRAM reads and feed returned data into
-                // matrix_engine.
                 // =================================================
 
                 FEED: begin
 
                     if (read_en) begin
 
-                        issue_count <= issue_count + 1'b1;
+                        issue_count <=
+                            issue_count + 1'b1;
 
                     end
 
 
-                    // Do NOT enter DRAIN when the final address is
-                    // issued.
-                    //
-                    // Enter DRAIN only after the final SRAM response
-                    // has actually reached matrix_engine.
                     if (rsp_valid_q && rsp_last_q) begin
 
                         drain_counter <= '0;
@@ -246,22 +259,30 @@ module matrix_controller #(
 
                 // =================================================
                 // DRAIN
-                //
-                // Wait for the systolic wavefront to propagate to
-                // the furthest PE.
                 // =================================================
 
                 DRAIN: begin
 
                     if (drain_counter == DRAIN_LAST) begin
 
-                        wb_count <= '0;
+                        if (writeback_en_q) begin
 
-                        state <= WRITEBACK;
+                            wb_row <= '0;
+
+                            state <= WRITEBACK;
+
+                        end else begin
+
+                            // Intermediate K tile:
+                            // partial sums remain inside PEs.
+                            state <= DONE;
+
+                        end
 
                     end else begin
 
-                        drain_counter <= drain_counter + 1'b1;
+                        drain_counter <=
+                            drain_counter + 1'b1;
 
                     end
 
@@ -271,24 +292,18 @@ module matrix_controller #(
                 // =================================================
                 // WRITEBACK
                 //
-                // Write one INT32 accumulator to C SRAM per cycle.
-                //
-                // For 4x4:
-                // c_index = 0  -> C[0][0]
-                // c_index = 1  -> C[0][1]
-                // ...
-                // c_index = 15 -> C[3][3]
+                // One complete output row per cycle.
                 // =================================================
 
                 WRITEBACK: begin
 
-                    if (wb_count == C_INDEX_LAST) begin
+                    if (wb_row == ROW_LAST) begin
 
                         state <= DONE;
 
                     end else begin
 
-                        wb_count <= wb_count + 1'b1;
+                        wb_row <= wb_row + 1'b1;
 
                     end
 
@@ -297,8 +312,6 @@ module matrix_controller #(
 
                 // =================================================
                 // DONE
-                //
-                // One-cycle done pulse
                 // =================================================
 
                 DONE: begin
@@ -308,10 +321,6 @@ module matrix_controller #(
                 end
 
 
-                // =================================================
-                // Default
-                // =================================================
-
                 default: begin
 
                     state <= IDLE;
@@ -319,7 +328,9 @@ module matrix_controller #(
                 end
 
             endcase
+
         end
+
     end
 
 
@@ -327,13 +338,20 @@ module matrix_controller #(
     // Output decode
     // ============================================================
 
-    assign clear = (state == CLEAR);
+    assign clear =
+        (state == CLEAR);
 
-    assign c_wen   = (state == WRITEBACK);
-    assign c_index = wb_count;
+    assign c_wen =
+        (state == WRITEBACK);
 
-    assign busy = (state != IDLE);
-    assign done = (state == DONE);
+    assign c_row =
+        wb_row;
+
+    assign busy =
+        (state != IDLE);
+
+    assign done =
+        (state == DONE);
 
 
 endmodule
