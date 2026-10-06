@@ -36,6 +36,7 @@ CONTROLLER_RTL := \
 
 MEMORY_RTL := \
 	rtl/memory/sram_model.sv \
+	rtl/memory/operand_buffer.sv \
 	rtl/memory/scratchpad.sv
 
 
@@ -144,6 +145,18 @@ gemm:
 		$(GEMM_TB)
 
 	./$(BUILD_DIR)/gemm/Vgemm_core_tb
+
+
+
+
+mn_tiling:
+	mkdir -p $(BUILD_DIR)/mn_tiling
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(BUILD_DIR)/mn_tiling \
+		--top-module mn_tiling_tb \
+		$(GEMM_RTL) \
+		sim/tb/mn_tiling_tb.sv
+	./$(BUILD_DIR)/mn_tiling/Vmn_tiling_tb
 
 
 # ============================================================

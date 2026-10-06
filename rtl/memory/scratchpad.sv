@@ -5,46 +5,37 @@ module scratchpad #(
     parameter int ACC_WIDTH  = 32,
 
     parameter int DEPTH      = 256,
-    parameter int ADDR_WIDTH = $clog2(DEPTH)
+    parameter int ADDR_WIDTH = $clog2(DEPTH),
+
+    parameter int A_BUFFER_COUNT = 1,
+    parameter int B_BUFFER_COUNT = 1
 ) (
     input logic clk,
 
     // ============================================================
-    // A SRAM write
-    //
-    // One word contains ROWS INT8 values:
-    //
-    // {
-    //     A[ROWS-1][k],
-    //     ...
-    //     A[1][k],
-    //     A[0][k]
-    // }
+    // A Buffer
     // ============================================================
 
     input logic                           a_wen,
+    input logic                           a_wbank,
     input logic [ADDR_WIDTH-1:0]          a_waddr,
     input logic [ROWS*DATA_WIDTH-1:0]     a_wdata,
 
+    input logic                           a_rbank,
+
     // ============================================================
-    // B SRAM write
-    //
-    // One word contains COLS INT8 values:
-    //
-    // {
-    //     B[k][COLS-1],
-    //     ...
-    //     B[k][1],
-    //     B[k][0]
-    // }
+    // B Buffer
     // ============================================================
 
     input logic                           b_wen,
+    input logic                           b_wbank,
     input logic [ADDR_WIDTH-1:0]          b_waddr,
     input logic [COLS*DATA_WIDTH-1:0]     b_wdata,
 
+    input logic                           b_rbank,
+
     // ============================================================
-    // A/B shared read
+    // A/B compute read
     // ============================================================
 
     input logic                           ren,
@@ -55,19 +46,6 @@ module scratchpad #(
 
     // ============================================================
     // C Buffer
-    //
-    // Implemented as COLS independent SRAM banks.
-    //
-    // For COLS = 4:
-    //
-    // bank 0 -> output column 0
-    // bank 1 -> output column 1
-    // bank 2 -> output column 2
-    // bank 3 -> output column 3
-    //
-    // All banks share the same address.
-    //
-    // Therefore one write stores one complete output row.
     // ============================================================
 
     input logic                           c_wen,
@@ -82,60 +60,57 @@ module scratchpad #(
 
 
     // ============================================================
-    // A SRAM
+    // A Operand Buffer
     // ============================================================
 
-    sram_model #(
-        .DATA_WIDTH (ROWS * DATA_WIDTH),
-        .ADDR_WIDTH (ADDR_WIDTH),
-        .DEPTH      (DEPTH)
-    ) u_a_sram (
+    operand_buffer #(
+        .DATA_WIDTH   (ROWS * DATA_WIDTH),
+        .DEPTH        (DEPTH),
+        .ADDR_WIDTH   (ADDR_WIDTH),
+        .BUFFER_COUNT (A_BUFFER_COUNT)
+    ) u_a_buffer (
         .clk   (clk),
-
-        .ren   (ren),
-        .raddr (raddr),
-        .rdata (a_rdata),
 
         .wen   (a_wen),
+        .wbank (a_wbank),
         .waddr (a_waddr),
-        .wdata (a_wdata)
-    );
-
-
-    // ============================================================
-    // B SRAM
-    // ============================================================
-
-    sram_model #(
-        .DATA_WIDTH (COLS * DATA_WIDTH),
-        .ADDR_WIDTH (ADDR_WIDTH),
-        .DEPTH      (DEPTH)
-    ) u_b_sram (
-        .clk   (clk),
+        .wdata (a_wdata),
 
         .ren   (ren),
+        .rbank (a_rbank),
         .raddr (raddr),
-        .rdata (b_rdata),
-
-        .wen   (b_wen),
-        .waddr (b_waddr),
-        .wdata (b_wdata)
+        .rdata (a_rdata)
     );
 
 
     // ============================================================
-    // C SRAM banks
+    // B Operand Buffer
+    // ============================================================
+
+    operand_buffer #(
+        .DATA_WIDTH   (COLS * DATA_WIDTH),
+        .DEPTH        (DEPTH),
+        .ADDR_WIDTH   (ADDR_WIDTH),
+        .BUFFER_COUNT (B_BUFFER_COUNT)
+    ) u_b_buffer (
+        .clk   (clk),
+
+        .wen   (b_wen),
+        .wbank (b_wbank),
+        .waddr (b_waddr),
+        .wdata (b_wdata),
+
+        .ren   (ren),
+        .rbank (b_rbank),
+        .raddr (raddr),
+        .rdata (b_rdata)
+    );
+
+
+    // ============================================================
+    // C Buffer
     //
-    // Each bank is:
-    //
-    // DEPTH × ACC_WIDTH
-    //
-    // Example for 4 columns:
-    //
-    // Bank0[address] = C[row][0]
-    // Bank1[address] = C[row][1]
-    // Bank2[address] = C[row][2]
-    // Bank3[address] = C[row][3]
+    // COLS banks, one INT32 result per bank.
     // ============================================================
 
     genvar bank;
@@ -171,6 +146,5 @@ module scratchpad #(
         end
 
     endgenerate
-
 
 endmodule

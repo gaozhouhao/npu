@@ -27,8 +27,15 @@ module gemm_core_tb;
     logic                    start;
     logic [K_SIZE_WIDTH-1:0] tile_k_size;
 
+    logic [ADDR_WIDTH-1:0] c_base_addr;
+
     logic clear_acc;
     logic writeback_en;
+
+    logic a_wbank;
+    logic a_rbank;
+    logic b_wbank;
+    logic b_rbank;
 
     logic busy;
     logic done;
@@ -89,6 +96,8 @@ module gemm_core_tb;
         .start        (start),
         .tile_k_size  (tile_k_size),
 
+        .c_base_addr (c_base_addr),
+
         .clear_acc    (clear_acc),
         .writeback_en (writeback_en),
 
@@ -98,10 +107,16 @@ module gemm_core_tb;
         .a_wen        (a_wen),
         .a_waddr      (a_waddr),
         .a_wdata      (a_wdata),
+        .a_wbank (a_wbank),
+        .a_rbank (a_rbank),
+
+
 
         .b_wen        (b_wen),
         .b_waddr      (b_waddr),
         .b_wdata      (b_wdata),
+        .b_wbank (b_wbank),
+        .b_rbank (b_rbank),
 
         .c_ren        (c_ren),
         .c_raddr      (c_raddr),
@@ -119,7 +134,15 @@ module gemm_core_tb;
 
         clk = 1'b0;
 
+        c_base_addr = '0;
+
         forever #5 clk = ~clk;
+
+        a_wbank = 1'b0;
+        a_rbank = 1'b0;
+
+        b_wbank = 1'b0;
+        b_rbank = 1'b0;
 
     end
 
