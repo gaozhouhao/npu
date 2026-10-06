@@ -159,6 +159,27 @@ mn_tiling:
 	./$(BUILD_DIR)/mn_tiling/Vmn_tiling_tb
 
 
+buffer_manager:
+	mkdir -p $(BUILD_DIR)/buffer_manager
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(BUILD_DIR)/buffer_manager \
+		--top-module buffer_manager_tb \
+		rtl/memory/buffer_manager.sv \
+		sim/tb/buffer_manager_tb.sv
+	./$(BUILD_DIR)/buffer_manager/Vbuffer_manager_tb
+
+
+
+tile_scheduler:
+	mkdir -p $(BUILD_DIR)/tile_scheduler
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(BUILD_DIR)/tile_scheduler \
+		--top-module tile_scheduler_tb \
+		rtl/core/tile_scheduler.sv \
+		sim/tb/tile_scheduler_tb.sv
+	./$(BUILD_DIR)/tile_scheduler/Vtile_scheduler_tb
+
+
 # ============================================================
 # Clean
 # ============================================================
