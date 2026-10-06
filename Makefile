@@ -180,6 +180,28 @@ tile_scheduler:
 	./$(BUILD_DIR)/tile_scheduler/Vtile_scheduler_tb
 
 
+operand_loader:
+	mkdir -p $(BUILD_DIR)/operand_loader
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(BUILD_DIR)/operand_loader \
+		--top-module operand_loader_tb \
+		rtl/memory/operand_loader.sv \
+		sim/tb/operand_loader_tb.sv
+	./$(BUILD_DIR)/operand_loader/Voperand_loader_tb
+
+operand_path:
+	mkdir -p $(BUILD_DIR)/operand_path
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(BUILD_DIR)/operand_path \
+		--top-module operand_path_tb \
+		rtl/memory/sram_model.sv \
+		rtl/memory/operand_buffer.sv \
+		rtl/memory/buffer_manager.sv \
+		rtl/memory/operand_loader.sv \
+		sim/tb/operand_path_tb.sv
+	./$(BUILD_DIR)/operand_path/Voperand_path_tb
+
+
 # ============================================================
 # Clean
 # ============================================================
