@@ -210,6 +210,29 @@ command_frontend:
 		sim/tb/command_frontend_tb.sv
 	./$(BUILD_DIR)/command_frontend/Vcommand_frontend_tb
 
+gemm_dma_integration:
+	mkdir -p $(BUILD_DIR)/gemm_dma_integration
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(BUILD_DIR)/gemm_dma_integration \
+		--top-module gemm_dma_integration_tb \
+		rtl/memory/sram_model.sv \
+		rtl/memory/operand_buffer.sv \
+		rtl/memory/scratchpad.sv \
+		rtl/memory/operand_loader.sv \
+		rtl/dma/axi_read_master.sv \
+		rtl/dma/strided_read_engine.sv \
+		rtl/dma/operand_read_dma.sv \
+		rtl/dma/read_request_arbiter.sv \
+		rtl/dma/gemm_read_path.sv \
+		rtl/compute/pe.sv \
+		rtl/compute/input_skew.sv \
+		rtl/compute/systolic_array.sv \
+		rtl/compute/matrix_engine.sv \
+		rtl/core/matrix_controller.sv \
+		rtl/core/gemm_core.sv \
+		sim/tb/gemm_dma_integration_tb.sv
+	./$(BUILD_DIR)/gemm_dma_integration/Vgemm_dma_integration_tb
+
 
 # ============================================================
 # Standalone external system memory DPI test
