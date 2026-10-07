@@ -234,6 +234,34 @@ gemm_dma_integration:
 	./$(BUILD_DIR)/gemm_dma_integration/Vgemm_dma_integration_tb
 
 
+gemm_executor:
+	mkdir -p $(BUILD_DIR)/gemm_executor
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(BUILD_DIR)/gemm_executor \
+		--top-module gemm_executor_tb \
+		rtl/memory/sram_model.sv \
+		rtl/memory/operand_buffer.sv \
+		rtl/memory/scratchpad.sv \
+		rtl/memory/operand_loader.sv \
+		rtl/memory/buffer_manager.sv \
+		rtl/dma/axi_read_master.sv \
+		rtl/dma/strided_read_engine.sv \
+		rtl/dma/operand_read_dma.sv \
+		rtl/dma/read_request_arbiter.sv \
+		rtl/dma/gemm_read_path.sv \
+		rtl/compute/pe.sv \
+		rtl/compute/input_skew.sv \
+		rtl/compute/systolic_array.sv \
+		rtl/compute/matrix_engine.sv \
+		rtl/core/matrix_controller.sv \
+		rtl/core/gemm_core.sv \
+		rtl/core/tile_scheduler.sv \
+		rtl/core/gemm_address_generator.sv \
+		rtl/core/gemm_executor.sv \
+		sim/tb/gemm_executor_tb.sv
+	./$(BUILD_DIR)/gemm_executor/Vgemm_executor_tb
+
+
 # ============================================================
 # Standalone external system memory DPI test
 # ============================================================
