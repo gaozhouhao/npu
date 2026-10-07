@@ -84,7 +84,7 @@ module gemm_executor #(
         acc_out [ROWS][COLS],
 
     // ============================================================
-    // AXI4 READ ADDRESS CHANNEL
+    // AXI4 Read Address Channel
     // ============================================================
 
     output logic [ID_WIDTH-1:0]       m_axi_arid,
@@ -96,7 +96,7 @@ module gemm_executor #(
     input  logic                      m_axi_arready,
 
     // ============================================================
-    // AXI4 READ DATA CHANNEL
+    // AXI4 Read Data Channel
     // ============================================================
 
     input  logic [ID_WIDTH-1:0]       m_axi_rid,
@@ -107,7 +107,7 @@ module gemm_executor #(
     output logic                      m_axi_rready,
 
     // ============================================================
-    // AXI4 WRITE ADDRESS CHANNEL
+    // AXI4 Write Address Channel
     // ============================================================
 
     output logic [ID_WIDTH-1:0]       m_axi_awid,
@@ -119,17 +119,26 @@ module gemm_executor #(
     input  logic                      m_axi_awready,
 
     // ============================================================
-    // AXI4 WRITE DATA CHANNEL
+    // AXI4 Write Data Channel
     // ============================================================
 
-    output logic [MEM_WORD_WIDTH-1:0]     m_axi_wdata,
-    output logic [(MEM_WORD_WIDTH/8)-1:0] m_axi_wstrb,
-    output logic                          m_axi_wlast,
-    output logic                          m_axi_wvalid,
-    input  logic                          m_axi_wready,
+    output logic [MEM_WORD_WIDTH-1:0]
+        m_axi_wdata,
+
+    output logic [(MEM_WORD_WIDTH/8)-1:0]
+        m_axi_wstrb,
+
+    output logic
+        m_axi_wlast,
+
+    output logic
+        m_axi_wvalid,
+
+    input logic
+        m_axi_wready,
 
     // ============================================================
-    // AXI4 WRITE RESPONSE CHANNEL
+    // AXI4 Write Response Channel
     // ============================================================
 
     input  logic [ID_WIDTH-1:0] m_axi_bid,
@@ -140,7 +149,7 @@ module gemm_executor #(
 
 
     // ============================================================
-    // Executor state
+    // Executor FSM
     // ============================================================
 
     typedef enum logic [1:0] {
@@ -214,7 +223,10 @@ module gemm_executor #(
 
 
         if (
-            (cmd_k % 32'(K_TILE_SIZE)) ==
+            (
+                cmd_k %
+                32'(K_TILE_SIZE)
+            ) ==
             32'd0
         ) begin
 
@@ -256,10 +268,13 @@ module gemm_executor #(
     // ============================================================
     // Command validation
     //
+    // Zero-sized GEMM is not supported.
+    //
     // M/N edge tiles currently rely on software/runtime padding.
     // ============================================================
 
     logic command_invalid;
+
 
     always_comb begin
 
@@ -272,7 +287,7 @@ module gemm_executor #(
 
 
     // ============================================================
-    // Scheduler signals
+    // Scheduler
     // ============================================================
 
     logic scheduler_start;
@@ -281,9 +296,9 @@ module gemm_executor #(
     logic scheduler_done;
 
 
-    // ------------------------------------------------------------
-    // Loader
-    // ------------------------------------------------------------
+    // ============================================================
+    // Scheduler load stage
+    // ============================================================
 
     logic scheduler_a_load_req;
     logic scheduler_a_load_accept;
@@ -294,51 +309,57 @@ module gemm_executor #(
     logic scheduler_b_load_done;
 
 
-    // ------------------------------------------------------------
-    // Buffer manager compute side
-    // ------------------------------------------------------------
+    logic [TILE_COUNT_WIDTH-1:0]
+        load_m_tile_idx;
+
+    logic [TILE_COUNT_WIDTH-1:0]
+        load_n_tile_idx;
+
+    logic [TILE_COUNT_WIDTH-1:0]
+        load_k_tile_idx;
+
+
+    logic [K_SIZE_WIDTH-1:0]
+        scheduler_load_k_size;
+
+
+    // ============================================================
+    // Scheduler compute stage
+    // ============================================================
 
     logic scheduler_a_compute_req;
     logic scheduler_a_compute_grant;
+
     logic scheduler_a_compute_done;
     logic scheduler_a_release_bank;
 
+
     logic scheduler_b_compute_req;
     logic scheduler_b_compute_grant;
+
     logic scheduler_b_compute_done;
     logic scheduler_b_release_bank;
 
 
-    // ------------------------------------------------------------
-    // Matrix core
-    // ------------------------------------------------------------
-
     logic scheduler_matrix_start;
-    logic scheduler_matrix_done;
 
     logic scheduler_clear_acc;
     logic scheduler_writeback_en;
 
+
     logic [K_SIZE_WIDTH-1:0]
-        scheduler_current_k_size;
+        scheduler_compute_k_size;
 
-
-    // ------------------------------------------------------------
-    // Tile coordinates
-    // ------------------------------------------------------------
 
     logic [TILE_COUNT_WIDTH-1:0]
-        m_tile_idx;
+        compute_m_tile_idx;
 
     logic [TILE_COUNT_WIDTH-1:0]
-        n_tile_idx;
-
-    logic [TILE_COUNT_WIDTH-1:0]
-        k_tile_idx;
+        compute_n_tile_idx;
 
 
     // ============================================================
-    // Generated tile addresses
+    // External-memory tile addresses
     // ============================================================
 
     logic [ADDR_WIDTH-1:0]
@@ -352,7 +373,7 @@ module gemm_executor #(
 
 
     // ============================================================
-    // Read path <-> buffer manager load side
+    // Read path <-> buffer manager load interfaces
     // ============================================================
 
     logic a_bank_load_req;
@@ -367,7 +388,7 @@ module gemm_executor #(
 
 
     // ============================================================
-    // Compute-bank selection
+    // Buffer-manager compute bank
     // ============================================================
 
     logic a_compute_bank;
@@ -375,20 +396,39 @@ module gemm_executor #(
 
 
     // ============================================================
-    // DMA -> scratchpad writes
+    // DMA -> operand scratchpad
     // ============================================================
 
-    logic                       a_wen;
-    logic                       a_wbank;
-    logic [A_LANE_WIDTH-1:0]    a_wlane;
-    logic [WORD_ADDR_WIDTH-1:0] a_waddr;
-    logic [MEM_WORD_WIDTH-1:0]  a_wdata;
+    logic
+        a_wen;
 
-    logic                       b_wen;
-    logic                       b_wbank;
-    logic [B_LANE_WIDTH-1:0]    b_wlane;
-    logic [WORD_ADDR_WIDTH-1:0] b_waddr;
-    logic [MEM_WORD_WIDTH-1:0]  b_wdata;
+    logic
+        a_wbank;
+
+    logic [A_LANE_WIDTH-1:0]
+        a_wlane;
+
+    logic [WORD_ADDR_WIDTH-1:0]
+        a_waddr;
+
+    logic [MEM_WORD_WIDTH-1:0]
+        a_wdata;
+
+
+    logic
+        b_wen;
+
+    logic
+        b_wbank;
+
+    logic [B_LANE_WIDTH-1:0]
+        b_wlane;
+
+    logic [WORD_ADDR_WIDTH-1:0]
+        b_waddr;
+
+    logic [MEM_WORD_WIDTH-1:0]
+        b_wdata;
 
 
     // ============================================================
@@ -403,7 +443,7 @@ module gemm_executor #(
 
 
     // ============================================================
-    // GEMM core
+    // GEMM core status
     // ============================================================
 
     logic core_busy;
@@ -411,25 +451,37 @@ module gemm_executor #(
 
 
     // ============================================================
-    // Local C-buffer read interface
+    // Local C-buffer interface
     // ============================================================
 
-    logic                        c_ren;
-    logic [CORE_ADDR_WIDTH-1:0] c_raddr;
-    logic [COLS*ACC_WIDTH-1:0]  c_rdata;
+    logic
+        c_ren;
+
+    logic [CORE_ADDR_WIDTH-1:0]
+        c_raddr;
+
+    logic [COLS*ACC_WIDTH-1:0]
+        c_rdata;
 
 
     // ============================================================
     // C write DMA
     // ============================================================
 
-    logic c_tile_pending_q;
+    logic
+        c_tile_pending_q;
 
-    logic c_write_tile_accept;
+    logic
+        c_write_tile_accept;
 
-    logic c_write_busy;
-    logic c_write_done;
-    logic c_write_error;
+    logic
+        c_write_busy;
+
+    logic
+        c_write_done;
+
+    logic
+        c_write_error;
 
 
     // ============================================================
@@ -439,12 +491,13 @@ module gemm_executor #(
     assign cmd_ready =
         (exec_state == EX_IDLE);
 
+
     assign scheduler_start =
         (exec_state == EX_LAUNCH);
 
 
     // ============================================================
-    // Overall executor status
+    // Overall status
     // ============================================================
 
     assign busy =
@@ -457,40 +510,21 @@ module gemm_executor #(
         core_busy ||
         c_write_busy;
 
+
     assign done =
         (exec_state == EX_DONE);
 
 
     // ============================================================
-    // Scheduler matrix completion
-    //
-    // Intermediate K tile:
-    //
-    //     GEMM core done
-    //       ↓
-    //     scheduler advances immediately
-    //
-    // Final K tile:
-    //
-    //     GEMM core done
-    //       ↓
-    //     C write DMA
-    //       ↓
-    //     AXI write complete
-    //       ↓
-    //     scheduler advances
-    // ============================================================
-
-    assign scheduler_matrix_done =
-        (
-            core_done &&
-            !scheduler_writeback_en
-        ) ||
-        c_write_done;
-
-
-    // ============================================================
     // Tile scheduler
+    //
+    // Load and compute stages are now independent.
+    //
+    // While compute tile i is running:
+    //
+    //     load tile i+1
+    //
+    // may proceed in parallel if an EMPTY operand bank exists.
     // ============================================================
 
     tile_scheduler #(
@@ -498,63 +532,97 @@ module gemm_executor #(
         .K_TILE_SIZE      (K_TILE_SIZE),
         .K_SIZE_WIDTH     (K_SIZE_WIDTH)
     ) u_tile_scheduler (
-        .clk             (clk),
-        .reset           (reset),
+        .clk                (clk),
+        .reset              (reset),
 
-        .start           (scheduler_start),
+        // --------------------------------------------------------
+        // GEMM shape
+        // --------------------------------------------------------
 
-        .m_tile_count    (m_tile_count_q),
-        .n_tile_count    (n_tile_count_q),
-        .k_tile_count    (k_tile_count_q),
+        .start              (scheduler_start),
 
-        .last_k_size     (last_k_size_q),
+        .m_tile_count       (m_tile_count_q),
+        .n_tile_count       (n_tile_count_q),
+        .k_tile_count       (k_tile_count_q),
 
-        // A loader
-        .a_load_req      (scheduler_a_load_req),
-        .a_load_accept   (scheduler_a_load_accept),
-        .a_load_done     (scheduler_a_load_done),
+        .last_k_size        (last_k_size_q),
 
-        // B loader
-        .b_load_req      (scheduler_b_load_req),
-        .b_load_accept   (scheduler_b_load_accept),
-        .b_load_done     (scheduler_b_load_done),
+        // --------------------------------------------------------
+        // Load stage
+        // --------------------------------------------------------
 
-        // A compute bank
-        .a_compute_req   (scheduler_a_compute_req),
-        .a_compute_grant (scheduler_a_compute_grant),
+        .a_load_req         (scheduler_a_load_req),
+        .a_load_accept      (scheduler_a_load_accept),
+        .a_load_done        (scheduler_a_load_done),
 
-        .a_compute_done  (scheduler_a_compute_done),
-        .a_release_bank  (scheduler_a_release_bank),
+        .b_load_req         (scheduler_b_load_req),
+        .b_load_accept      (scheduler_b_load_accept),
+        .b_load_done        (scheduler_b_load_done),
 
-        // B compute bank
-        .b_compute_req   (scheduler_b_compute_req),
-        .b_compute_grant (scheduler_b_compute_grant),
+        .load_m_tile_idx    (load_m_tile_idx),
+        .load_n_tile_idx    (load_n_tile_idx),
+        .load_k_tile_idx    (load_k_tile_idx),
 
-        .b_compute_done  (scheduler_b_compute_done),
-        .b_release_bank  (scheduler_b_release_bank),
+        .load_k_size        (scheduler_load_k_size),
 
-        // Matrix
-        .matrix_start    (scheduler_matrix_start),
-        .matrix_done     (scheduler_matrix_done),
+        // --------------------------------------------------------
+        // A buffer manager - compute side
+        // --------------------------------------------------------
 
-        .clear_acc       (scheduler_clear_acc),
-        .writeback_en    (scheduler_writeback_en),
+        .a_compute_req      (scheduler_a_compute_req),
+        .a_compute_grant    (scheduler_a_compute_grant),
 
-        .current_k_size  (scheduler_current_k_size),
+        .a_compute_done     (scheduler_a_compute_done),
+        .a_release_bank     (scheduler_a_release_bank),
 
-        // Tile coordinates
-        .m_tile_idx      (m_tile_idx),
-        .n_tile_idx      (n_tile_idx),
-        .k_tile_idx      (k_tile_idx),
+        // --------------------------------------------------------
+        // B buffer manager - compute side
+        // --------------------------------------------------------
 
+        .b_compute_req      (scheduler_b_compute_req),
+        .b_compute_grant    (scheduler_b_compute_grant),
+
+        .b_compute_done     (scheduler_b_compute_done),
+        .b_release_bank     (scheduler_b_release_bank),
+
+        // --------------------------------------------------------
+        // GEMM compute
+        //
+        // matrix_done is RAW compute completion.
+        //
+        // writeback_done is external C-write completion.
+        // --------------------------------------------------------
+
+        .matrix_start       (scheduler_matrix_start),
+        .matrix_done        (core_done),
+
+        .writeback_done     (c_write_done),
+
+        .clear_acc          (scheduler_clear_acc),
+        .writeback_en       (scheduler_writeback_en),
+
+        .compute_k_size     (scheduler_compute_k_size),
+
+        .compute_m_tile_idx (compute_m_tile_idx),
+        .compute_n_tile_idx (compute_n_tile_idx),
+
+        // --------------------------------------------------------
         // Status
-        .busy            (scheduler_busy),
-        .done            (scheduler_done)
+        // --------------------------------------------------------
+
+        .busy               (scheduler_busy),
+        .done               (scheduler_done)
     );
 
 
     // ============================================================
     // GEMM address generator
+    //
+    // A/B addresses:
+    //     load-stage coordinates
+    //
+    // C address:
+    //     compute-stage coordinates
     // ============================================================
 
     gemm_address_generator #(
@@ -569,26 +637,36 @@ module gemm_executor #(
 
         .K_TILE           (K_TILE_SIZE)
     ) u_address_generator (
-        .a_base         (a_base_q),
-        .b_base         (b_base_q),
-        .c_base         (c_base_q),
+        .a_base             (a_base_q),
+        .b_base             (b_base_q),
+        .c_base             (c_base_q),
 
-        .a_stride_bytes (a_stride_q),
-        .b_stride_bytes (b_stride_q),
-        .c_stride_bytes (c_stride_q),
+        .a_stride_bytes     (a_stride_q),
+        .b_stride_bytes     (b_stride_q),
+        .c_stride_bytes     (c_stride_q),
 
-        .m_tile_idx     (m_tile_idx),
-        .n_tile_idx     (n_tile_idx),
-        .k_tile_idx     (k_tile_idx),
+        // Load tile
+        .load_m_tile_idx    (load_m_tile_idx),
+        .load_n_tile_idx    (load_n_tile_idx),
+        .load_k_tile_idx    (load_k_tile_idx),
 
-        .a_tile_addr    (a_tile_addr),
-        .b_tile_addr    (b_tile_addr),
-        .c_tile_addr    (c_tile_addr)
+        // Compute tile
+        .compute_m_tile_idx (compute_m_tile_idx),
+        .compute_n_tile_idx (compute_n_tile_idx),
+
+        // External addresses
+        .a_tile_addr        (a_tile_addr),
+        .b_tile_addr        (b_tile_addr),
+        .c_tile_addr        (c_tile_addr)
     );
 
 
     // ============================================================
     // A buffer manager
+    //
+    // With BUFFER_COUNT=2:
+    //
+    // one bank may be COMPUTING while the other is LOADING.
     // ============================================================
 
     buffer_manager #(
@@ -597,10 +675,18 @@ module gemm_executor #(
         .clk           (clk),
         .reset         (reset),
 
+        // --------------------------------------------------------
+        // Load side
+        // --------------------------------------------------------
+
         .load_req      (a_bank_load_req),
         .load_grant    (a_bank_load_grant),
         .load_bank     (a_bank_load_bank),
         .load_done     (a_bank_load_done),
+
+        // --------------------------------------------------------
+        // Compute side
+        // --------------------------------------------------------
 
         .compute_req   (scheduler_a_compute_req),
         .compute_grant (scheduler_a_compute_grant),
@@ -621,10 +707,18 @@ module gemm_executor #(
         .clk           (clk),
         .reset         (reset),
 
+        // --------------------------------------------------------
+        // Load side
+        // --------------------------------------------------------
+
         .load_req      (b_bank_load_req),
         .load_grant    (b_bank_load_grant),
         .load_bank     (b_bank_load_bank),
         .load_done     (b_bank_load_done),
+
+        // --------------------------------------------------------
+        // Compute side
+        // --------------------------------------------------------
 
         .compute_req   (scheduler_b_compute_req),
         .compute_grant (scheduler_b_compute_grant),
@@ -636,7 +730,11 @@ module gemm_executor #(
 
 
     // ============================================================
-    // A/B read path
+    // A/B Read DMA Path
+    //
+    // IMPORTANT:
+    //
+    // DMA uses LOAD-stage metadata, not compute-stage metadata.
     // ============================================================
 
     gemm_read_path #(
@@ -656,59 +754,89 @@ module gemm_executor #(
         .clk               (clk),
         .reset             (reset),
 
-        // A
+        // ========================================================
+        // A tile load
+        // ========================================================
+
         .a_load_req        (scheduler_a_load_req),
         .a_load_accept     (scheduler_a_load_accept),
 
         .a_base_addr       (a_tile_addr),
         .a_stride_bytes    (a_stride_q),
-        .a_load_size       (scheduler_current_k_size),
+
+        .a_load_size       (
+            scheduler_load_k_size
+        ),
 
         .a_load_done       (scheduler_a_load_done),
         .a_load_error      (a_load_error),
 
-        // B
+        // ========================================================
+        // B tile load
+        // ========================================================
+
         .b_load_req        (scheduler_b_load_req),
         .b_load_accept     (scheduler_b_load_accept),
 
         .b_base_addr       (b_tile_addr),
         .b_stride_bytes    (b_stride_q),
-        .b_load_size       (scheduler_current_k_size),
+
+        .b_load_size       (
+            scheduler_load_k_size
+        ),
 
         .b_load_done       (scheduler_b_load_done),
         .b_load_error      (b_load_error),
 
-        // A bank loading
+        // ========================================================
+        // A buffer-manager load interface
+        // ========================================================
+
         .a_bank_load_req   (a_bank_load_req),
         .a_bank_load_grant (a_bank_load_grant),
         .a_bank_load_bank  (a_bank_load_bank),
         .a_bank_load_done  (a_bank_load_done),
 
-        // B bank loading
+        // ========================================================
+        // B buffer-manager load interface
+        // ========================================================
+
         .b_bank_load_req   (b_bank_load_req),
         .b_bank_load_grant (b_bank_load_grant),
         .b_bank_load_bank  (b_bank_load_bank),
         .b_bank_load_done  (b_bank_load_done),
 
-        // A scratchpad write
+        // ========================================================
+        // A SRAM write
+        // ========================================================
+
         .a_wen             (a_wen),
         .a_wbank           (a_wbank),
         .a_wlane           (a_wlane),
         .a_waddr           (a_waddr),
         .a_wdata           (a_wdata),
 
-        // B scratchpad write
+        // ========================================================
+        // B SRAM write
+        // ========================================================
+
         .b_wen             (b_wen),
         .b_wbank           (b_wbank),
         .b_wlane           (b_wlane),
         .b_waddr           (b_waddr),
         .b_wdata           (b_wdata),
 
+        // ========================================================
         // Status
+        // ========================================================
+
         .busy              (read_path_busy),
         .error             (read_path_error),
 
-        // AXI read
+        // ========================================================
+        // AXI Read Address
+        // ========================================================
+
         .m_axi_arid        (m_axi_arid),
         .m_axi_araddr      (m_axi_araddr),
         .m_axi_arlen       (m_axi_arlen),
@@ -716,6 +844,10 @@ module gemm_executor #(
         .m_axi_arburst     (m_axi_arburst),
         .m_axi_arvalid     (m_axi_arvalid),
         .m_axi_arready     (m_axi_arready),
+
+        // ========================================================
+        // AXI Read Data
+        // ========================================================
 
         .m_axi_rid         (m_axi_rid),
         .m_axi_rdata       (m_axi_rdata),
@@ -727,9 +859,13 @@ module gemm_executor #(
 
 
     // ============================================================
-    // GEMM core
+    // GEMM Core
     //
-    // Each local C tile always starts at C-buffer address 0.
+    // Compute uses COMPUTE-stage K size.
+    //
+    // A/B read banks are selected by buffer_manager.
+    //
+    // DMA may simultaneously write the opposite banks.
     // ============================================================
 
     gemm_core #(
@@ -749,47 +885,81 @@ module gemm_executor #(
         .clk          (clk),
         .reset        (reset),
 
-        .start        (scheduler_matrix_start),
-        .tile_k_size  (scheduler_current_k_size),
+        // --------------------------------------------------------
+        // Compute control
+        // --------------------------------------------------------
 
-        .clear_acc    (scheduler_clear_acc),
-        .writeback_en (scheduler_writeback_en),
+        .start        (scheduler_matrix_start),
+
+        .tile_k_size  (
+            scheduler_compute_k_size
+        ),
+
+        .clear_acc    (
+            scheduler_clear_acc
+        ),
+
+        .writeback_en (
+            scheduler_writeback_en
+        ),
 
         .busy         (core_busy),
         .done         (core_done),
 
+        // --------------------------------------------------------
+        // Every local C tile starts from row address 0.
+        // --------------------------------------------------------
+
         .c_base_addr  ('0),
 
-        // A preload
+        // ========================================================
+        // A scratchpad
+        // ========================================================
+
+        // DMA write side
         .a_wen        (a_wen),
         .a_wlane      (a_wlane),
         .a_waddr      (a_waddr),
         .a_wdata      (a_wdata),
-
         .a_wbank      (a_wbank),
+
+        // Compute read bank
         .a_rbank      (a_compute_bank),
 
-        // B preload
+        // ========================================================
+        // B scratchpad
+        // ========================================================
+
+        // DMA write side
         .b_wen        (b_wen),
         .b_wlane      (b_wlane),
         .b_waddr      (b_waddr),
         .b_wdata      (b_wdata),
-
         .b_wbank      (b_wbank),
+
+        // Compute read bank
         .b_rbank      (b_compute_bank),
 
+        // ========================================================
         // C buffer
+        // ========================================================
+
         .c_ren        (c_ren),
         .c_raddr      (c_raddr),
         .c_rdata      (c_rdata),
 
+        // ========================================================
         // Debug
+        // ========================================================
+
         .acc_out      (acc_out)
     );
 
 
     // ============================================================
-    // C write DMA
+    // C Write DMA
+    //
+    // C tile address is generated from COMPUTE-stage m/n.
     // ============================================================
 
     c_write_dma #(
@@ -808,24 +978,46 @@ module gemm_executor #(
         .clk               (clk),
         .reset             (reset),
 
-        // Completed local tile
-        .tile_valid        (c_tile_pending_q),
-        .tile_accept       (c_write_tile_accept),
+        // --------------------------------------------------------
+        // Completed C tile
+        // --------------------------------------------------------
 
-        .tile_addr         (c_tile_addr),
-        .tile_stride_bytes (c_stride_q),
+        .tile_valid        (
+            c_tile_pending_q
+        ),
 
-        // C-buffer read
+        .tile_accept       (
+            c_write_tile_accept
+        ),
+
+        .tile_addr         (
+            c_tile_addr
+        ),
+
+        .tile_stride_bytes (
+            c_stride_q
+        ),
+
+        // --------------------------------------------------------
+        // Local C buffer
+        // --------------------------------------------------------
+
         .c_ren             (c_ren),
         .c_raddr           (c_raddr),
         .c_rdata           (c_rdata),
 
+        // --------------------------------------------------------
         // Status
+        // --------------------------------------------------------
+
         .busy              (c_write_busy),
         .done              (c_write_done),
         .error             (c_write_error),
 
-        // AXI AW
+        // --------------------------------------------------------
+        // AXI Write Address
+        // --------------------------------------------------------
+
         .m_axi_awid        (m_axi_awid),
         .m_axi_awaddr      (m_axi_awaddr),
         .m_axi_awlen       (m_axi_awlen),
@@ -834,14 +1026,20 @@ module gemm_executor #(
         .m_axi_awvalid     (m_axi_awvalid),
         .m_axi_awready     (m_axi_awready),
 
-        // AXI W
+        // --------------------------------------------------------
+        // AXI Write Data
+        // --------------------------------------------------------
+
         .m_axi_wdata       (m_axi_wdata),
         .m_axi_wstrb       (m_axi_wstrb),
         .m_axi_wlast       (m_axi_wlast),
         .m_axi_wvalid      (m_axi_wvalid),
         .m_axi_wready      (m_axi_wready),
 
-        // AXI B
+        // --------------------------------------------------------
+        // AXI Write Response
+        // --------------------------------------------------------
+
         .m_axi_bid         (m_axi_bid),
         .m_axi_bresp       (m_axi_bresp),
         .m_axi_bvalid      (m_axi_bvalid),
@@ -850,10 +1048,22 @@ module gemm_executor #(
 
 
     // ============================================================
-    // Completed-C-tile pending flag
+    // Completed C tile pending
     //
-    // The scheduler remains in ST_COMPUTE until the C tile has
-    // actually been written to external memory.
+    // IMPORTANT:
+    //
+    // A/B operand banks are released by tile_scheduler immediately
+    // at core_done.
+    //
+    // C writeback is independent from those operand banks.
+    //
+    // Therefore:
+    //
+    //     C writeback
+    //          ||
+    //     next A/B prefetch
+    //
+    // may overlap.
     // ============================================================
 
     always_ff @(posedge clk) begin
@@ -865,7 +1075,10 @@ module gemm_executor #(
 
         end else begin
 
-            // Final K tile completed.
+            // ----------------------------------------------------
+            // Final K tile of current C tile has completed.
+            // ----------------------------------------------------
+
             if (
                 core_done &&
                 scheduler_writeback_en
@@ -877,7 +1090,10 @@ module gemm_executor #(
             end
 
 
-            // C DMA finished and accepted the tile.
+            // ----------------------------------------------------
+            // C write DMA consumed the tile.
+            // ----------------------------------------------------
+
             if (c_write_tile_accept) begin
 
                 c_tile_pending_q <=
@@ -886,7 +1102,10 @@ module gemm_executor #(
             end
 
 
-            // New command.
+            // ----------------------------------------------------
+            // New GEMM command.
+            // ----------------------------------------------------
+
             if (
                 cmd_valid &&
                 cmd_ready
@@ -903,7 +1122,7 @@ module gemm_executor #(
 
 
     // ============================================================
-    // Main executor FSM
+    // Executor FSM
     // ============================================================
 
     always_ff @(posedge clk) begin
@@ -912,6 +1131,7 @@ module gemm_executor #(
 
             exec_state <=
                 EX_IDLE;
+
 
             a_base_q <=
                 '0;
@@ -922,6 +1142,7 @@ module gemm_executor #(
             c_base_q <=
                 '0;
 
+
             a_stride_q <=
                 '0;
 
@@ -930,6 +1151,7 @@ module gemm_executor #(
 
             c_stride_q <=
                 '0;
+
 
             m_tile_count_q <=
                 '0;
@@ -942,6 +1164,7 @@ module gemm_executor #(
 
             last_k_size_q <=
                 '0;
+
 
             error <=
                 1'b0;
@@ -964,6 +1187,7 @@ module gemm_executor #(
                         error <=
                             1'b0;
 
+
                         if (command_invalid) begin
 
                             error <=
@@ -974,6 +1198,10 @@ module gemm_executor #(
 
                         end else begin
 
+                            // -------------------------------------
+                            // Lock external-memory layout.
+                            // -------------------------------------
+
                             a_base_q <=
                                 cmd_a_base;
 
@@ -983,6 +1211,7 @@ module gemm_executor #(
                             c_base_q <=
                                 cmd_c_base;
 
+
                             a_stride_q <=
                                 cmd_a_stride_bytes;
 
@@ -991,6 +1220,11 @@ module gemm_executor #(
 
                             c_stride_q <=
                                 cmd_c_stride_bytes;
+
+
+                            // -------------------------------------
+                            // Lock calculated GEMM tiling.
+                            // -------------------------------------
 
                             m_tile_count_q <=
                                 m_tile_count_calc;
@@ -1004,6 +1238,11 @@ module gemm_executor #(
                             last_k_size_q <=
                                 last_k_size_calc;
 
+
+                            // -------------------------------------
+                            // Scheduler starts next cycle.
+                            // -------------------------------------
+
                             exec_state <=
                                 EX_LAUNCH;
 
@@ -1016,6 +1255,8 @@ module gemm_executor #(
 
                 // =================================================
                 // LAUNCH
+                //
+                // scheduler_start is high for this state.
                 // =================================================
 
                 EX_LAUNCH: begin
@@ -1032,6 +1273,10 @@ module gemm_executor #(
 
                 EX_RUN: begin
 
+                    // ---------------------------------------------
+                    // Accumulate errors.
+                    // ---------------------------------------------
+
                     if (
                         read_path_error ||
                         a_load_error ||
@@ -1045,6 +1290,12 @@ module gemm_executor #(
                     end
 
 
+                    // ---------------------------------------------
+                    // Complete GEMM:
+                    //
+                    // all load / compute / writeback stages drained.
+                    // ---------------------------------------------
+
                     if (scheduler_done) begin
 
                         exec_state <=
@@ -1057,6 +1308,8 @@ module gemm_executor #(
 
                 // =================================================
                 // DONE
+                //
+                // One-cycle completion indication.
                 // =================================================
 
                 EX_DONE: begin
@@ -1092,58 +1345,78 @@ module gemm_executor #(
     initial begin
 
         if (ADDR_WIDTH < 12) begin
+
             $fatal(
                 1,
                 "ADDR_WIDTH must be >= 12"
             );
+
         end
 
 
         if (TILE_COUNT_WIDTH < 1) begin
+
             $fatal(
                 1,
                 "TILE_COUNT_WIDTH must be >= 1"
             );
+
         end
 
 
         if (ROWS < 1) begin
+
             $fatal(
                 1,
                 "ROWS must be >= 1"
             );
+
         end
 
 
         if (COLS < 1) begin
+
             $fatal(
                 1,
                 "COLS must be >= 1"
             );
+
         end
 
 
         if (K_TILE_SIZE < 1) begin
+
             $fatal(
                 1,
                 "K_TILE_SIZE must be >= 1"
             );
+
         end
 
 
-        if ((DATA_WIDTH % 8) != 0) begin
+        if (
+            (DATA_WIDTH % 8) !=
+            0
+        ) begin
+
             $fatal(
                 1,
                 "DATA_WIDTH must be byte aligned"
             );
+
         end
 
 
-        if ((ACC_WIDTH % 8) != 0) begin
+        if (
+            (ACC_WIDTH % 8) !=
+            0
+        ) begin
+
             $fatal(
                 1,
                 "ACC_WIDTH must be byte aligned"
             );
+
         end
 
 
