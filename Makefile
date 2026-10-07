@@ -201,6 +201,15 @@ operand_path:
 		sim/tb/operand_path_tb.sv
 	./$(BUILD_DIR)/operand_path/Voperand_path_tb
 
+command_frontend:
+	mkdir -p $(BUILD_DIR)/command_frontend
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(BUILD_DIR)/command_frontend \
+		--top-module command_frontend_tb \
+		rtl/core/command_frontend.sv \
+		sim/tb/command_frontend_tb.sv
+	./$(BUILD_DIR)/command_frontend/Vcommand_frontend_tb
+
 
 # ============================================================
 # Standalone external system memory DPI test
