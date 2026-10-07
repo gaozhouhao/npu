@@ -258,6 +258,8 @@ gemm_executor:
 		rtl/core/tile_scheduler.sv \
 		rtl/core/gemm_address_generator.sv \
 		rtl/core/gemm_executor.sv \
+		rtl/dma/axi_write_master.sv \
+		rtl/dma/c_write_dma.sv \
 		sim/tb/gemm_executor_tb.sv
 	./$(BUILD_DIR)/gemm_executor/Vgemm_executor_tb
 

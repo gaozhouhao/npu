@@ -12,29 +12,32 @@ module gemm_executor_tb;
     localparam int unsigned ID_WIDTH = 1;
 
     localparam int unsigned K_TILE_SIZE = 256;
-    localparam int unsigned K_TOTAL     = 260;
+
+    localparam int unsigned M_TOTAL = 8;
+    localparam int unsigned N_TOTAL = 8;
+    localparam int unsigned K_TOTAL = 260;
 
     localparam int unsigned A_BUFFER_COUNT = 1;
     localparam int unsigned B_BUFFER_COUNT = 1;
 
-    localparam int unsigned CORE_ADDR_WIDTH =
-        $clog2(K_TILE_SIZE);
-
-    localparam int unsigned STRIDE_BYTES =
-        K_TOTAL;
-
     localparam int unsigned WORD_BYTES =
         MEM_WORD_WIDTH / 8;
 
-    localparam int unsigned WORDS_PER_ROW =
-        STRIDE_BYTES / WORD_BYTES;
+    localparam int unsigned AB_STRIDE_BYTES =
+        K_TOTAL;
+
+    localparam int unsigned C_STRIDE_BYTES =
+        N_TOTAL * (ACC_WIDTH / 8);
+
+    localparam int unsigned WORDS_PER_AB_ROW =
+        AB_STRIDE_BYTES / WORD_BYTES;
 
     localparam int unsigned TIMEOUT_CYCLES =
-        10000;
+        30000;
 
 
     // ============================================================
-    // Memory map
+    // External memory map
     // ============================================================
 
     localparam logic [ADDR_WIDTH-1:0] A_BASE =
@@ -46,11 +49,15 @@ module gemm_executor_tb;
     localparam logic [ADDR_WIDTH-1:0] C_BASE =
         64'h0000_0000_0000_3000;
 
+
     localparam int unsigned A_WORD_BASE =
         32'd1024;
 
     localparam int unsigned BT_WORD_BASE =
         32'd2048;
+
+    localparam int unsigned C_WORD_BASE =
+        32'd3072;
 
 
     // ============================================================
@@ -68,7 +75,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // Command interface
+    // GEMM command
     // ============================================================
 
     logic cmd_valid;
@@ -92,33 +99,15 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // C tile completion
+    // Debug accumulator
     // ============================================================
-
-    logic                  c_tile_valid;
-    logic                  c_tile_accept;
-    logic [ADDR_WIDTH-1:0] c_tile_addr;
-    logic [31:0]           c_tile_stride_bytes;
-
-    logic                  c_tile_seen;
-    logic [ADDR_WIDTH-1:0] c_tile_addr_seen;
-    logic [31:0]           c_tile_stride_seen;
-
-
-    // ============================================================
-    // C buffer read
-    // ============================================================
-
-    logic                               c_ren;
-    logic [CORE_ADDR_WIDTH-1:0]         c_raddr;
-    logic [COLS*ACC_WIDTH-1:0]          c_rdata;
 
     logic signed [ACC_WIDTH-1:0]
         acc_out [ROWS][COLS];
 
 
     // ============================================================
-    // AXI
+    // AXI Read Address Channel
     // ============================================================
 
     logic [ID_WIDTH-1:0]       axi_arid;
@@ -129,6 +118,11 @@ module gemm_executor_tb;
     logic                      axi_arvalid;
     logic                      axi_arready;
 
+
+    // ============================================================
+    // AXI Read Data Channel
+    // ============================================================
+
     logic [ID_WIDTH-1:0]       axi_rid;
     logic [MEM_WORD_WIDTH-1:0] axi_rdata;
     logic [1:0]                axi_rresp;
@@ -138,20 +132,77 @@ module gemm_executor_tb;
 
 
     // ============================================================
+    // AXI Write Address Channel
+    // ============================================================
+
+    logic [ID_WIDTH-1:0]       axi_awid;
+    logic [ADDR_WIDTH-1:0]     axi_awaddr;
+    logic [7:0]                axi_awlen;
+    logic [2:0]                axi_awsize;
+    logic [1:0]                axi_awburst;
+    logic                      axi_awvalid;
+    logic                      axi_awready;
+
+
+    // ============================================================
+    // AXI Write Data Channel
+    // ============================================================
+
+    logic [MEM_WORD_WIDTH-1:0]
+        axi_wdata;
+
+    logic [(MEM_WORD_WIDTH/8)-1:0]
+        axi_wstrb;
+
+    logic axi_wlast;
+    logic axi_wvalid;
+    logic axi_wready;
+
+
+    // ============================================================
+    // AXI Write Response Channel
+    // ============================================================
+
+    logic [ID_WIDTH-1:0] axi_bid;
+    logic [1:0]          axi_bresp;
+    logic                axi_bvalid;
+    logic                axi_bready;
+
+
+    // ============================================================
     // External memory
     //
-    // 16 KB = 4096 x 32-bit
+    // Separate read/write arrays keep this TB simple and avoid
+    // multiple procedural writers.
     // ============================================================
 
-    logic [31:0] memory [0:4095];
-
-    logic                  mem_read_active;
-    logic [ADDR_WIDTH-1:0] mem_read_addr_q;
-    logic [8:0]            mem_beats_left_q;
+    logic [31:0] read_memory  [0:4095];
+    logic [31:0] write_memory [0:4095];
 
 
     // ============================================================
-    // Debug counters
+    // AXI read-slave state
+    // ============================================================
+
+    logic                  rd_active_q;
+    logic [ADDR_WIDTH-1:0] rd_addr_q;
+    logic [8:0]            rd_beats_left_q;
+
+
+    // ============================================================
+    // AXI write-slave state
+    // ============================================================
+
+    logic                  wr_active_q;
+    logic [ADDR_WIDTH-1:0] wr_addr_q;
+    logic [8:0]            wr_beats_left_q;
+
+    logic [ID_WIDTH-1:0]
+        wr_id_q;
+
+
+    // ============================================================
+    // Counters
     // ============================================================
 
     integer cycle_count;
@@ -160,8 +211,25 @@ module gemm_executor_tb;
     integer ar_64beat_count;
     integer ar_1beat_count;
 
-    logic saw_a_second_k_tile;
-    logic saw_b_second_k_tile;
+    integer aw_count;
+    integer w_count;
+    integer b_count;
+
+
+    // ============================================================
+    // Address-coverage flags
+    // ============================================================
+
+    logic saw_a_m1_k0;
+    logic saw_a_m1_k1;
+
+    logic saw_b_n1_k0;
+    logic saw_b_n1_k1;
+
+    logic saw_c_tile_00;
+    logic saw_c_tile_01;
+    logic saw_c_tile_10;
+    logic saw_c_tile_11;
 
 
     // ============================================================
@@ -189,7 +257,10 @@ module gemm_executor_tb;
         .clk                (clk),
         .reset              (reset),
 
-        // command
+        // --------------------------------------------------------
+        // GEMM command
+        // --------------------------------------------------------
+
         .cmd_valid          (cmd_valid),
         .cmd_ready          (cmd_ready),
 
@@ -205,24 +276,20 @@ module gemm_executor_tb;
         .cmd_b_stride_bytes (cmd_b_stride_bytes),
         .cmd_c_stride_bytes (cmd_c_stride_bytes),
 
+        // --------------------------------------------------------
+        // Status
+        // --------------------------------------------------------
+
         .busy               (exec_busy),
         .done               (exec_done),
         .error              (exec_error),
 
-        // completed C tile
-        .c_tile_valid       (c_tile_valid),
-        .c_tile_accept      (c_tile_accept),
-        .c_tile_addr        (c_tile_addr),
-        .c_tile_stride_bytes(c_tile_stride_bytes),
-
-        // C buffer
-        .c_ren              (c_ren),
-        .c_raddr            (c_raddr),
-        .c_rdata            (c_rdata),
-
         .acc_out            (acc_out),
 
-        // AXI AR
+        // --------------------------------------------------------
+        // AXI Read Address
+        // --------------------------------------------------------
+
         .m_axi_arid         (axi_arid),
         .m_axi_araddr       (axi_araddr),
         .m_axi_arlen        (axi_arlen),
@@ -231,13 +298,47 @@ module gemm_executor_tb;
         .m_axi_arvalid      (axi_arvalid),
         .m_axi_arready      (axi_arready),
 
-        // AXI R
+        // --------------------------------------------------------
+        // AXI Read Data
+        // --------------------------------------------------------
+
         .m_axi_rid          (axi_rid),
         .m_axi_rdata        (axi_rdata),
         .m_axi_rresp        (axi_rresp),
         .m_axi_rlast        (axi_rlast),
         .m_axi_rvalid       (axi_rvalid),
-        .m_axi_rready       (axi_rready)
+        .m_axi_rready       (axi_rready),
+
+        // --------------------------------------------------------
+        // AXI Write Address
+        // --------------------------------------------------------
+
+        .m_axi_awid         (axi_awid),
+        .m_axi_awaddr       (axi_awaddr),
+        .m_axi_awlen        (axi_awlen),
+        .m_axi_awsize       (axi_awsize),
+        .m_axi_awburst      (axi_awburst),
+        .m_axi_awvalid      (axi_awvalid),
+        .m_axi_awready      (axi_awready),
+
+        // --------------------------------------------------------
+        // AXI Write Data
+        // --------------------------------------------------------
+
+        .m_axi_wdata        (axi_wdata),
+        .m_axi_wstrb        (axi_wstrb),
+        .m_axi_wlast        (axi_wlast),
+        .m_axi_wvalid       (axi_wvalid),
+        .m_axi_wready       (axi_wready),
+
+        // --------------------------------------------------------
+        // AXI Write Response
+        // --------------------------------------------------------
+
+        .m_axi_bid          (axi_bid),
+        .m_axi_bresp        (axi_bresp),
+        .m_axi_bvalid       (axi_bvalid),
+        .m_axi_bready       (axi_bready)
     );
 
 
@@ -249,7 +350,8 @@ module gemm_executor_tb;
 
         if (reset) begin
 
-            cycle_count <= 0;
+            cycle_count <=
+                0;
 
         end else begin
 
@@ -262,45 +364,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // C tile monitor
-    // ============================================================
-
-    always_ff @(posedge clk) begin
-
-        if (reset) begin
-
-            c_tile_seen        <= 1'b0;
-            c_tile_addr_seen   <= '0;
-            c_tile_stride_seen <= '0;
-
-        end else if (
-            c_tile_valid &&
-            c_tile_accept
-        ) begin
-
-            c_tile_seen <=
-                1'b1;
-
-            c_tile_addr_seen <=
-                c_tile_addr;
-
-            c_tile_stride_seen <=
-                c_tile_stride_bytes;
-
-            $display(
-                "[%0t] C tile complete: addr=0x%016h stride=%0d",
-                $time,
-                c_tile_addr,
-                c_tile_stride_bytes
-            );
-
-        end
-
-    end
-
-
-    // ============================================================
-    // AXI request monitor
+    // AXI Read monitor
     // ============================================================
 
     always_ff @(posedge clk) begin
@@ -316,10 +380,16 @@ module gemm_executor_tb;
             ar_1beat_count <=
                 0;
 
-            saw_a_second_k_tile <=
+            saw_a_m1_k0 <=
                 1'b0;
 
-            saw_b_second_k_tile <=
+            saw_a_m1_k1 <=
+                1'b0;
+
+            saw_b_n1_k0 <=
+                1'b0;
+
+            saw_b_n1_k1 <=
                 1'b0;
 
         end else if (
@@ -330,39 +400,116 @@ module gemm_executor_tb;
             ar_count <=
                 ar_count + 1;
 
-            if (axi_arlen == 8'd63) begin
+
+            // ----------------------------------------------------
+            // Full K tile = 256 bytes = 64 beats
+            // ----------------------------------------------------
+
+            if (
+                axi_arlen ==
+                8'd63
+            ) begin
 
                 ar_64beat_count <=
                     ar_64beat_count + 1;
 
             end
 
-            if (axi_arlen == 8'd0) begin
+
+            // ----------------------------------------------------
+            // K tail = 4 bytes = 1 beat
+            // ----------------------------------------------------
+
+            if (
+                axi_arlen ==
+                8'd0
+            ) begin
 
                 ar_1beat_count <=
                     ar_1beat_count + 1;
 
             end
 
+
+            // ----------------------------------------------------
+            // Verify second M tile addresses for A.
+            //
+            // m_start = 4
+            // A offset = 4 * 260 = 1040 bytes
+            // ----------------------------------------------------
+
             if (
                 axi_araddr ==
-                (A_BASE + ADDR_WIDTH'(K_TILE_SIZE))
+                (
+                    A_BASE +
+                    ADDR_WIDTH'(
+                        4 * AB_STRIDE_BYTES
+                    )
+                )
             ) begin
 
-                saw_a_second_k_tile <=
+                saw_a_m1_k0 <=
                     1'b1;
 
             end
 
+
             if (
                 axi_araddr ==
-                (BT_BASE + ADDR_WIDTH'(K_TILE_SIZE))
+                (
+                    A_BASE +
+                    ADDR_WIDTH'(
+                        (4 * AB_STRIDE_BYTES) +
+                        K_TILE_SIZE
+                    )
+                )
             ) begin
 
-                saw_b_second_k_tile <=
+                saw_a_m1_k1 <=
                     1'b1;
 
             end
+
+
+            // ----------------------------------------------------
+            // Verify second N tile addresses for B^T.
+            //
+            // n_start = 4
+            // BT offset = 4 * 260 = 1040 bytes
+            // ----------------------------------------------------
+
+            if (
+                axi_araddr ==
+                (
+                    BT_BASE +
+                    ADDR_WIDTH'(
+                        4 * AB_STRIDE_BYTES
+                    )
+                )
+            ) begin
+
+                saw_b_n1_k0 <=
+                    1'b1;
+
+            end
+
+
+            if (
+                axi_araddr ==
+                (
+                    BT_BASE +
+                    ADDR_WIDTH'(
+                        (4 * AB_STRIDE_BYTES) +
+                        K_TILE_SIZE
+                    )
+                )
+            ) begin
+
+                saw_b_n1_k1 <=
+                    1'b1;
+
+            end
+
 
             $display(
                 "[%0t] AXI AR addr=0x%016h beats=%0d",
@@ -377,11 +524,11 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // AXI memory model
+    // AXI Read slave
     // ============================================================
 
     assign axi_arready =
-        !mem_read_active &&
+        !rd_active_q &&
         !axi_rvalid;
 
 
@@ -389,20 +536,34 @@ module gemm_executor_tb;
 
         if (reset) begin
 
-            mem_read_active  <= 1'b0;
-            mem_read_addr_q  <= '0;
-            mem_beats_left_q <= '0;
+            rd_active_q <=
+                1'b0;
 
-            axi_rid    <= '0;
-            axi_rdata  <= '0;
-            axi_rresp  <= 2'b00;
-            axi_rlast  <= 1'b0;
-            axi_rvalid <= 1'b0;
+            rd_addr_q <=
+                '0;
+
+            rd_beats_left_q <=
+                '0;
+
+            axi_rid <=
+                '0;
+
+            axi_rdata <=
+                '0;
+
+            axi_rresp <=
+                2'b00;
+
+            axi_rlast <=
+                1'b0;
+
+            axi_rvalid <=
+                1'b0;
 
         end else begin
 
             // ----------------------------------------------------
-            // AR handshake
+            // Accept AR
             // ----------------------------------------------------
 
             if (
@@ -410,40 +571,52 @@ module gemm_executor_tb;
                 axi_arready
             ) begin
 
-                if (axi_arsize != 3'd2) begin
+                if (
+                    axi_arsize !=
+                    3'd2
+                ) begin
 
                     $fatal(
                         1,
-                        "Expected 32-bit AXI beat"
+                        "AXI read ARSIZE must be 2"
                     );
 
                 end
 
-                if (axi_arburst != 2'b01) begin
+
+                if (
+                    axi_arburst !=
+                    2'b01
+                ) begin
 
                     $fatal(
                         1,
-                        "Expected AXI INCR burst"
+                        "AXI read burst must be INCR"
                     );
 
                 end
 
-                if (axi_arid != '0) begin
+
+                if (
+                    axi_arid !=
+                    '0
+                ) begin
 
                     $fatal(
                         1,
-                        "Unexpected AXI ARID"
+                        "Unexpected read ARID"
                     );
 
                 end
 
-                mem_read_active <=
+
+                rd_active_q <=
                     1'b1;
 
-                mem_read_addr_q <=
+                rd_addr_q <=
                     axi_araddr;
 
-                mem_beats_left_q <=
+                rd_beats_left_q <=
                     {1'b0, axi_arlen} +
                     9'd1;
 
@@ -462,25 +635,26 @@ module gemm_executor_tb;
                 axi_rvalid <=
                     1'b0;
 
+
                 if (
-                    mem_beats_left_q ==
+                    rd_beats_left_q ==
                     9'd1
                 ) begin
 
-                    mem_read_active <=
+                    rd_active_q <=
                         1'b0;
 
-                    mem_beats_left_q <=
+                    rd_beats_left_q <=
                         '0;
 
                 end else begin
 
-                    mem_beats_left_q <=
-                        mem_beats_left_q -
+                    rd_beats_left_q <=
+                        rd_beats_left_q -
                         9'd1;
 
-                    mem_read_addr_q <=
-                        mem_read_addr_q +
+                    rd_addr_q <=
+                        rd_addr_q +
                         ADDR_WIDTH'(WORD_BYTES);
 
                 end
@@ -489,11 +663,11 @@ module gemm_executor_tb;
 
 
             // ----------------------------------------------------
-            // Produce next R beat
+            // Generate next R beat
             // ----------------------------------------------------
 
             if (
-                mem_read_active &&
+                rd_active_q &&
                 !axi_rvalid
             ) begin
 
@@ -501,8 +675,8 @@ module gemm_executor_tb;
                     '0;
 
                 axi_rdata <=
-                    memory[
-                        mem_read_addr_q[13:2]
+                    read_memory[
+                        rd_addr_q[13:2]
                     ];
 
                 axi_rresp <=
@@ -510,7 +684,7 @@ module gemm_executor_tb;
 
                 axi_rlast <=
                     (
-                        mem_beats_left_q ==
+                        rd_beats_left_q ==
                         9'd1
                     );
 
@@ -525,12 +699,387 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // Fill one matrix row
-    //
-    // Each row contains K=260 identical INT8 elements.
+    // AXI Write monitor
     // ============================================================
 
-    task automatic fill_row (
+    always_ff @(posedge clk) begin
+
+        if (reset) begin
+
+            aw_count <=
+                0;
+
+            w_count <=
+                0;
+
+            b_count <=
+                0;
+
+            saw_c_tile_00 <=
+                1'b0;
+
+            saw_c_tile_01 <=
+                1'b0;
+
+            saw_c_tile_10 <=
+                1'b0;
+
+            saw_c_tile_11 <=
+                1'b0;
+
+        end else begin
+
+            if (
+                axi_awvalid &&
+                axi_awready
+            ) begin
+
+                aw_count <=
+                    aw_count + 1;
+
+
+                // ------------------------------------------------
+                // First row of C tile (m=0,n=0)
+                // ------------------------------------------------
+
+                if (
+                    axi_awaddr ==
+                    C_BASE
+                ) begin
+
+                    saw_c_tile_00 <=
+                        1'b1;
+
+                end
+
+
+                // ------------------------------------------------
+                // First row of C tile (m=0,n=1)
+                //
+                // n_start = 4
+                // 4 * INT32 = 16 bytes
+                // ------------------------------------------------
+
+                if (
+                    axi_awaddr ==
+                    (
+                        C_BASE +
+                        ADDR_WIDTH'(16)
+                    )
+                ) begin
+
+                    saw_c_tile_01 <=
+                        1'b1;
+
+                end
+
+
+                // ------------------------------------------------
+                // First row of C tile (m=1,n=0)
+                //
+                // m_start = 4
+                // 4 * C_stride = 4 * 32 = 128
+                // ------------------------------------------------
+
+                if (
+                    axi_awaddr ==
+                    (
+                        C_BASE +
+                        ADDR_WIDTH'(128)
+                    )
+                ) begin
+
+                    saw_c_tile_10 <=
+                        1'b1;
+
+                end
+
+
+                // ------------------------------------------------
+                // First row of C tile (m=1,n=1)
+                //
+                // 128 + 16 = 144
+                // ------------------------------------------------
+
+                if (
+                    axi_awaddr ==
+                    (
+                        C_BASE +
+                        ADDR_WIDTH'(144)
+                    )
+                ) begin
+
+                    saw_c_tile_11 <=
+                        1'b1;
+
+                end
+
+
+                $display(
+                    "[%0t] AXI AW addr=0x%016h beats=%0d",
+                    $time,
+                    axi_awaddr,
+                    {1'b0, axi_awlen} + 9'd1
+                );
+
+            end
+
+
+            if (
+                axi_wvalid &&
+                axi_wready
+            ) begin
+
+                w_count <=
+                    w_count + 1;
+
+            end
+
+
+            if (
+                axi_bvalid &&
+                axi_bready
+            ) begin
+
+                b_count <=
+                    b_count + 1;
+
+            end
+
+        end
+
+    end
+
+
+    // ============================================================
+    // AXI Write slave
+    // ============================================================
+
+    assign axi_awready =
+        !wr_active_q &&
+        !axi_bvalid;
+
+    assign axi_wready =
+        wr_active_q &&
+        !axi_bvalid;
+
+
+    always_ff @(posedge clk) begin
+
+        if (reset) begin
+
+            wr_active_q <=
+                1'b0;
+
+            wr_addr_q <=
+                '0;
+
+            wr_beats_left_q <=
+                '0;
+
+            wr_id_q <=
+                '0;
+
+            axi_bid <=
+                '0;
+
+            axi_bresp <=
+                2'b00;
+
+            axi_bvalid <=
+                1'b0;
+
+        end else begin
+
+            // ----------------------------------------------------
+            // AW
+            // ----------------------------------------------------
+
+            if (
+                axi_awvalid &&
+                axi_awready
+            ) begin
+
+                if (
+                    axi_awsize !=
+                    3'd2
+                ) begin
+
+                    $fatal(
+                        1,
+                        "AXI write AWSIZE must be 2"
+                    );
+
+                end
+
+
+                if (
+                    axi_awburst !=
+                    2'b01
+                ) begin
+
+                    $fatal(
+                        1,
+                        "AXI write burst must be INCR"
+                    );
+
+                end
+
+
+                if (
+                    axi_awid !=
+                    '0
+                ) begin
+
+                    $fatal(
+                        1,
+                        "Unexpected write AWID"
+                    );
+
+                end
+
+
+                // One 4x4 C tile row:
+                //
+                // 4 INT32
+                // = 16 bytes
+                // = 4 AXI beats
+                //
+                // AWLEN = beats - 1 = 3.
+
+                if (
+                    axi_awlen !=
+                    8'd3
+                ) begin
+
+                    $fatal(
+                        1,
+                        "Expected 4-beat C row, AWLEN=%0d",
+                        axi_awlen
+                    );
+
+                end
+
+
+                wr_active_q <=
+                    1'b1;
+
+                wr_addr_q <=
+                    axi_awaddr;
+
+                wr_beats_left_q <=
+                    {1'b0, axi_awlen} +
+                    9'd1;
+
+                wr_id_q <=
+                    axi_awid;
+
+            end
+
+
+            // ----------------------------------------------------
+            // W
+            // ----------------------------------------------------
+
+            if (
+                axi_wvalid &&
+                axi_wready
+            ) begin
+
+                if (
+                    axi_wstrb !=
+                    {WORD_BYTES{1'b1}}
+                ) begin
+
+                    $fatal(
+                        1,
+                        "Unexpected WSTRB"
+                    );
+
+                end
+
+
+                if (
+                    axi_wlast !=
+                    (
+                        wr_beats_left_q ==
+                        9'd1
+                    )
+                ) begin
+
+                    $fatal(
+                        1,
+                        "WLAST mismatch"
+                    );
+
+                end
+
+
+                write_memory[
+                    wr_addr_q[13:2]
+                ] <=
+                    axi_wdata;
+
+
+                if (
+                    wr_beats_left_q ==
+                    9'd1
+                ) begin
+
+                    wr_active_q <=
+                        1'b0;
+
+                    wr_beats_left_q <=
+                        '0;
+
+                    axi_bid <=
+                        wr_id_q;
+
+                    axi_bresp <=
+                        2'b00;
+
+                    axi_bvalid <=
+                        1'b1;
+
+                end else begin
+
+                    wr_beats_left_q <=
+                        wr_beats_left_q -
+                        9'd1;
+
+                    wr_addr_q <=
+                        wr_addr_q +
+                        ADDR_WIDTH'(WORD_BYTES);
+
+                end
+
+            end
+
+
+            // ----------------------------------------------------
+            // B
+            // ----------------------------------------------------
+
+            if (
+                axi_bvalid &&
+                axi_bready
+            ) begin
+
+                axi_bvalid <=
+                    1'b0;
+
+            end
+
+        end
+
+    end
+
+
+    // ============================================================
+    // Fill one A / B^T row
+    // ============================================================
+
+    task automatic fill_ab_row (
         input int unsigned base_word,
         input logic [7:0] value
     );
@@ -541,11 +1090,11 @@ module gemm_executor_tb;
 
             for (
                 word_idx = 0;
-                word_idx < WORDS_PER_ROW;
+                word_idx < WORDS_PER_AB_ROW;
                 word_idx = word_idx + 1
             ) begin
 
-                memory[
+                read_memory[
                     base_word +
                     word_idx
                 ] = {
@@ -563,75 +1112,95 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // C checker
+    // Check complete C matrix in external memory
+    //
+    // A[i][k] = i + 1
+    // B[k][j] = j + 1
+    //
+    // Therefore:
+    //
+    // C[i][j] =
+    //     sum(k=0..259) ((i+1)*(j+1))
+    //
+    // = 260 * (i+1) * (j+1)
     // ============================================================
 
-    task automatic check_c_row (
-        input logic [CORE_ADDR_WIDTH-1:0] addr,
+    task automatic check_c_matrix;
 
-        input logic signed [31:0] e0,
-        input logic signed [31:0] e1,
-        input logic signed [31:0] e2,
-        input logic signed [31:0] e3
-    );
+        integer row_idx;
+        integer col_idx;
 
-        logic signed [31:0] r0;
-        logic signed [31:0] r1;
-        logic signed [31:0] r2;
-        logic signed [31:0] r3;
+        integer signed expected;
+
+        logic signed [31:0]
+            actual;
 
         begin
 
-            @(negedge clk);
+            $display("");
+            $display("DDR C matrix:");
 
-            c_ren   = 1'b1;
-            c_raddr = addr;
-
-            @(posedge clk);
-            #1;
-
-            r0 = $signed(c_rdata[31:0]);
-            r1 = $signed(c_rdata[63:32]);
-            r2 = $signed(c_rdata[95:64]);
-            r3 = $signed(c_rdata[127:96]);
-
-            $display(
-                "[%0t] C[%0d] = [%0d %0d %0d %0d]",
-                $time,
-                addr,
-                r0,
-                r1,
-                r2,
-                r3
-            );
-
-            if (
-                (r0 !== e0) ||
-                (r1 !== e1) ||
-                (r2 !== e2) ||
-                (r3 !== e3)
+            for (
+                row_idx = 0;
+                row_idx < M_TOTAL;
+                row_idx = row_idx + 1
             ) begin
 
-                $fatal(
-                    1,
-                    "C row %0d mismatch: got [%0d %0d %0d %0d], expected [%0d %0d %0d %0d]",
-                    addr,
-                    r0,
-                    r1,
-                    r2,
-                    r3,
-                    e0,
-                    e1,
-                    e2,
-                    e3
+                $write(
+                    "row %0d:",
+                    row_idx
                 );
 
+                for (
+                    col_idx = 0;
+                    col_idx < N_TOTAL;
+                    col_idx = col_idx + 1
+                ) begin
+
+                    actual =
+                        $signed(
+                            write_memory[
+                                C_WORD_BASE +
+                                (row_idx * N_TOTAL) +
+                                col_idx
+                            ]
+                        );
+
+                    expected =
+                        K_TOTAL *
+                        (row_idx + 1) *
+                        (col_idx + 1);
+
+
+                    $write(
+                        " %0d",
+                        actual
+                    );
+
+
+                    if (
+                        actual !==
+                        expected
+                    ) begin
+
+                        $display("");
+
+                        $fatal(
+                            1,
+                            "C[%0d][%0d] mismatch: got %0d expected %0d",
+                            row_idx,
+                            col_idx,
+                            actual,
+                            expected
+                        );
+
+                    end
+
+                end
+
+                $display("");
+
             end
-
-            @(negedge clk);
-
-            c_ren =
-                1'b0;
 
         end
 
@@ -639,7 +1208,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // Global timeout
+    // Timeout
     // ============================================================
 
     initial begin
@@ -650,21 +1219,54 @@ module gemm_executor_tb;
 
         $display("");
         $display("========================================");
-        $display("GEMM EXECUTOR TEST TIMEOUT");
+        $display("MULTI-TILE GEMM TEST TIMEOUT");
         $display("========================================");
-        $display("cycle      = %0d", cycle_count);
-        $display("cmd_ready  = %b", cmd_ready);
-        $display("busy       = %b", exec_busy);
-        $display("done       = %b", exec_done);
-        $display("error      = %b", exec_error);
-        $display("AR count   = %0d", ar_count);
-        $display("ARVALID/R  = %b/%b",
-                 axi_arvalid,
-                 axi_arready);
-        $display("RVALID/R   = %b/%b",
-                 axi_rvalid,
-                 axi_rready);
-        $display("C valid    = %b", c_tile_valid);
+
+        $display(
+            "cycle     = %0d",
+            cycle_count
+        );
+
+        $display(
+            "cmd_ready = %b",
+            cmd_ready
+        );
+
+        $display(
+            "busy      = %b",
+            exec_busy
+        );
+
+        $display(
+            "done      = %b",
+            exec_done
+        );
+
+        $display(
+            "error     = %b",
+            exec_error
+        );
+
+        $display(
+            "AR count  = %0d",
+            ar_count
+        );
+
+        $display(
+            "AW count  = %0d",
+            aw_count
+        );
+
+        $display(
+            "W count   = %0d",
+            w_count
+        );
+
+        $display(
+            "B count   = %0d",
+            b_count
+        );
+
         $display("========================================");
         $display("");
 
@@ -682,6 +1284,7 @@ module gemm_executor_tb;
     // ============================================================
 
     integer init_idx;
+    integer row_idx;
 
     initial begin
 
@@ -691,14 +1294,19 @@ module gemm_executor_tb;
         cmd_valid =
             1'b0;
 
+
+        // ========================================================
+        // GEMM command
+        // ========================================================
+
         cmd_m =
-            32'd4;
+            32'(M_TOTAL);
 
         cmd_n =
-            32'd4;
+            32'(N_TOTAL);
 
         cmd_k =
-            32'd260;
+            32'(K_TOTAL);
 
         cmd_a_base =
             A_BASE;
@@ -710,26 +1318,17 @@ module gemm_executor_tb;
             C_BASE;
 
         cmd_a_stride_bytes =
-            32'd260;
+            32'(AB_STRIDE_BYTES);
 
         cmd_b_stride_bytes =
-            32'd260;
+            32'(AB_STRIDE_BYTES);
 
         cmd_c_stride_bytes =
-            32'd16;
-
-        c_tile_accept =
-            1'b1;
-
-        c_ren =
-            1'b0;
-
-        c_raddr =
-            '0;
+            32'(C_STRIDE_BYTES);
 
 
         // ========================================================
-        // Clear memory
+        // Initialize memories
         // ========================================================
 
         for (
@@ -738,82 +1337,69 @@ module gemm_executor_tb;
             init_idx = init_idx + 1
         ) begin
 
-            memory[init_idx] =
+            read_memory[init_idx] =
                 32'd0;
+
+            write_memory[init_idx] =
+                32'hDEAD_BEEF;
 
         end
 
 
         // ========================================================
-        // A = 4 x 260
+        // A = 8 x 260
         //
         // row0 = all 1
         // row1 = all 2
-        // row2 = all 3
-        // row3 = all 4
+        // ...
+        // row7 = all 8
         // ========================================================
 
-        fill_row(
-            A_WORD_BASE +
-            (0 * WORDS_PER_ROW),
-            8'd1
-        );
+        for (
+            row_idx = 0;
+            row_idx < M_TOTAL;
+            row_idx = row_idx + 1
+        ) begin
 
-        fill_row(
-            A_WORD_BASE +
-            (1 * WORDS_PER_ROW),
-            8'd2
-        );
+            fill_ab_row(
+                A_WORD_BASE +
+                (
+                    row_idx *
+                    WORDS_PER_AB_ROW
+                ),
+                8'(row_idx + 1)
+            );
 
-        fill_row(
-            A_WORD_BASE +
-            (2 * WORDS_PER_ROW),
-            8'd3
-        );
-
-        fill_row(
-            A_WORD_BASE +
-            (3 * WORDS_PER_ROW),
-            8'd4
-        );
+        end
 
 
         // ========================================================
-        // B^T = 4 x 260
+        // B^T = 8 x 260
         //
-        // B column0 = all 1
-        // B column1 = all 2
-        // B column2 = all 3
-        // B column3 = all 4
+        // B column j corresponds to BT row j.
         //
-        // Therefore:
-        //
-        // C[i][j] = 260 * (i+1) * (j+1)
+        // BT row0 = all 1
+        // BT row1 = all 2
+        // ...
+        // BT row7 = all 8
         // ========================================================
 
-        fill_row(
-            BT_WORD_BASE +
-            (0 * WORDS_PER_ROW),
-            8'd1
-        );
+        for (
+            row_idx = 0;
+            row_idx < N_TOTAL;
+            row_idx = row_idx + 1
+        ) begin
 
-        fill_row(
-            BT_WORD_BASE +
-            (1 * WORDS_PER_ROW),
-            8'd2
-        );
+            fill_ab_row(
+                BT_WORD_BASE +
+                (
+                    row_idx *
+                    WORDS_PER_AB_ROW
+                ),
+                8'(row_idx + 1)
+            );
 
-        fill_row(
-            BT_WORD_BASE +
-            (2 * WORDS_PER_ROW),
-            8'd3
-        );
-
-        fill_row(
-            BT_WORD_BASE +
-            (3 * WORDS_PER_ROW),
-            8'd4
-        );
+        end
 
 
         // ========================================================
@@ -836,7 +1422,7 @@ module gemm_executor_tb;
 
 
         // ========================================================
-        // Submit one complete GEMM command
+        // Submit ONE complete GEMM command
         // ========================================================
 
         @(negedge clk);
@@ -845,12 +1431,16 @@ module gemm_executor_tb;
             1'b1;
 
         wait (
-            cmd_ready === 1'b1
+            cmd_ready ===
+            1'b1
         );
 
         $display(
-            "[%0t] GEMM command accepted: M=4 N=4 K=260",
-            $time
+            "[%0t] GEMM command accepted: M=%0d N=%0d K=%0d",
+            $time,
+            M_TOTAL,
+            N_TOTAL,
+            K_TOTAL
         );
 
         @(negedge clk);
@@ -860,15 +1450,19 @@ module gemm_executor_tb;
 
 
         // ========================================================
-        // Wait for executor
+        // Wait for full:
+        //
+        // DDR -> NPU -> DDR
         // ========================================================
 
         wait (
-            exec_busy === 1'b1
+            exec_busy ===
+            1'b1
         );
 
         wait (
-            exec_done === 1'b1
+            exec_done ===
+            1'b1
         );
 
         $display(
@@ -880,7 +1474,7 @@ module gemm_executor_tb;
 
 
         // ========================================================
-        // Status checks
+        // Error status
         // ========================================================
 
         if (exec_error) begin
@@ -893,123 +1487,180 @@ module gemm_executor_tb;
         end
 
 
-        if (!c_tile_seen) begin
-
-            $fatal(
-                1,
-                "C tile completion was not observed"
-            );
-
-        end
-
+        // ========================================================
+        // AXI read counts
+        //
+        // 4 C tiles
+        // x 2 K tiles
+        // x (4 A rows + 4 B rows)
+        //
+        // = 64 requests
+        //
+        // 32 full-K row requests
+        // 32 K-tail row requests
+        // ========================================================
 
         if (
-            c_tile_addr_seen !==
-            C_BASE
+            ar_count !=
+            64
         ) begin
 
             $fatal(
                 1,
-                "Unexpected C tile address: 0x%016h",
-                c_tile_addr_seen
-            );
-
-        end
-
-
-        if (
-            c_tile_stride_seen !==
-            32'd16
-        ) begin
-
-            $fatal(
-                1,
-                "Unexpected C stride: %0d",
-                c_tile_stride_seen
-            );
-
-        end
-
-
-        // ========================================================
-        // AXI request checks
-        //
-        // First K tile:
-        // 4 A rows + 4 B rows = 8 requests
-        // each = 256 bytes = 64 beats
-        //
-        // Second K tile:
-        // 4 A rows + 4 B rows = 8 requests
-        // each = 4 bytes = 1 beat
-        //
-        // Total = 16 row requests.
-        // ========================================================
-
-        if (ar_count != 16) begin
-
-            $fatal(
-                1,
-                "Expected 16 AXI row requests, got %0d",
+                "Expected 64 AXI read requests, got %0d",
                 ar_count
             );
 
         end
 
 
-        if (ar_64beat_count != 8) begin
+        if (
+            ar_64beat_count !=
+            32
+        ) begin
 
             $fatal(
                 1,
-                "Expected 8 x 64-beat requests, got %0d",
+                "Expected 32 x 64-beat reads, got %0d",
                 ar_64beat_count
             );
 
         end
 
 
-        if (ar_1beat_count != 8) begin
+        if (
+            ar_1beat_count !=
+            32
+        ) begin
 
             $fatal(
                 1,
-                "Expected 8 x 1-beat requests, got %0d",
+                "Expected 32 x 1-beat reads, got %0d",
                 ar_1beat_count
             );
 
         end
 
 
-        if (!saw_a_second_k_tile) begin
-
-            $fatal(
-                1,
-                "A second K tile address was not observed"
-            );
-
-        end
-
-
-        if (!saw_b_second_k_tile) begin
-
-            $fatal(
-                1,
-                "B second K tile address was not observed"
-            );
-
-        end
-
-
         // ========================================================
-        // Accumulator quick check
+        // Verify M/N address generation
         // ========================================================
 
         if (
-            acc_out[0][0] !==
-            32'sd260
+            !saw_a_m1_k0 ||
+            !saw_a_m1_k1
         ) begin
 
             $fatal(
                 1,
-                "Accumulator mismatch: acc[0][0]=%0d",
+                "Second M tile A addresses were not fully observed"
+            );
+
+        end
+
+
+        if (
+            !saw_b_n1_k0 ||
+            !saw_b_n1_k1
+        ) begin
+
+            $fatal(
+                1,
+                "Second N tile B addresses were not fully observed"
+            );
+
+        end
+
+
+        // ========================================================
+        // AXI write counts
+        //
+        // 4 C tiles
+        // x 4 rows
+        //
+        // = 16 AW
+        //
+        // 16 rows x 4 beats
+        // = 64 W beats
+        // ========================================================
+
+        if (
+            aw_count !=
+            16
+        ) begin
+
+            $fatal(
+                1,
+                "Expected 16 AXI write requests, got %0d",
+                aw_count
+            );
+
+        end
+
+
+        if (
+            w_count !=
+            64
+        ) begin
+
+            $fatal(
+                1,
+                "Expected 64 AXI write beats, got %0d",
+                w_count
+            );
+
+        end
+
+
+        if (
+            b_count !=
+            16
+        ) begin
+
+            $fatal(
+                1,
+                "Expected 16 AXI write responses, got %0d",
+                b_count
+            );
+
+        end
+
+
+        // ========================================================
+        // Verify all four C tile base addresses
+        // ========================================================
+
+        if (
+            !saw_c_tile_00 ||
+            !saw_c_tile_01 ||
+            !saw_c_tile_10 ||
+            !saw_c_tile_11
+        ) begin
+
+            $fatal(
+                1,
+                "Not all four C tile base addresses were observed"
+            );
+
+        end
+
+
+        // ========================================================
+        // Final local accumulator corresponds to C tile (1,1).
+        //
+        // Local [0][0] maps to global C[4][4].
+        //
+        // C[4][4] = 260 * 5 * 5 = 6500
+        // ========================================================
+
+        if (
+            acc_out[0][0] !==
+            32'sd6500
+        ) begin
+
+            $fatal(
+                1,
+                "Final accumulator mismatch: got %0d expected 6500",
                 acc_out[0][0]
             );
 
@@ -1017,49 +1668,26 @@ module gemm_executor_tb;
 
 
         // ========================================================
-        // Complete C check
+        // Check complete 8x8 C matrix in DDR
         // ========================================================
 
-        check_c_row(
-            CORE_ADDR_WIDTH'(0),
-            32'sd260,
-            32'sd520,
-            32'sd780,
-            32'sd1040
-        );
-
-        check_c_row(
-            CORE_ADDR_WIDTH'(1),
-            32'sd520,
-            32'sd1040,
-            32'sd1560,
-            32'sd2080
-        );
-
-        check_c_row(
-            CORE_ADDR_WIDTH'(2),
-            32'sd780,
-            32'sd1560,
-            32'sd2340,
-            32'sd3120
-        );
-
-        check_c_row(
-            CORE_ADDR_WIDTH'(3),
-            32'sd1040,
-            32'sd2080,
-            32'sd3120,
-            32'sd4160
-        );
+        check_c_matrix();
 
 
         $display("");
         $display("========================================");
-        $display("ALL GEMM EXECUTOR TESTS PASSED");
-        $display("M = 4, N = 4, K = 260");
+        $display("ALL MULTI-TILE GEMM TESTS PASSED");
+        $display("DDR -> NPU -> DDR");
+        $display("M = 8, N = 8, K = 260");
+        $display("M tiling = 4 + 4");
+        $display("N tiling = 4 + 4");
         $display("K tiling = 256 + 4");
-        $display("AXI row requests = %0d", ar_count);
-        $display("cycles = %0d", cycle_count);
+        $display("Compute tiles      = 8");
+        $display("C tiles            = 4");
+        $display("AXI read requests  = %0d", ar_count);
+        $display("AXI write requests = %0d", aw_count);
+        $display("AXI write beats    = %0d", w_count);
+        $display("cycles             = %0d", cycle_count);
         $display("========================================");
         $display("");
 
