@@ -68,7 +68,7 @@ GEMM_TB := \
 # Targets
 # ============================================================
 
-.PHONY: all test pe matrix controller gemm clean
+.PHONY: all test pe matrix controller gemm external_memory clean
 
 all: test
 
@@ -200,6 +200,27 @@ operand_path:
 		rtl/memory/operand_loader.sv \
 		sim/tb/operand_path_tb.sv
 	./$(BUILD_DIR)/operand_path/Voperand_path_tb
+
+
+# ============================================================
+# Standalone external system memory DPI test
+# ============================================================
+
+EXTERNAL_MEMORY_DIR := $(BUILD_DIR)/external_memory
+EXTERNAL_MEMORY_BIN := $(EXTERNAL_MEMORY_DIR)/test.bin
+
+$(EXTERNAL_MEMORY_BIN):
+	mkdir -p $(EXTERNAL_MEMORY_DIR)
+	printf '\001\002\003\004\021\042\063\104' > $@
+
+external_memory: $(EXTERNAL_MEMORY_BIN)
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(EXTERNAL_MEMORY_DIR) \
+		--top-module external_memory_tb \
+		sim/memory/external_memory.sv \
+		sim/memory/external_memory_tb.sv \
+		sim/memory/memory.cpp
+	./$(EXTERNAL_MEMORY_DIR)/Vexternal_memory_tb
 
 
 # ============================================================
