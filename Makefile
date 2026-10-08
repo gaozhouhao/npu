@@ -1,6 +1,7 @@
 
 VERILATOR ?= verilator
 BUILD_DIR ?= build
+
 VFLAGS := --binary --timing --assert --trace -Wall -Wno-TIMESCALEMOD
 
 MEMORY_SRCS := \
@@ -41,7 +42,8 @@ CORE_SRCS := \
 
 NPU_SRCS := $(MEMORY_SRCS) $(DMA_SRCS) $(COMPUTE_SRCS) $(CORE_SRCS)
 
-.PHONY: all npu_top conv2d conv_patch cnn_pool regression clean
+.PHONY: all npu_top conv2d conv_patch cnn_pool mnist mnist_all regression clean
+
 all: npu_top
 
 npu_top:
@@ -57,7 +59,8 @@ conv2d:
 conv_patch:
 	$(VERILATOR) $(VFLAGS) --Mdir $(BUILD_DIR)/conv_patch \
 		--top-module conv_patch_loader_tb \
-		rtl/memory/operand_loader.sv rtl/dma/conv_patch_loader.sv \
+		rtl/memory/operand_loader.sv \
+		rtl/dma/conv_patch_loader.sv \
 		sim/tb/conv_patch_loader_tb.sv
 	./$(BUILD_DIR)/conv_patch/Vconv_patch_loader_tb
 
@@ -65,6 +68,18 @@ cnn_pool:
 	$(VERILATOR) $(VFLAGS) --Mdir $(BUILD_DIR)/cnn_pool \
 		--top-module cnn_pool_npu_tb $(NPU_SRCS) sim/tb/cnn_pool_npu_tb.sv
 	./$(BUILD_DIR)/cnn_pool/Vcnn_pool_npu_tb
+
+# MNIST: compile and run the first image (digit 7)
+mnist:
+	$(VERILATOR) $(VFLAGS) --Mdir $(BUILD_DIR)/mnist \
+		--top-module mnist_npu_tb $(NPU_SRCS) sim/tb/mnist_npu_tb.sv
+	./$(BUILD_DIR)/mnist/Vmnist_npu_tb +IMAGE=0
+
+# MNIST: execute all four test images
+mnist_all:
+	$(VERILATOR) $(VFLAGS) --Mdir $(BUILD_DIR)/mnist \
+		--top-module mnist_npu_tb $(NPU_SRCS) sim/tb/mnist_npu_tb.sv
+	./$(BUILD_DIR)/mnist/Vmnist_npu_tb
 
 regression: npu_top conv_patch conv2d cnn_pool
 
