@@ -1,4 +1,7 @@
-module gemm_executor_tb;
+module gemm_executor_tb #(
+    parameter int unsigned A_BUFFER_COUNT = 2,
+    parameter int unsigned B_BUFFER_COUNT = 2
+);
 
     localparam int unsigned ADDR_WIDTH       = 64;
     localparam int unsigned TILE_COUNT_WIDTH = 16;
@@ -17,9 +20,6 @@ module gemm_executor_tb;
     localparam int unsigned N_TOTAL = 8;
     localparam int unsigned K_TOTAL = 260;
 
-    localparam int unsigned A_BUFFER_COUNT = 1;
-    localparam int unsigned B_BUFFER_COUNT = 1;
-
     localparam int unsigned WORD_BYTES =
         MEM_WORD_WIDTH / 8;
 
@@ -37,7 +37,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // External memory map
+    // Memory map
     // ============================================================
 
     localparam logic [ADDR_WIDTH-1:0] A_BASE =
@@ -48,7 +48,6 @@ module gemm_executor_tb;
 
     localparam logic [ADDR_WIDTH-1:0] C_BASE =
         64'h0000_0000_0000_3000;
-
 
     localparam int unsigned A_WORD_BASE =
         32'd1024;
@@ -107,7 +106,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // AXI Read Address Channel
+    // AXI read address
     // ============================================================
 
     logic [ID_WIDTH-1:0]       axi_arid;
@@ -120,7 +119,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // AXI Read Data Channel
+    // AXI read data
     // ============================================================
 
     logic [ID_WIDTH-1:0]       axi_rid;
@@ -132,7 +131,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // AXI Write Address Channel
+    // AXI write address
     // ============================================================
 
     logic [ID_WIDTH-1:0]       axi_awid;
@@ -145,7 +144,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // AXI Write Data Channel
+    // AXI write data
     // ============================================================
 
     logic [MEM_WORD_WIDTH-1:0]
@@ -160,7 +159,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // AXI Write Response Channel
+    // AXI write response
     // ============================================================
 
     logic [ID_WIDTH-1:0] axi_bid;
@@ -172,8 +171,8 @@ module gemm_executor_tb;
     // ============================================================
     // External memory
     //
-    // Separate read/write arrays keep this TB simple and avoid
-    // multiple procedural writers.
+    // Separate read/write storage is intentional in this functional
+    // TB. Performance modelling will be handled separately later.
     // ============================================================
 
     logic [31:0] read_memory  [0:4095];
@@ -202,7 +201,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // Counters
+    // General counters
     // ============================================================
 
     integer cycle_count;
@@ -217,7 +216,18 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // Address-coverage flags
+    // Double-buffer overlap counters
+    // ============================================================
+
+    integer overlap_cycle_count;
+    integer overlap_ar_count;
+
+    integer a_overlap_write_count;
+    integer b_overlap_write_count;
+
+
+    // ============================================================
+    // Address coverage
     // ============================================================
 
     logic saw_a_m1_k0;
@@ -257,10 +267,7 @@ module gemm_executor_tb;
         .clk                (clk),
         .reset              (reset),
 
-        // --------------------------------------------------------
-        // GEMM command
-        // --------------------------------------------------------
-
+        // command
         .cmd_valid          (cmd_valid),
         .cmd_ready          (cmd_ready),
 
@@ -276,20 +283,13 @@ module gemm_executor_tb;
         .cmd_b_stride_bytes (cmd_b_stride_bytes),
         .cmd_c_stride_bytes (cmd_c_stride_bytes),
 
-        // --------------------------------------------------------
-        // Status
-        // --------------------------------------------------------
-
         .busy               (exec_busy),
         .done               (exec_done),
         .error              (exec_error),
 
         .acc_out            (acc_out),
 
-        // --------------------------------------------------------
-        // AXI Read Address
-        // --------------------------------------------------------
-
+        // AXI read address
         .m_axi_arid         (axi_arid),
         .m_axi_araddr       (axi_araddr),
         .m_axi_arlen        (axi_arlen),
@@ -298,10 +298,7 @@ module gemm_executor_tb;
         .m_axi_arvalid      (axi_arvalid),
         .m_axi_arready      (axi_arready),
 
-        // --------------------------------------------------------
-        // AXI Read Data
-        // --------------------------------------------------------
-
+        // AXI read data
         .m_axi_rid          (axi_rid),
         .m_axi_rdata        (axi_rdata),
         .m_axi_rresp        (axi_rresp),
@@ -309,10 +306,7 @@ module gemm_executor_tb;
         .m_axi_rvalid       (axi_rvalid),
         .m_axi_rready       (axi_rready),
 
-        // --------------------------------------------------------
-        // AXI Write Address
-        // --------------------------------------------------------
-
+        // AXI write address
         .m_axi_awid         (axi_awid),
         .m_axi_awaddr       (axi_awaddr),
         .m_axi_awlen        (axi_awlen),
@@ -321,20 +315,14 @@ module gemm_executor_tb;
         .m_axi_awvalid      (axi_awvalid),
         .m_axi_awready      (axi_awready),
 
-        // --------------------------------------------------------
-        // AXI Write Data
-        // --------------------------------------------------------
-
+        // AXI write data
         .m_axi_wdata        (axi_wdata),
         .m_axi_wstrb        (axi_wstrb),
         .m_axi_wlast        (axi_wlast),
         .m_axi_wvalid       (axi_wvalid),
         .m_axi_wready       (axi_wready),
 
-        // --------------------------------------------------------
-        // AXI Write Response
-        // --------------------------------------------------------
-
+        // AXI write response
         .m_axi_bid          (axi_bid),
         .m_axi_bresp        (axi_bresp),
         .m_axi_bvalid       (axi_bvalid),
@@ -350,8 +338,7 @@ module gemm_executor_tb;
 
         if (reset) begin
 
-            cycle_count <=
-                0;
+            cycle_count <= 0;
 
         end else begin
 
@@ -364,7 +351,120 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // AXI Read monitor
+    // Double-buffer overlap monitor
+    // ============================================================
+
+    always_ff @(posedge clk) begin
+
+        if (reset) begin
+
+            overlap_cycle_count <=
+                0;
+
+            overlap_ar_count <=
+                0;
+
+            a_overlap_write_count <=
+                0;
+
+            b_overlap_write_count <=
+                0;
+
+        end else begin
+
+            // ----------------------------------------------------
+            // GEMM core + read path active simultaneously
+            // ----------------------------------------------------
+
+            if (
+                u_dut.core_busy &&
+                u_dut.read_path_busy
+            ) begin
+
+                overlap_cycle_count <=
+                    overlap_cycle_count + 1;
+
+            end
+
+
+            // ----------------------------------------------------
+            // Actual AXI read request during compute
+            // ----------------------------------------------------
+
+            if (
+                u_dut.core_busy &&
+                axi_arvalid &&
+                axi_arready
+            ) begin
+
+                overlap_ar_count <=
+                    overlap_ar_count + 1;
+
+            end
+
+
+            // ----------------------------------------------------
+            // A DMA writes during compute
+            // ----------------------------------------------------
+
+            if (
+                u_dut.core_busy &&
+                u_dut.a_wen
+            ) begin
+
+                a_overlap_write_count <=
+                    a_overlap_write_count + 1;
+
+
+                if (
+                    u_dut.a_wbank ==
+                    u_dut.a_compute_bank
+                ) begin
+
+                    $fatal(
+                        1,
+                        "A double-buffer hazard: DMA write bank == compute read bank"
+                    );
+
+                end
+
+            end
+
+
+            // ----------------------------------------------------
+            // B DMA writes during compute
+            // ----------------------------------------------------
+
+            if (
+                u_dut.core_busy &&
+                u_dut.b_wen
+            ) begin
+
+                b_overlap_write_count <=
+                    b_overlap_write_count + 1;
+
+
+                if (
+                    u_dut.b_wbank ==
+                    u_dut.b_compute_bank
+                ) begin
+
+                    $fatal(
+                        1,
+                        "B double-buffer hazard: DMA write bank == compute read bank"
+                    );
+
+                end
+
+            end
+
+        end
+
+    end
+
+
+    // ============================================================
+    // AXI read monitor
     // ============================================================
 
     always_ff @(posedge clk) begin
@@ -401,10 +501,6 @@ module gemm_executor_tb;
                 ar_count + 1;
 
 
-            // ----------------------------------------------------
-            // Full K tile = 256 bytes = 64 beats
-            // ----------------------------------------------------
-
             if (
                 axi_arlen ==
                 8'd63
@@ -415,10 +511,6 @@ module gemm_executor_tb;
 
             end
 
-
-            // ----------------------------------------------------
-            // K tail = 4 bytes = 1 beat
-            // ----------------------------------------------------
 
             if (
                 axi_arlen ==
@@ -431,13 +523,7 @@ module gemm_executor_tb;
             end
 
 
-            // ----------------------------------------------------
-            // Verify second M tile addresses for A.
-            //
-            // m_start = 4
-            // A offset = 4 * 260 = 1040 bytes
-            // ----------------------------------------------------
-
+            // second M tile, full K
             if (
                 axi_araddr ==
                 (
@@ -454,6 +540,7 @@ module gemm_executor_tb;
             end
 
 
+            // second M tile, K tail
             if (
                 axi_araddr ==
                 (
@@ -471,13 +558,7 @@ module gemm_executor_tb;
             end
 
 
-            // ----------------------------------------------------
-            // Verify second N tile addresses for B^T.
-            //
-            // n_start = 4
-            // BT offset = 4 * 260 = 1040 bytes
-            // ----------------------------------------------------
-
+            // second N tile, full K
             if (
                 axi_araddr ==
                 (
@@ -494,6 +575,7 @@ module gemm_executor_tb;
             end
 
 
+            // second N tile, K tail
             if (
                 axi_araddr ==
                 (
@@ -510,21 +592,13 @@ module gemm_executor_tb;
 
             end
 
-
-            $display(
-                "[%0t] AXI AR addr=0x%016h beats=%0d",
-                $time,
-                axi_araddr,
-                {1'b0, axi_arlen} + 9'd1
-            );
-
         end
 
     end
 
 
     // ============================================================
-    // AXI Read slave
+    // AXI read slave
     // ============================================================
 
     assign axi_arready =
@@ -563,7 +637,7 @@ module gemm_executor_tb;
         end else begin
 
             // ----------------------------------------------------
-            // Accept AR
+            // AR
             // ----------------------------------------------------
 
             if (
@@ -624,7 +698,7 @@ module gemm_executor_tb;
 
 
             // ----------------------------------------------------
-            // Consume current R beat
+            // Consume R
             // ----------------------------------------------------
 
             if (
@@ -663,7 +737,7 @@ module gemm_executor_tb;
 
 
             // ----------------------------------------------------
-            // Generate next R beat
+            // Produce R
             // ----------------------------------------------------
 
             if (
@@ -699,7 +773,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // AXI Write monitor
+    // AXI write monitor
     // ============================================================
 
     always_ff @(posedge clk) begin
@@ -738,10 +812,6 @@ module gemm_executor_tb;
                     aw_count + 1;
 
 
-                // ------------------------------------------------
-                // First row of C tile (m=0,n=0)
-                // ------------------------------------------------
-
                 if (
                     axi_awaddr ==
                     C_BASE
@@ -752,13 +822,6 @@ module gemm_executor_tb;
 
                 end
 
-
-                // ------------------------------------------------
-                // First row of C tile (m=0,n=1)
-                //
-                // n_start = 4
-                // 4 * INT32 = 16 bytes
-                // ------------------------------------------------
 
                 if (
                     axi_awaddr ==
@@ -774,13 +837,6 @@ module gemm_executor_tb;
                 end
 
 
-                // ------------------------------------------------
-                // First row of C tile (m=1,n=0)
-                //
-                // m_start = 4
-                // 4 * C_stride = 4 * 32 = 128
-                // ------------------------------------------------
-
                 if (
                     axi_awaddr ==
                     (
@@ -795,12 +851,6 @@ module gemm_executor_tb;
                 end
 
 
-                // ------------------------------------------------
-                // First row of C tile (m=1,n=1)
-                //
-                // 128 + 16 = 144
-                // ------------------------------------------------
-
                 if (
                     axi_awaddr ==
                     (
@@ -813,14 +863,6 @@ module gemm_executor_tb;
                         1'b1;
 
                 end
-
-
-                $display(
-                    "[%0t] AXI AW addr=0x%016h beats=%0d",
-                    $time,
-                    axi_awaddr,
-                    {1'b0, axi_awlen} + 9'd1
-                );
 
             end
 
@@ -852,7 +894,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // AXI Write slave
+    // AXI write slave
     // ============================================================
 
     assign axi_awready =
@@ -938,14 +980,6 @@ module gemm_executor_tb;
 
                 end
 
-
-                // One 4x4 C tile row:
-                //
-                // 4 INT32
-                // = 16 bytes
-                // = 4 AXI beats
-                //
-                // AWLEN = beats - 1 = 3.
 
                 if (
                     axi_awlen !=
@@ -1076,7 +1110,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // Fill one A / B^T row
+    // Fill A / B^T row
     // ============================================================
 
     task automatic fill_ab_row (
@@ -1112,17 +1146,7 @@ module gemm_executor_tb;
 
 
     // ============================================================
-    // Check complete C matrix in external memory
-    //
-    // A[i][k] = i + 1
-    // B[k][j] = j + 1
-    //
-    // Therefore:
-    //
-    // C[i][j] =
-    //     sum(k=0..259) ((i+1)*(j+1))
-    //
-    // = 260 * (i+1) * (j+1)
+    // Check complete 8x8 C matrix
     // ============================================================
 
     task automatic check_c_matrix;
@@ -1219,52 +1243,63 @@ module gemm_executor_tb;
 
         $display("");
         $display("========================================");
-        $display("MULTI-TILE GEMM TEST TIMEOUT");
+        $display("GEMM TEST TIMEOUT");
         $display("========================================");
 
         $display(
-            "cycle     = %0d",
+            "buffers        = A:%0d B:%0d",
+            A_BUFFER_COUNT,
+            B_BUFFER_COUNT
+        );
+
+        $display(
+            "cycle          = %0d",
             cycle_count
         );
 
         $display(
-            "cmd_ready = %b",
+            "cmd_ready      = %b",
             cmd_ready
         );
 
         $display(
-            "busy      = %b",
+            "busy           = %b",
             exec_busy
         );
 
         $display(
-            "done      = %b",
+            "done           = %b",
             exec_done
         );
 
         $display(
-            "error     = %b",
+            "error          = %b",
             exec_error
         );
 
         $display(
-            "AR count  = %0d",
+            "AR count       = %0d",
             ar_count
         );
 
         $display(
-            "AW count  = %0d",
+            "AW count       = %0d",
             aw_count
         );
 
         $display(
-            "W count   = %0d",
+            "W count        = %0d",
             w_count
         );
 
         $display(
-            "B count   = %0d",
+            "B count        = %0d",
             b_count
+        );
+
+        $display(
+            "overlap cycles = %0d",
+            overlap_cycle_count
         );
 
         $display("========================================");
@@ -1295,9 +1330,9 @@ module gemm_executor_tb;
             1'b0;
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // GEMM command
-        // ========================================================
+        // --------------------------------------------------------
 
         cmd_m =
             32'(M_TOTAL);
@@ -1327,9 +1362,9 @@ module gemm_executor_tb;
             32'(C_STRIDE_BYTES);
 
 
-        // ========================================================
-        // Initialize memories
-        // ========================================================
+        // --------------------------------------------------------
+        // Initialize memory
+        // --------------------------------------------------------
 
         for (
             init_idx = 0;
@@ -1346,14 +1381,9 @@ module gemm_executor_tb;
         end
 
 
-        // ========================================================
-        // A = 8 x 260
-        //
-        // row0 = all 1
-        // row1 = all 2
-        // ...
-        // row7 = all 8
-        // ========================================================
+        // --------------------------------------------------------
+        // A row i = i+1
+        // --------------------------------------------------------
 
         for (
             row_idx = 0;
@@ -1373,16 +1403,9 @@ module gemm_executor_tb;
         end
 
 
-        // ========================================================
-        // B^T = 8 x 260
-        //
-        // B column j corresponds to BT row j.
-        //
-        // BT row0 = all 1
-        // BT row1 = all 2
-        // ...
-        // BT row7 = all 8
-        // ========================================================
+        // --------------------------------------------------------
+        // B^T row j = j+1
+        // --------------------------------------------------------
 
         for (
             row_idx = 0;
@@ -1402,9 +1425,9 @@ module gemm_executor_tb;
         end
 
 
-        // ========================================================
+        // --------------------------------------------------------
         // Reset
-        // ========================================================
+        // --------------------------------------------------------
 
         repeat (4) begin
             @(posedge clk);
@@ -1415,15 +1438,10 @@ module gemm_executor_tb;
         reset =
             1'b0;
 
-        $display(
-            "[%0t] Reset released",
-            $time
-        );
 
-
-        // ========================================================
-        // Submit ONE complete GEMM command
-        // ========================================================
+        // --------------------------------------------------------
+        // Submit command
+        // --------------------------------------------------------
 
         @(negedge clk);
 
@@ -1436,11 +1454,12 @@ module gemm_executor_tb;
         );
 
         $display(
-            "[%0t] GEMM command accepted: M=%0d N=%0d K=%0d",
+            "[%0t] GEMM accepted: M=%0d N=%0d K=%0d buffers=%0d",
             $time,
             M_TOTAL,
             N_TOTAL,
-            K_TOTAL
+            K_TOTAL,
+            A_BUFFER_COUNT
         );
 
         @(negedge clk);
@@ -1449,11 +1468,9 @@ module gemm_executor_tb;
             1'b0;
 
 
-        // ========================================================
-        // Wait for full:
-        //
-        // DDR -> NPU -> DDR
-        // ========================================================
+        // --------------------------------------------------------
+        // Wait for complete execution
+        // --------------------------------------------------------
 
         wait (
             exec_busy ===
@@ -1465,16 +1482,11 @@ module gemm_executor_tb;
             1'b1
         );
 
-        $display(
-            "[%0t] GEMM executor done",
-            $time
-        );
-
         #1;
 
 
         // ========================================================
-        // Error status
+        // Functional checks
         // ========================================================
 
         if (exec_error) begin
@@ -1487,18 +1499,9 @@ module gemm_executor_tb;
         end
 
 
-        // ========================================================
-        // AXI read counts
-        //
-        // 4 C tiles
-        // x 2 K tiles
-        // x (4 A rows + 4 B rows)
-        //
-        // = 64 requests
-        //
-        // 32 full-K row requests
-        // 32 K-tail row requests
-        // ========================================================
+        // --------------------------------------------------------
+        // AXI reads
+        // --------------------------------------------------------
 
         if (
             ar_count !=
@@ -1542,10 +1545,6 @@ module gemm_executor_tb;
         end
 
 
-        // ========================================================
-        // Verify M/N address generation
-        // ========================================================
-
         if (
             !saw_a_m1_k0 ||
             !saw_a_m1_k1
@@ -1553,7 +1552,7 @@ module gemm_executor_tb;
 
             $fatal(
                 1,
-                "Second M tile A addresses were not fully observed"
+                "Second M-tile A addresses were not observed"
             );
 
         end
@@ -1566,23 +1565,15 @@ module gemm_executor_tb;
 
             $fatal(
                 1,
-                "Second N tile B addresses were not fully observed"
+                "Second N-tile B addresses were not observed"
             );
 
         end
 
 
-        // ========================================================
-        // AXI write counts
-        //
-        // 4 C tiles
-        // x 4 rows
-        //
-        // = 16 AW
-        //
-        // 16 rows x 4 beats
-        // = 64 W beats
-        // ========================================================
+        // --------------------------------------------------------
+        // AXI writes
+        // --------------------------------------------------------
 
         if (
             aw_count !=
@@ -1626,10 +1617,6 @@ module gemm_executor_tb;
         end
 
 
-        // ========================================================
-        // Verify all four C tile base addresses
-        // ========================================================
-
         if (
             !saw_c_tile_00 ||
             !saw_c_tile_01 ||
@@ -1639,19 +1626,15 @@ module gemm_executor_tb;
 
             $fatal(
                 1,
-                "Not all four C tile base addresses were observed"
+                "Not all C tile addresses were observed"
             );
 
         end
 
 
-        // ========================================================
-        // Final local accumulator corresponds to C tile (1,1).
-        //
-        // Local [0][0] maps to global C[4][4].
-        //
-        // C[4][4] = 260 * 5 * 5 = 6500
-        // ========================================================
+        // --------------------------------------------------------
+        // Final accumulator = global C[4][4]
+        // --------------------------------------------------------
 
         if (
             acc_out[0][0] !==
@@ -1667,27 +1650,152 @@ module gemm_executor_tb;
         end
 
 
-        // ========================================================
-        // Check complete 8x8 C matrix in DDR
-        // ========================================================
+        // --------------------------------------------------------
+        // Complete DDR result
+        // --------------------------------------------------------
 
         check_c_matrix();
 
 
+        // ========================================================
+        // Double-buffer validation
+        // ========================================================
+
+        if (
+            (A_BUFFER_COUNT == 2) &&
+            (B_BUFFER_COUNT == 2)
+        ) begin
+
+            if (
+                overlap_cycle_count ==
+                0
+            ) begin
+
+                $fatal(
+                    1,
+                    "No DMA/compute overlap was observed"
+                );
+
+            end
+
+
+            if (
+                overlap_ar_count ==
+                0
+            ) begin
+
+                $fatal(
+                    1,
+                    "No AXI read request occurred during compute"
+                );
+
+            end
+
+
+            if (
+                a_overlap_write_count ==
+                0
+            ) begin
+
+                $fatal(
+                    1,
+                    "No A-buffer DMA write occurred during compute"
+                );
+
+            end
+
+
+            if (
+                b_overlap_write_count ==
+                0
+            ) begin
+
+                $fatal(
+                    1,
+                    "No B-buffer DMA write occurred during compute"
+                );
+
+            end
+
+        end
+
+
+        // ========================================================
+        // Report
+        // ========================================================
+
         $display("");
         $display("========================================");
-        $display("ALL MULTI-TILE GEMM TESTS PASSED");
+
+        if (
+            A_BUFFER_COUNT == 2
+        ) begin
+
+            $display(
+                "DOUBLE-BUFFER GEMM TEST PASSED"
+            );
+
+        end else begin
+
+            $display(
+                "SINGLE-BUFFER GEMM TEST PASSED"
+            );
+
+        end
+
         $display("DDR -> NPU -> DDR");
         $display("M = 8, N = 8, K = 260");
-        $display("M tiling = 4 + 4");
-        $display("N tiling = 4 + 4");
-        $display("K tiling = 256 + 4");
-        $display("Compute tiles      = 8");
-        $display("C tiles            = 4");
-        $display("AXI read requests  = %0d", ar_count);
-        $display("AXI write requests = %0d", aw_count);
-        $display("AXI write beats    = %0d", w_count);
-        $display("cycles             = %0d", cycle_count);
+
+        $display(
+            "A buffer count             = %0d",
+            A_BUFFER_COUNT
+        );
+
+        $display(
+            "B buffer count             = %0d",
+            B_BUFFER_COUNT
+        );
+
+        $display(
+            "AXI read requests          = %0d",
+            ar_count
+        );
+
+        $display(
+            "AXI write requests         = %0d",
+            aw_count
+        );
+
+        $display(
+            "AXI write beats            = %0d",
+            w_count
+        );
+
+        $display(
+            "DMA/compute overlap cycles = %0d",
+            overlap_cycle_count
+        );
+
+        $display(
+            "AR requests during compute = %0d",
+            overlap_ar_count
+        );
+
+        $display(
+            "A writes during compute    = %0d",
+            a_overlap_write_count
+        );
+
+        $display(
+            "B writes during compute    = %0d",
+            b_overlap_write_count
+        );
+
+        $display(
+            "total cycles               = %0d",
+            cycle_count
+        );
+
         $display("========================================");
         $display("");
 

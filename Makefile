@@ -1,10 +1,6 @@
-VERILATOR := verilator
+VERILATOR ?= verilator
 
-BUILD_DIR := build
-
-# ============================================================
-# Common Verilator flags
-# ============================================================
+BUILD_DIR ?= build
 
 VFLAGS := \
 	--binary \
@@ -15,281 +11,188 @@ VFLAGS := \
 	-Wno-TIMESCALEMOD
 
 
-# ============================================================
-# RTL source groups
-# ============================================================
+# ================================================================
+# Memory
+# ================================================================
 
-PE_RTL := \
-	rtl/compute/pe.sv
+MEMORY_SRCS := \
+	rtl/memory/sram_model.sv \
+	rtl/memory/operand_buffer.sv \
+	rtl/memory/scratchpad.sv \
+	rtl/memory/operand_loader.sv \
+	rtl/memory/buffer_manager.sv
 
 
-MATRIX_RTL := \
+# ================================================================
+# DMA
+# ================================================================
+
+DMA_SRCS := \
+	rtl/dma/axi_read_master.sv \
+	rtl/dma/axi_write_master.sv \
+	rtl/dma/strided_read_engine.sv \
+	rtl/dma/operand_read_dma.sv \
+	rtl/dma/read_request_arbiter.sv \
+	rtl/dma/gemm_read_path.sv \
+	rtl/dma/c_write_dma.sv
+
+
+# ================================================================
+# Compute
+# ================================================================
+
+COMPUTE_SRCS := \
 	rtl/compute/pe.sv \
 	rtl/compute/input_skew.sv \
 	rtl/compute/systolic_array.sv \
 	rtl/compute/matrix_engine.sv
 
 
-CONTROLLER_RTL := \
-	rtl/core/matrix_controller.sv
+# ================================================================
+# Core
+# ================================================================
+
+CORE_SRCS := \
+	rtl/core/matrix_controller.sv \
+	rtl/core/gemm_core.sv \
+	rtl/core/tile_scheduler.sv \
+	rtl/core/gemm_address_generator.sv \
+	rtl/core/gemm_executor.sv
 
 
-MEMORY_RTL := \
-	rtl/memory/sram_model.sv \
-	rtl/memory/operand_buffer.sv \
-	rtl/memory/scratchpad.sv
+# ================================================================
+# GEMM executor integration test
+# ================================================================
+
+GEMM_EXECUTOR_SRCS := \
+	$(MEMORY_SRCS) \
+	$(DMA_SRCS) \
+	$(COMPUTE_SRCS) \
+	$(CORE_SRCS) \
+	sim/tb/gemm_executor_tb.sv
 
 
-GEMM_RTL := \
-	$(MATRIX_RTL) \
-	$(MEMORY_RTL) \
-	$(CONTROLLER_RTL) \
-	rtl/core/gemm_core.sv
+# ================================================================
+# Default
+#
+# Current development configuration = double buffer.
+# ================================================================
+
+.PHONY: all
+
+all: gemm_executor_db
 
 
-# ============================================================
-# Testbenches
-# ============================================================
+# ================================================================
+# Alias
+# ================================================================
 
-PE_TB := \
-	sim/tb/pe_tb.sv
+.PHONY: gemm_executor
 
-MATRIX_TB := \
-	sim/tb/matrix_engine_tb.sv
-
-CONTROLLER_TB := \
-	sim/tb/matrix_controller_tb.sv
-
-GEMM_TB := \
-	sim/tb/gemm_core_tb.sv
+gemm_executor: gemm_executor_db
 
 
-# ============================================================
-# Targets
-# ============================================================
+# ================================================================
+# Double-buffer test
+#
+# A bank0/bank1
+# B bank0/bank1
+#
+# Expected:
+#   functional PASS
+#   DMA/compute overlap > 0
+# ================================================================
 
-.PHONY: all test pe matrix controller gemm external_memory clean
+.PHONY: gemm_executor_db
 
-all: test
-
-test: pe matrix controller gemm
-
-
-# ============================================================
-# PE test
-# ============================================================
-
-pe:
-	@echo "========================================"
-	@echo "Running PE test"
-	@echo "========================================"
-
+gemm_executor_db:
+	mkdir -p $(BUILD_DIR)/gemm_executor_db
 	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/pe \
-		--top-module pe_tb \
-		$(PE_RTL) \
-		$(PE_TB)
-
-	./$(BUILD_DIR)/pe/Vpe_tb
-
-
-# ============================================================
-# Matrix engine test
-# ============================================================
-
-matrix:
-	@echo "========================================"
-	@echo "Running matrix engine test"
-	@echo "========================================"
-
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/matrix \
-		--top-module matrix_engine_tb \
-		$(MATRIX_RTL) \
-		$(MATRIX_TB)
-
-	./$(BUILD_DIR)/matrix/Vmatrix_engine_tb
-
-
-# ============================================================
-# Matrix controller test
-# ============================================================
-
-controller:
-	@echo "========================================"
-	@echo "Running matrix controller test"
-	@echo "========================================"
-
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/controller \
-		--top-module matrix_controller_tb \
-		$(CONTROLLER_RTL) \
-		$(CONTROLLER_TB)
-
-	./$(BUILD_DIR)/controller/Vmatrix_controller_tb
-
-
-# ============================================================
-# Integrated GEMM core test
-# ============================================================
-
-gemm:
-	@echo "========================================"
-	@echo "Running GEMM core integration test"
-	@echo "========================================"
-
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/gemm \
-		--top-module gemm_core_tb \
-		$(GEMM_RTL) \
-		$(GEMM_TB)
-
-	./$(BUILD_DIR)/gemm/Vgemm_core_tb
-
-
-
-
-mn_tiling:
-	mkdir -p $(BUILD_DIR)/mn_tiling
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/mn_tiling \
-		--top-module mn_tiling_tb \
-		$(GEMM_RTL) \
-		sim/tb/mn_tiling_tb.sv
-	./$(BUILD_DIR)/mn_tiling/Vmn_tiling_tb
-
-
-buffer_manager:
-	mkdir -p $(BUILD_DIR)/buffer_manager
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/buffer_manager \
-		--top-module buffer_manager_tb \
-		rtl/memory/buffer_manager.sv \
-		sim/tb/buffer_manager_tb.sv
-	./$(BUILD_DIR)/buffer_manager/Vbuffer_manager_tb
-
-
-
-tile_scheduler:
-	mkdir -p $(BUILD_DIR)/tile_scheduler
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/tile_scheduler \
-		--top-module tile_scheduler_tb \
-		rtl/core/tile_scheduler.sv \
-		sim/tb/tile_scheduler_tb.sv
-	./$(BUILD_DIR)/tile_scheduler/Vtile_scheduler_tb
-
-
-operand_loader:
-	mkdir -p $(BUILD_DIR)/operand_loader
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/operand_loader \
-		--top-module operand_loader_tb \
-		rtl/memory/operand_loader.sv \
-		sim/tb/operand_loader_tb.sv
-	./$(BUILD_DIR)/operand_loader/Voperand_loader_tb
-
-operand_path:
-	mkdir -p $(BUILD_DIR)/operand_path
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/operand_path \
-		--top-module operand_path_tb \
-		rtl/memory/sram_model.sv \
-		rtl/memory/operand_buffer.sv \
-		rtl/memory/buffer_manager.sv \
-		rtl/memory/operand_loader.sv \
-		sim/tb/operand_path_tb.sv
-	./$(BUILD_DIR)/operand_path/Voperand_path_tb
-
-command_frontend:
-	mkdir -p $(BUILD_DIR)/command_frontend
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/command_frontend \
-		--top-module command_frontend_tb \
-		rtl/core/command_frontend.sv \
-		sim/tb/command_frontend_tb.sv
-	./$(BUILD_DIR)/command_frontend/Vcommand_frontend_tb
-
-gemm_dma_integration:
-	mkdir -p $(BUILD_DIR)/gemm_dma_integration
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/gemm_dma_integration \
-		--top-module gemm_dma_integration_tb \
-		rtl/memory/sram_model.sv \
-		rtl/memory/operand_buffer.sv \
-		rtl/memory/scratchpad.sv \
-		rtl/memory/operand_loader.sv \
-		rtl/dma/axi_read_master.sv \
-		rtl/dma/strided_read_engine.sv \
-		rtl/dma/operand_read_dma.sv \
-		rtl/dma/read_request_arbiter.sv \
-		rtl/dma/gemm_read_path.sv \
-		rtl/compute/pe.sv \
-		rtl/compute/input_skew.sv \
-		rtl/compute/systolic_array.sv \
-		rtl/compute/matrix_engine.sv \
-		rtl/core/matrix_controller.sv \
-		rtl/core/gemm_core.sv \
-		sim/tb/gemm_dma_integration_tb.sv
-	./$(BUILD_DIR)/gemm_dma_integration/Vgemm_dma_integration_tb
-
-
-gemm_executor:
-	mkdir -p $(BUILD_DIR)/gemm_executor
-	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(BUILD_DIR)/gemm_executor \
+		-GA_BUFFER_COUNT=2 \
+		-GB_BUFFER_COUNT=2 \
+		--Mdir $(BUILD_DIR)/gemm_executor_db \
 		--top-module gemm_executor_tb \
-		rtl/memory/sram_model.sv \
-		rtl/memory/operand_buffer.sv \
-		rtl/memory/scratchpad.sv \
-		rtl/memory/operand_loader.sv \
-		rtl/memory/buffer_manager.sv \
-		rtl/dma/axi_read_master.sv \
-		rtl/dma/strided_read_engine.sv \
-		rtl/dma/operand_read_dma.sv \
-		rtl/dma/read_request_arbiter.sv \
-		rtl/dma/gemm_read_path.sv \
-		rtl/compute/pe.sv \
-		rtl/compute/input_skew.sv \
-		rtl/compute/systolic_array.sv \
-		rtl/compute/matrix_engine.sv \
-		rtl/core/matrix_controller.sv \
-		rtl/core/gemm_core.sv \
-		rtl/core/tile_scheduler.sv \
-		rtl/core/gemm_address_generator.sv \
-		rtl/core/gemm_executor.sv \
-		rtl/dma/axi_write_master.sv \
-		rtl/dma/c_write_dma.sv \
-		sim/tb/gemm_executor_tb.sv
-	./$(BUILD_DIR)/gemm_executor/Vgemm_executor_tb
+		$(GEMM_EXECUTOR_SRCS)
+	./$(BUILD_DIR)/gemm_executor_db/Vgemm_executor_tb
 
 
-# ============================================================
-# Standalone external system memory DPI test
-# ============================================================
+# ================================================================
+# Single-buffer baseline
+#
+# Used only as the baseline for double-buffer comparison.
+#
+# Expected:
+#   functional PASS
+#   overlap is not required
+# ================================================================
 
-EXTERNAL_MEMORY_DIR := $(BUILD_DIR)/external_memory
-EXTERNAL_MEMORY_BIN := $(EXTERNAL_MEMORY_DIR)/test.bin
+.PHONY: gemm_executor_sb
 
-$(EXTERNAL_MEMORY_BIN):
-	mkdir -p $(EXTERNAL_MEMORY_DIR)
-	printf '\001\002\003\004\021\042\063\104' > $@
-
-external_memory: $(EXTERNAL_MEMORY_BIN)
+gemm_executor_sb:
+	mkdir -p $(BUILD_DIR)/gemm_executor_sb
 	$(VERILATOR) $(VFLAGS) \
-		--Mdir $(EXTERNAL_MEMORY_DIR) \
-		--top-module external_memory_tb \
-		sim/memory/external_memory.sv \
-		sim/memory/external_memory_tb.sv \
-		sim/memory/memory.cpp
-	./$(EXTERNAL_MEMORY_DIR)/Vexternal_memory_tb
+		-GA_BUFFER_COUNT=1 \
+		-GB_BUFFER_COUNT=1 \
+		--Mdir $(BUILD_DIR)/gemm_executor_sb \
+		--top-module gemm_executor_tb \
+		$(GEMM_EXECUTOR_SRCS)
+	./$(BUILD_DIR)/gemm_executor_sb/Vgemm_executor_tb
 
 
-# ============================================================
-# Clean
-# ============================================================
+# ================================================================
+# Run both baselines
+# ================================================================
 
-clean:
-	rm -rf $(BUILD_DIR)
-	rm -rf obj_dir
-	rm -f *.vcd
+.PHONY: gemm_executor_compare
+
+gemm_executor_compare:
+	@echo ""
+	@echo "========================================"
+	@echo "Running single-buffer baseline"
+	@echo "========================================"
+	$(MAKE) gemm_executor_sb
+	@echo ""
+	@echo "========================================"
+	@echo "Running double-buffer configuration"
+	@echo "========================================"
+	$(MAKE) gemm_executor_db
+
+
+# ================================================================
+# Clean only these integration builds.
+#
+# This deliberately does NOT delete the entire build/ directory,
+# because other unit-test build products may exist there.
+# ================================================================
+
+.PHONY: clean-gemm-executor
+
+clean-gemm-executor:
+	rm -rf \
+		$(BUILD_DIR)/gemm_executor_sb \
+		$(BUILD_DIR)/gemm_executor_db
+
+
+# ================================================================
+# Help
+# ================================================================
+
+.PHONY: help
+
+help:
+	@echo "Available targets:"
+	@echo ""
+	@echo "  make gemm_executor_db"
+	@echo "      Run double-buffer GEMM test"
+	@echo ""
+	@echo "  make gemm_executor_sb"
+	@echo "      Run single-buffer baseline"
+	@echo ""
+	@echo "  make gemm_executor_compare"
+	@echo "      Run single-buffer then double-buffer"
+	@echo ""
+	@echo "  make gemm_executor"
+	@echo "      Alias for double-buffer test"
+	@echo ""
+	@echo "  make clean-gemm-executor"
+	@echo "      Remove only GEMM executor build directories"
