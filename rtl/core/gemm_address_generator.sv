@@ -2,44 +2,65 @@ module gemm_address_generator #(
     parameter int unsigned ADDR_WIDTH       = 64,
     parameter int unsigned TILE_COUNT_WIDTH = 16,
 
-    parameter int unsigned ROWS       = 4,
-    parameter int unsigned COLS       = 4,
+    parameter int unsigned ROWS             = 4,
+    parameter int unsigned COLS             = 4,
 
-    parameter int unsigned DATA_WIDTH = 8,
-    parameter int unsigned ACC_WIDTH  = 32,
+    parameter int unsigned DATA_WIDTH       = 8,
+    parameter int unsigned ACC_WIDTH        = 32,
 
-    parameter int unsigned K_TILE     = 256
+    parameter int unsigned K_TILE           = 256
 ) (
-    input logic [ADDR_WIDTH-1:0] a_base,
-    input logic [ADDR_WIDTH-1:0] b_base,
-    input logic [ADDR_WIDTH-1:0] c_base,
+    input logic [ADDR_WIDTH-1:0]
+        a_base,
 
-    input logic [31:0] a_stride_bytes,
-    input logic [31:0] b_stride_bytes,
-    input logic [31:0] c_stride_bytes,
+    input logic [ADDR_WIDTH-1:0]
+        b_base,
 
-    // ============================================================
-    // Tile currently being loaded
-    // ============================================================
+    input logic [ADDR_WIDTH-1:0]
+        c_base,
 
-    input logic [TILE_COUNT_WIDTH-1:0] load_m_tile_idx,
-    input logic [TILE_COUNT_WIDTH-1:0] load_n_tile_idx,
-    input logic [TILE_COUNT_WIDTH-1:0] load_k_tile_idx,
 
-    // ============================================================
-    // Tile currently being computed
-    // ============================================================
+    input logic [31:0]
+        a_stride_bytes,
 
-    input logic [TILE_COUNT_WIDTH-1:0] compute_m_tile_idx,
-    input logic [TILE_COUNT_WIDTH-1:0] compute_n_tile_idx,
+    input logic [31:0]
+        b_stride_bytes,
 
-    // ============================================================
-    // Generated external-memory addresses
-    // ============================================================
+    input logic [31:0]
+        c_stride_bytes,
 
-    output logic [ADDR_WIDTH-1:0] a_tile_addr,
-    output logic [ADDR_WIDTH-1:0] b_tile_addr,
-    output logic [ADDR_WIDTH-1:0] c_tile_addr
+
+    input logic [TILE_COUNT_WIDTH-1:0]
+        load_m_tile_idx,
+
+    input logic [TILE_COUNT_WIDTH-1:0]
+        load_n_tile_idx,
+
+    input logic [TILE_COUNT_WIDTH-1:0]
+        load_k_tile_idx,
+
+
+    input logic [TILE_COUNT_WIDTH-1:0]
+        compute_m_tile_idx,
+
+    input logic [TILE_COUNT_WIDTH-1:0]
+        compute_n_tile_idx,
+
+
+    // 0: INT32 output
+    // 1: INT8 output
+    input logic
+        c_int8_mode,
+
+
+    output logic [ADDR_WIDTH-1:0]
+        a_tile_addr,
+
+    output logic [ADDR_WIDTH-1:0]
+        b_tile_addr,
+
+    output logic [ADDR_WIDTH-1:0]
+        c_tile_addr
 );
 
 
@@ -50,111 +71,106 @@ module gemm_address_generator #(
         ACC_WIDTH / 8;
 
 
-    logic [63:0] load_m_start;
-    logic [63:0] load_n_start;
-    logic [63:0] load_k_start;
-
-    logic [63:0] compute_m_start;
-    logic [63:0] compute_n_start;
-
-
-    logic [63:0] a_addr_calc;
-    logic [63:0] b_addr_calc;
-    logic [63:0] c_addr_calc;
+    logic [ADDR_WIDTH-1:0]
+        c_element_bytes;
 
 
     always_comb begin
 
-        load_m_start =
-            64'(load_m_tile_idx) *
-            64'(ROWS);
+        if (c_int8_mode) begin
 
-        load_n_start =
-            64'(load_n_tile_idx) *
-            64'(COLS);
+            c_element_bytes =
+                ADDR_WIDTH'(1);
 
-        load_k_start =
-            64'(load_k_tile_idx) *
-            64'(K_TILE);
+        end else begin
 
+            c_element_bytes =
+                ADDR_WIDTH'(ACC_BYTES);
 
-        compute_m_start =
-            64'(compute_m_tile_idx) *
-            64'(ROWS);
-
-        compute_n_start =
-            64'(compute_n_tile_idx) *
-            64'(COLS);
+        end
 
 
         // --------------------------------------------------------
-        // A is M x K row-major
-        // --------------------------------------------------------
-
-        a_addr_calc =
-            64'(a_base) +
-            (
-                load_m_start *
-                64'(a_stride_bytes)
-            ) +
-            (
-                load_k_start *
-                64'(DATA_BYTES)
-            );
-
-
-        // --------------------------------------------------------
-        // External B is stored as B^T:
+        // A layout:
         //
-        // N x K row-major
+        // A[M][K], row-major
+        //
+        // tile:
+        // rows = load_m_tile_idx * ROWS
+        // K    = load_k_tile_idx * K_TILE
         // --------------------------------------------------------
-
-        b_addr_calc =
-            64'(b_base) +
-            (
-                load_n_start *
-                64'(b_stride_bytes)
-            ) +
-            (
-                load_k_start *
-                64'(DATA_BYTES)
-            );
-
-
-        // --------------------------------------------------------
-        // C is M x N INT32 row-major
-        // --------------------------------------------------------
-
-        c_addr_calc =
-            64'(c_base) +
-            (
-                compute_m_start *
-                64'(c_stride_bytes)
-            ) +
-            (
-                compute_n_start *
-                64'(ACC_BYTES)
-            );
-
 
         a_tile_addr =
-            ADDR_WIDTH'(a_addr_calc);
+            a_base +
+            (
+                ADDR_WIDTH'(load_m_tile_idx) *
+                ADDR_WIDTH'(ROWS) *
+                ADDR_WIDTH'(a_stride_bytes)
+            ) +
+            (
+                ADDR_WIDTH'(load_k_tile_idx) *
+                ADDR_WIDTH'(K_TILE) *
+                ADDR_WIDTH'(DATA_BYTES)
+            );
+
+
+        // --------------------------------------------------------
+        // B is stored externally as B^T[N][K].
+        // --------------------------------------------------------
 
         b_tile_addr =
-            ADDR_WIDTH'(b_addr_calc);
+            b_base +
+            (
+                ADDR_WIDTH'(load_n_tile_idx) *
+                ADDR_WIDTH'(COLS) *
+                ADDR_WIDTH'(b_stride_bytes)
+            ) +
+            (
+                ADDR_WIDTH'(load_k_tile_idx) *
+                ADDR_WIDTH'(K_TILE) *
+                ADDR_WIDTH'(DATA_BYTES)
+            );
+
+
+        // --------------------------------------------------------
+        // C[M][N]
+        //
+        // INT32 mode:
+        //     4 bytes / element
+        //
+        // INT8 requant mode:
+        //     1 byte / element
+        // --------------------------------------------------------
 
         c_tile_addr =
-            ADDR_WIDTH'(c_addr_calc);
+            c_base +
+            (
+                ADDR_WIDTH'(compute_m_tile_idx) *
+                ADDR_WIDTH'(ROWS) *
+                ADDR_WIDTH'(c_stride_bytes)
+            ) +
+            (
+                ADDR_WIDTH'(compute_n_tile_idx) *
+                ADDR_WIDTH'(COLS) *
+                c_element_bytes
+            );
 
     end
 
 
     initial begin
 
-        if (
-            (DATA_WIDTH % 8) !=
-            0
-        ) begin
+        if (ADDR_WIDTH < 12) begin
+
+            $fatal(
+                1,
+                "ADDR_WIDTH must be >= 12"
+            );
+
+        end
+
+
+        if ((DATA_WIDTH % 8) != 0) begin
 
             $fatal(
                 1,
@@ -164,10 +180,7 @@ module gemm_address_generator #(
         end
 
 
-        if (
-            (ACC_WIDTH % 8) !=
-            0
-        ) begin
+        if ((ACC_WIDTH % 8) != 0) begin
 
             $fatal(
                 1,
@@ -178,26 +191,32 @@ module gemm_address_generator #(
 
 
         if (ROWS < 1) begin
+
             $fatal(
                 1,
                 "ROWS must be >= 1"
             );
+
         end
 
 
         if (COLS < 1) begin
+
             $fatal(
                 1,
                 "COLS must be >= 1"
             );
+
         end
 
 
         if (K_TILE < 1) begin
+
             $fatal(
                 1,
                 "K_TILE must be >= 1"
             );
+
         end
 
     end

@@ -20,10 +20,6 @@ module npu_top #(
     input logic clk,
     input logic reset,
 
-    // ============================================================
-    // Host
-    // ============================================================
-
     input logic
         start,
 
@@ -33,140 +29,60 @@ module npu_top #(
     input logic [DESC_COUNT_WIDTH-1:0]
         desc_count,
 
-    // ============================================================
-    // Status
-    // ============================================================
-
     output logic busy,
     output logic done,
     output logic error,
 
-    // ============================================================
-    // Debug accumulator
-    // ============================================================
-
     output logic signed [ACC_WIDTH-1:0]
         acc_out [ROWS][COLS],
 
-    // ============================================================
-    // Shared AXI Read Address
-    // ============================================================
+    // AXI read
+    output logic [ID_WIDTH-1:0]       m_axi_arid,
+    output logic [ADDR_WIDTH-1:0]     m_axi_araddr,
+    output logic [7:0]                m_axi_arlen,
+    output logic [2:0]                m_axi_arsize,
+    output logic [1:0]                m_axi_arburst,
+    output logic                      m_axi_arvalid,
+    input  logic                      m_axi_arready,
 
-    output logic [ID_WIDTH-1:0]
-        m_axi_arid,
+    input  logic [ID_WIDTH-1:0]       m_axi_rid,
+    input  logic [MEM_WORD_WIDTH-1:0] m_axi_rdata,
+    input  logic [1:0]                m_axi_rresp,
+    input  logic                      m_axi_rlast,
+    input  logic                      m_axi_rvalid,
+    output logic                      m_axi_rready,
 
-    output logic [ADDR_WIDTH-1:0]
-        m_axi_araddr,
+    // AXI write
+    output logic [ID_WIDTH-1:0]       m_axi_awid,
+    output logic [ADDR_WIDTH-1:0]     m_axi_awaddr,
+    output logic [7:0]                m_axi_awlen,
+    output logic [2:0]                m_axi_awsize,
+    output logic [1:0]                m_axi_awburst,
+    output logic                      m_axi_awvalid,
+    input  logic                      m_axi_awready,
 
-    output logic [7:0]
-        m_axi_arlen,
-
-    output logic [2:0]
-        m_axi_arsize,
-
-    output logic [1:0]
-        m_axi_arburst,
-
-    output logic
-        m_axi_arvalid,
-
-    input logic
-        m_axi_arready,
-
-    // ============================================================
-    // Shared AXI Read Data
-    // ============================================================
-
-    input logic [ID_WIDTH-1:0]
-        m_axi_rid,
-
-    input logic [MEM_WORD_WIDTH-1:0]
-        m_axi_rdata,
-
-    input logic [1:0]
-        m_axi_rresp,
-
-    input logic
-        m_axi_rlast,
-
-    input logic
-        m_axi_rvalid,
-
-    output logic
-        m_axi_rready,
-
-    // ============================================================
-    // AXI Write Address
-    // ============================================================
-
-    output logic [ID_WIDTH-1:0]
-        m_axi_awid,
-
-    output logic [ADDR_WIDTH-1:0]
-        m_axi_awaddr,
-
-    output logic [7:0]
-        m_axi_awlen,
-
-    output logic [2:0]
-        m_axi_awsize,
-
-    output logic [1:0]
-        m_axi_awburst,
-
-    output logic
-        m_axi_awvalid,
-
-    input logic
-        m_axi_awready,
-
-    // ============================================================
-    // AXI Write Data
-    // ============================================================
-
-    output logic [MEM_WORD_WIDTH-1:0]
-        m_axi_wdata,
+    output logic [MEM_WORD_WIDTH-1:0] m_axi_wdata,
 
     output logic [(MEM_WORD_WIDTH/8)-1:0]
         m_axi_wstrb,
 
-    output logic
-        m_axi_wlast,
+    output logic m_axi_wlast,
+    output logic m_axi_wvalid,
+    input  logic m_axi_wready,
 
-    output logic
-        m_axi_wvalid,
-
-    input logic
-        m_axi_wready,
-
-    // ============================================================
-    // AXI Write Response
-    // ============================================================
-
-    input logic [ID_WIDTH-1:0]
-        m_axi_bid,
-
-    input logic [1:0]
-        m_axi_bresp,
-
-    input logic
-        m_axi_bvalid,
-
-    output logic
-        m_axi_bready
+    input  logic [ID_WIDTH-1:0] m_axi_bid,
+    input  logic [1:0]          m_axi_bresp,
+    input  logic                m_axi_bvalid,
+    output logic                m_axi_bready
 );
 
-
-    // ============================================================
-    // Opcodes
-    // ============================================================
 
     localparam logic [7:0] OPCODE_GEMM =
         8'h01;
 
 
     // ============================================================
-    // Command frontend
+    // Frontend
     // ============================================================
 
     logic frontend_mem_read_req;
@@ -175,7 +91,6 @@ module npu_top #(
         frontend_mem_read_addr;
 
     logic frontend_mem_read_ready;
-
     logic frontend_mem_read_valid;
 
     logic [31:0]
@@ -192,41 +107,20 @@ module npu_top #(
         frontend_cmd_flags;
 
 
-    logic [31:0]
-        frontend_cfg_m;
+    logic [31:0] frontend_cfg_m;
+    logic [31:0] frontend_cfg_n;
+    logic [31:0] frontend_cfg_k;
 
-    logic [31:0]
-        frontend_cfg_n;
+    logic [63:0] frontend_cfg_a_base;
+    logic [63:0] frontend_cfg_b_base;
+    logic [63:0] frontend_cfg_c_base;
 
-    logic [31:0]
-        frontend_cfg_k;
+    logic [31:0] frontend_cfg_a_stride;
+    logic [31:0] frontend_cfg_b_stride;
+    logic [31:0] frontend_cfg_c_stride;
 
-
-    logic [63:0]
-        frontend_cfg_a_base;
-
-    logic [63:0]
-        frontend_cfg_b_base;
-
-    logic [63:0]
-        frontend_cfg_c_base;
-
-
-    logic [31:0]
-        frontend_cfg_a_stride;
-
-    logic [31:0]
-        frontend_cfg_b_stride;
-
-    logic [31:0]
-        frontend_cfg_c_stride;
-
-
-    logic [31:0]
-        frontend_cfg_param0;
-
-    logic [31:0]
-        frontend_cfg_param1;
+    logic [31:0] frontend_cfg_param0;
+    logic [31:0] frontend_cfg_param1;
 
 
     logic frontend_exec_done;
@@ -236,20 +130,18 @@ module npu_top #(
 
 
     // ============================================================
-    // Descriptor interpretation
+    // Flags
     //
-    // opcode 1 = GEMM
-    //
-    // flags[0] = BIAS_EN
-    //
-    // if BIAS_EN:
-    //   param1:param0 = 64-bit bias base address
-    //
-    // flags[23:1] currently reserved
+    // flags[0] : BIAS_EN
+    // flags[1] : REQUANT_EN
+    // flags[2] : RELU_EN
     // ============================================================
 
-    logic descriptor_supported;
     logic frontend_bias_en;
+    logic frontend_requant_en;
+    logic frontend_relu_en;
+
+    logic descriptor_supported;
 
     logic unsupported_accept;
     logic unsupported_pending_q;
@@ -259,17 +151,30 @@ module npu_top #(
         frontend_cmd_flags[0];
 
 
+    assign frontend_requant_en =
+        frontend_cmd_flags[1];
+
+
+    assign frontend_relu_en =
+        frontend_cmd_flags[2];
+
+
     assign descriptor_supported =
         (
             frontend_cmd_opcode ==
             OPCODE_GEMM
         ) &&
         (
-            frontend_cmd_flags[23:1] ==
-            23'd0
+            frontend_cmd_flags[23:3] ==
+            21'd0
+        ) &&
+        !(
+            frontend_relu_en &&
+            !frontend_requant_en
         ) &&
         (
             frontend_bias_en ||
+            frontend_requant_en ||
             (
                 (frontend_cfg_param0 == 32'd0) &&
                 (frontend_cfg_param1 == 32'd0)
@@ -278,7 +183,7 @@ module npu_top #(
 
 
     // ============================================================
-    // GEMM executor command
+    // Executor command
     // ============================================================
 
     logic executor_cmd_valid;
@@ -305,10 +210,6 @@ module npu_top #(
         frontend_cmd_ready &&
         !descriptor_supported;
 
-
-    // ============================================================
-    // Unsupported-command completion
-    // ============================================================
 
     always_ff @(posedge clk) begin
 
@@ -468,7 +369,7 @@ module npu_top #(
 
 
     // ============================================================
-    // Descriptor AXI read master
+    // Descriptor AXI master
     // ============================================================
 
     logic desc_req_ready;
@@ -486,37 +387,20 @@ module npu_top #(
     logic desc_axi_error;
 
 
-    logic [ID_WIDTH-1:0]
-        desc_axi_arid;
+    logic [ID_WIDTH-1:0]   desc_axi_arid;
+    logic [ADDR_WIDTH-1:0] desc_axi_araddr;
+    logic [7:0]            desc_axi_arlen;
+    logic [2:0]            desc_axi_arsize;
+    logic [1:0]            desc_axi_arburst;
+    logic                  desc_axi_arvalid;
+    logic                  desc_axi_arready;
 
-    logic [ADDR_WIDTH-1:0]
-        desc_axi_araddr;
-
-    logic [7:0]
-        desc_axi_arlen;
-
-    logic [2:0]
-        desc_axi_arsize;
-
-    logic [1:0]
-        desc_axi_arburst;
-
-    logic desc_axi_arvalid;
-    logic desc_axi_arready;
-
-
-    logic [ID_WIDTH-1:0]
-        desc_axi_rid;
-
-    logic [MEM_WORD_WIDTH-1:0]
-        desc_axi_rdata;
-
-    logic [1:0]
-        desc_axi_rresp;
-
-    logic desc_axi_rlast;
-    logic desc_axi_rvalid;
-    logic desc_axi_rready;
+    logic [ID_WIDTH-1:0]       desc_axi_rid;
+    logic [MEM_WORD_WIDTH-1:0] desc_axi_rdata;
+    logic [1:0]                desc_axi_rresp;
+    logic                      desc_axi_rlast;
+    logic                      desc_axi_rvalid;
+    logic                      desc_axi_rready;
 
 
     assign frontend_mem_read_ready =
@@ -537,275 +421,125 @@ module npu_top #(
 
 
     axi_read_master #(
-        .ADDR_WIDTH (
-            ADDR_WIDTH
-        ),
-
-        .DATA_WIDTH (
-            MEM_WORD_WIDTH
-        ),
-
-        .ID_WIDTH (
-            ID_WIDTH
-        )
+        .ADDR_WIDTH (ADDR_WIDTH),
+        .DATA_WIDTH (MEM_WORD_WIDTH),
+        .ID_WIDTH   (ID_WIDTH)
     ) u_descriptor_read_master (
-        .clk (
-            clk
-        ),
+        .clk          (clk),
+        .reset        (reset),
 
-        .reset (
-            reset
-        ),
+        .req_valid    (frontend_mem_read_req),
+        .req_ready    (desc_req_ready),
 
-        .req_valid (
-            frontend_mem_read_req
-        ),
-
-        .req_ready (
-            desc_req_ready
-        ),
-
-        .req_addr (
+        .req_addr     (
             ADDR_WIDTH'(
                 frontend_mem_read_addr
             )
         ),
 
-        .req_beats (
-            32'd1
-        ),
+        .req_beats    (32'd1),
 
-        .data_valid (
-            desc_data_valid
-        ),
+        .data_valid   (desc_data_valid),
+        .data_ready   (desc_data_ready),
+        .data         (desc_data),
+        .data_last    (desc_data_last),
 
-        .data_ready (
-            desc_data_ready
-        ),
+        .busy         (desc_axi_busy),
+        .done         (desc_axi_done),
+        .error        (desc_axi_error),
 
-        .data (
-            desc_data
-        ),
+        .m_axi_arid   (desc_axi_arid),
+        .m_axi_araddr (desc_axi_araddr),
+        .m_axi_arlen  (desc_axi_arlen),
+        .m_axi_arsize (desc_axi_arsize),
+        .m_axi_arburst(desc_axi_arburst),
+        .m_axi_arvalid(desc_axi_arvalid),
+        .m_axi_arready(desc_axi_arready),
 
-        .data_last (
-            desc_data_last
-        ),
-
-        .busy (
-            desc_axi_busy
-        ),
-
-        .done (
-            desc_axi_done
-        ),
-
-        .error (
-            desc_axi_error
-        ),
-
-        .m_axi_arid (
-            desc_axi_arid
-        ),
-
-        .m_axi_araddr (
-            desc_axi_araddr
-        ),
-
-        .m_axi_arlen (
-            desc_axi_arlen
-        ),
-
-        .m_axi_arsize (
-            desc_axi_arsize
-        ),
-
-        .m_axi_arburst (
-            desc_axi_arburst
-        ),
-
-        .m_axi_arvalid (
-            desc_axi_arvalid
-        ),
-
-        .m_axi_arready (
-            desc_axi_arready
-        ),
-
-        .m_axi_rid (
-            desc_axi_rid
-        ),
-
-        .m_axi_rdata (
-            desc_axi_rdata
-        ),
-
-        .m_axi_rresp (
-            desc_axi_rresp
-        ),
-
-        .m_axi_rlast (
-            desc_axi_rlast
-        ),
-
-        .m_axi_rvalid (
-            desc_axi_rvalid
-        ),
-
-        .m_axi_rready (
-            desc_axi_rready
-        )
+        .m_axi_rid    (desc_axi_rid),
+        .m_axi_rdata  (desc_axi_rdata),
+        .m_axi_rresp  (desc_axi_rresp),
+        .m_axi_rlast  (desc_axi_rlast),
+        .m_axi_rvalid (desc_axi_rvalid),
+        .m_axi_rready (desc_axi_rready)
     );
 
 
     // ============================================================
-    // GEMM executor AXI read side
+    // Executor AXI side
     // ============================================================
 
-    logic [ID_WIDTH-1:0]
-        gemm_axi_arid;
+    logic [ID_WIDTH-1:0]   gemm_axi_arid;
+    logic [ADDR_WIDTH-1:0] gemm_axi_araddr;
+    logic [7:0]            gemm_axi_arlen;
+    logic [2:0]            gemm_axi_arsize;
+    logic [1:0]            gemm_axi_arburst;
+    logic                  gemm_axi_arvalid;
+    logic                  gemm_axi_arready;
 
-    logic [ADDR_WIDTH-1:0]
-        gemm_axi_araddr;
+    logic [ID_WIDTH-1:0]       gemm_axi_rid;
+    logic [MEM_WORD_WIDTH-1:0] gemm_axi_rdata;
+    logic [1:0]                gemm_axi_rresp;
+    logic                      gemm_axi_rlast;
+    logic                      gemm_axi_rvalid;
+    logic                      gemm_axi_rready;
 
-    logic [7:0]
-        gemm_axi_arlen;
-
-    logic [2:0]
-        gemm_axi_arsize;
-
-    logic [1:0]
-        gemm_axi_arburst;
-
-    logic gemm_axi_arvalid;
-    logic gemm_axi_arready;
-
-
-    logic [ID_WIDTH-1:0]
-        gemm_axi_rid;
-
-    logic [MEM_WORD_WIDTH-1:0]
-        gemm_axi_rdata;
-
-    logic [1:0]
-        gemm_axi_rresp;
-
-    logic gemm_axi_rlast;
-    logic gemm_axi_rvalid;
-    logic gemm_axi_rready;
-
-
-    // ============================================================
-    // GEMM executor
-    // ============================================================
 
     gemm_executor #(
-        .ADDR_WIDTH (
-            ADDR_WIDTH
-        ),
+        .ADDR_WIDTH       (ADDR_WIDTH),
+        .TILE_COUNT_WIDTH (TILE_COUNT_WIDTH),
 
-        .TILE_COUNT_WIDTH (
-            TILE_COUNT_WIDTH
-        ),
+        .ROWS             (ROWS),
+        .COLS             (COLS),
 
-        .ROWS (
-            ROWS
-        ),
+        .DATA_WIDTH       (DATA_WIDTH),
+        .ACC_WIDTH        (ACC_WIDTH),
+        .MEM_WORD_WIDTH   (MEM_WORD_WIDTH),
 
-        .COLS (
-            COLS
-        ),
+        .ID_WIDTH         (ID_WIDTH),
 
-        .DATA_WIDTH (
-            DATA_WIDTH
-        ),
+        .K_TILE_SIZE      (K_TILE_SIZE),
 
-        .ACC_WIDTH (
-            ACC_WIDTH
-        ),
-
-        .MEM_WORD_WIDTH (
-            MEM_WORD_WIDTH
-        ),
-
-        .ID_WIDTH (
-            ID_WIDTH
-        ),
-
-        .K_TILE_SIZE (
-            K_TILE_SIZE
-        ),
-
-        .A_BUFFER_COUNT (
-            A_BUFFER_COUNT
-        ),
-
-        .B_BUFFER_COUNT (
-            B_BUFFER_COUNT
-        )
+        .A_BUFFER_COUNT   (A_BUFFER_COUNT),
+        .B_BUFFER_COUNT   (B_BUFFER_COUNT)
     ) u_gemm_executor (
-        .clk (
-            clk
-        ),
+        .clk                (clk),
+        .reset              (reset),
 
-        .reset (
-            reset
-        ),
+        .cmd_valid          (executor_cmd_valid),
+        .cmd_ready          (executor_cmd_ready),
 
-        .cmd_valid (
-            executor_cmd_valid
-        ),
+        .cmd_m              (frontend_cfg_m),
+        .cmd_n              (frontend_cfg_n),
+        .cmd_k              (frontend_cfg_k),
 
-        .cmd_ready (
-            executor_cmd_ready
-        ),
-
-        .cmd_m (
-            frontend_cfg_m
-        ),
-
-        .cmd_n (
-            frontend_cfg_n
-        ),
-
-        .cmd_k (
-            frontend_cfg_k
-        ),
-
-        .cmd_a_base (
+        .cmd_a_base         (
             ADDR_WIDTH'(
                 frontend_cfg_a_base
             )
         ),
 
-        .cmd_b_base (
+        .cmd_b_base         (
             ADDR_WIDTH'(
                 frontend_cfg_b_base
             )
         ),
 
-        .cmd_c_base (
+        .cmd_c_base         (
             ADDR_WIDTH'(
                 frontend_cfg_c_base
             )
         ),
 
-        .cmd_a_stride_bytes (
-            frontend_cfg_a_stride
-        ),
+        .cmd_a_stride_bytes (frontend_cfg_a_stride),
+        .cmd_b_stride_bytes (frontend_cfg_b_stride),
+        .cmd_c_stride_bytes (frontend_cfg_c_stride),
 
-        .cmd_b_stride_bytes (
-            frontend_cfg_b_stride
-        ),
+        .cmd_bias_en        (frontend_bias_en),
+        .cmd_requant_en     (frontend_requant_en),
+        .cmd_relu_en        (frontend_relu_en),
 
-        .cmd_c_stride_bytes (
-            frontend_cfg_c_stride
-        ),
-
-        .cmd_bias_en (
-            frontend_bias_en
-        ),
-
-        .cmd_bias_base (
+        .cmd_param_base     (
             ADDR_WIDTH'(
                 {
                     frontend_cfg_param1,
@@ -814,325 +548,109 @@ module npu_top #(
             )
         ),
 
-        .busy (
-            executor_busy
-        ),
+        .busy                (executor_busy),
+        .done                (executor_done),
+        .error               (executor_error),
 
-        .done (
-            executor_done
-        ),
+        .acc_out             (acc_out),
 
-        .error (
-            executor_error
-        ),
+        .m_axi_arid          (gemm_axi_arid),
+        .m_axi_araddr        (gemm_axi_araddr),
+        .m_axi_arlen         (gemm_axi_arlen),
+        .m_axi_arsize        (gemm_axi_arsize),
+        .m_axi_arburst       (gemm_axi_arburst),
+        .m_axi_arvalid       (gemm_axi_arvalid),
+        .m_axi_arready       (gemm_axi_arready),
 
-        .acc_out (
-            acc_out
-        ),
+        .m_axi_rid           (gemm_axi_rid),
+        .m_axi_rdata         (gemm_axi_rdata),
+        .m_axi_rresp         (gemm_axi_rresp),
+        .m_axi_rlast         (gemm_axi_rlast),
+        .m_axi_rvalid        (gemm_axi_rvalid),
+        .m_axi_rready        (gemm_axi_rready),
 
-        .m_axi_arid (
-            gemm_axi_arid
-        ),
+        .m_axi_awid          (m_axi_awid),
+        .m_axi_awaddr        (m_axi_awaddr),
+        .m_axi_awlen         (m_axi_awlen),
+        .m_axi_awsize        (m_axi_awsize),
+        .m_axi_awburst       (m_axi_awburst),
+        .m_axi_awvalid       (m_axi_awvalid),
+        .m_axi_awready       (m_axi_awready),
 
-        .m_axi_araddr (
-            gemm_axi_araddr
-        ),
+        .m_axi_wdata         (m_axi_wdata),
+        .m_axi_wstrb         (m_axi_wstrb),
+        .m_axi_wlast         (m_axi_wlast),
+        .m_axi_wvalid        (m_axi_wvalid),
+        .m_axi_wready        (m_axi_wready),
 
-        .m_axi_arlen (
-            gemm_axi_arlen
-        ),
-
-        .m_axi_arsize (
-            gemm_axi_arsize
-        ),
-
-        .m_axi_arburst (
-            gemm_axi_arburst
-        ),
-
-        .m_axi_arvalid (
-            gemm_axi_arvalid
-        ),
-
-        .m_axi_arready (
-            gemm_axi_arready
-        ),
-
-        .m_axi_rid (
-            gemm_axi_rid
-        ),
-
-        .m_axi_rdata (
-            gemm_axi_rdata
-        ),
-
-        .m_axi_rresp (
-            gemm_axi_rresp
-        ),
-
-        .m_axi_rlast (
-            gemm_axi_rlast
-        ),
-
-        .m_axi_rvalid (
-            gemm_axi_rvalid
-        ),
-
-        .m_axi_rready (
-            gemm_axi_rready
-        ),
-
-        .m_axi_awid (
-            m_axi_awid
-        ),
-
-        .m_axi_awaddr (
-            m_axi_awaddr
-        ),
-
-        .m_axi_awlen (
-            m_axi_awlen
-        ),
-
-        .m_axi_awsize (
-            m_axi_awsize
-        ),
-
-        .m_axi_awburst (
-            m_axi_awburst
-        ),
-
-        .m_axi_awvalid (
-            m_axi_awvalid
-        ),
-
-        .m_axi_awready (
-            m_axi_awready
-        ),
-
-        .m_axi_wdata (
-            m_axi_wdata
-        ),
-
-        .m_axi_wstrb (
-            m_axi_wstrb
-        ),
-
-        .m_axi_wlast (
-            m_axi_wlast
-        ),
-
-        .m_axi_wvalid (
-            m_axi_wvalid
-        ),
-
-        .m_axi_wready (
-            m_axi_wready
-        ),
-
-        .m_axi_bid (
-            m_axi_bid
-        ),
-
-        .m_axi_bresp (
-            m_axi_bresp
-        ),
-
-        .m_axi_bvalid (
-            m_axi_bvalid
-        ),
-
-        .m_axi_bready (
-            m_axi_bready
-        )
+        .m_axi_bid           (m_axi_bid),
+        .m_axi_bresp         (m_axi_bresp),
+        .m_axi_bvalid        (m_axi_bvalid),
+        .m_axi_bready        (m_axi_bready)
     );
 
 
     // ============================================================
-    // Shared descriptor/GEMM AXI read mux
+    // Descriptor / Executor read mux
     // ============================================================
 
     axi_read_mux #(
-        .ADDR_WIDTH (
-            ADDR_WIDTH
-        ),
-
-        .DATA_WIDTH (
-            MEM_WORD_WIDTH
-        ),
-
-        .ID_WIDTH (
-            ID_WIDTH
-        )
+        .ADDR_WIDTH (ADDR_WIDTH),
+        .DATA_WIDTH (MEM_WORD_WIDTH),
+        .ID_WIDTH   (ID_WIDTH)
     ) u_axi_read_mux (
-        .clk (
-            clk
-        ),
+        .clk          (clk),
+        .reset        (reset),
 
-        .reset (
-            reset
-        ),
+        .desc_arid    (desc_axi_arid),
+        .desc_araddr  (desc_axi_araddr),
+        .desc_arlen   (desc_axi_arlen),
+        .desc_arsize  (desc_axi_arsize),
+        .desc_arburst (desc_axi_arburst),
+        .desc_arvalid (desc_axi_arvalid),
+        .desc_arready (desc_axi_arready),
 
-        .desc_arid (
-            desc_axi_arid
-        ),
+        .desc_rid     (desc_axi_rid),
+        .desc_rdata   (desc_axi_rdata),
+        .desc_rresp   (desc_axi_rresp),
+        .desc_rlast   (desc_axi_rlast),
+        .desc_rvalid  (desc_axi_rvalid),
+        .desc_rready  (desc_axi_rready),
 
-        .desc_araddr (
-            desc_axi_araddr
-        ),
+        .gemm_arid    (gemm_axi_arid),
+        .gemm_araddr  (gemm_axi_araddr),
+        .gemm_arlen   (gemm_axi_arlen),
+        .gemm_arsize  (gemm_axi_arsize),
+        .gemm_arburst (gemm_axi_arburst),
+        .gemm_arvalid (gemm_axi_arvalid),
+        .gemm_arready (gemm_axi_arready),
 
-        .desc_arlen (
-            desc_axi_arlen
-        ),
+        .gemm_rid     (gemm_axi_rid),
+        .gemm_rdata   (gemm_axi_rdata),
+        .gemm_rresp   (gemm_axi_rresp),
+        .gemm_rlast   (gemm_axi_rlast),
+        .gemm_rvalid  (gemm_axi_rvalid),
+        .gemm_rready  (gemm_axi_rready),
 
-        .desc_arsize (
-            desc_axi_arsize
-        ),
+        .m_axi_arid   (m_axi_arid),
+        .m_axi_araddr (m_axi_araddr),
+        .m_axi_arlen  (m_axi_arlen),
+        .m_axi_arsize (m_axi_arsize),
+        .m_axi_arburst(m_axi_arburst),
+        .m_axi_arvalid(m_axi_arvalid),
+        .m_axi_arready(m_axi_arready),
 
-        .desc_arburst (
-            desc_axi_arburst
-        ),
-
-        .desc_arvalid (
-            desc_axi_arvalid
-        ),
-
-        .desc_arready (
-            desc_axi_arready
-        ),
-
-        .desc_rid (
-            desc_axi_rid
-        ),
-
-        .desc_rdata (
-            desc_axi_rdata
-        ),
-
-        .desc_rresp (
-            desc_axi_rresp
-        ),
-
-        .desc_rlast (
-            desc_axi_rlast
-        ),
-
-        .desc_rvalid (
-            desc_axi_rvalid
-        ),
-
-        .desc_rready (
-            desc_axi_rready
-        ),
-
-        .gemm_arid (
-            gemm_axi_arid
-        ),
-
-        .gemm_araddr (
-            gemm_axi_araddr
-        ),
-
-        .gemm_arlen (
-            gemm_axi_arlen
-        ),
-
-        .gemm_arsize (
-            gemm_axi_arsize
-        ),
-
-        .gemm_arburst (
-            gemm_axi_arburst
-        ),
-
-        .gemm_arvalid (
-            gemm_axi_arvalid
-        ),
-
-        .gemm_arready (
-            gemm_axi_arready
-        ),
-
-        .gemm_rid (
-            gemm_axi_rid
-        ),
-
-        .gemm_rdata (
-            gemm_axi_rdata
-        ),
-
-        .gemm_rresp (
-            gemm_axi_rresp
-        ),
-
-        .gemm_rlast (
-            gemm_axi_rlast
-        ),
-
-        .gemm_rvalid (
-            gemm_axi_rvalid
-        ),
-
-        .gemm_rready (
-            gemm_axi_rready
-        ),
-
-        .m_axi_arid (
-            m_axi_arid
-        ),
-
-        .m_axi_araddr (
-            m_axi_araddr
-        ),
-
-        .m_axi_arlen (
-            m_axi_arlen
-        ),
-
-        .m_axi_arsize (
-            m_axi_arsize
-        ),
-
-        .m_axi_arburst (
-            m_axi_arburst
-        ),
-
-        .m_axi_arvalid (
-            m_axi_arvalid
-        ),
-
-        .m_axi_arready (
-            m_axi_arready
-        ),
-
-        .m_axi_rid (
-            m_axi_rid
-        ),
-
-        .m_axi_rdata (
-            m_axi_rdata
-        ),
-
-        .m_axi_rresp (
-            m_axi_rresp
-        ),
-
-        .m_axi_rlast (
-            m_axi_rlast
-        ),
-
-        .m_axi_rvalid (
-            m_axi_rvalid
-        ),
-
-        .m_axi_rready (
-            m_axi_rready
-        )
+        .m_axi_rid    (m_axi_rid),
+        .m_axi_rdata  (m_axi_rdata),
+        .m_axi_rresp  (m_axi_rresp),
+        .m_axi_rlast  (m_axi_rlast),
+        .m_axi_rvalid (m_axi_rvalid),
+        .m_axi_rready (m_axi_rready)
     );
 
 
     // ============================================================
-    // NPU status
+    // Status
     // ============================================================
 
     assign busy =
@@ -1146,10 +664,6 @@ module npu_top #(
     assign done =
         frontend_done;
 
-
-    // ============================================================
-    // Sticky error
-    // ============================================================
 
     always_ff @(posedge clk) begin
 
@@ -1184,10 +698,6 @@ module npu_top #(
     end
 
 
-    // ============================================================
-    // Parameter checks
-    // ============================================================
-
     initial begin
 
         if (MEM_WORD_WIDTH != 32) begin
@@ -1205,16 +715,6 @@ module npu_top #(
             $fatal(
                 1,
                 "npu_top currently requires ADDR_WIDTH == 64"
-            );
-
-        end
-
-
-        if (DESC_COUNT_WIDTH < 1) begin
-
-            $fatal(
-                1,
-                "DESC_COUNT_WIDTH must be >= 1"
             );
 
         end

@@ -11,10 +11,6 @@ VFLAGS := \
 	-Wno-TIMESCALEMOD
 
 
-# ================================================================
-# Memory
-# ================================================================
-
 MEMORY_SRCS := \
 	rtl/memory/sram_model.sv \
 	rtl/memory/operand_buffer.sv \
@@ -22,10 +18,6 @@ MEMORY_SRCS := \
 	rtl/memory/operand_loader.sv \
 	rtl/memory/buffer_manager.sv
 
-
-# ================================================================
-# DMA
-# ================================================================
 
 DMA_SRCS := \
 	rtl/dma/axi_read_master.sv \
@@ -35,13 +27,9 @@ DMA_SRCS := \
 	rtl/dma/operand_read_dma.sv \
 	rtl/dma/read_request_arbiter.sv \
 	rtl/dma/gemm_read_path.sv \
-	rtl/dma/bias_loader.sv \
+	rtl/dma/postprocess_param_loader.sv \
 	rtl/dma/c_write_dma.sv
 
-
-# ================================================================
-# Compute
-# ================================================================
 
 COMPUTE_SRCS := \
 	rtl/compute/pe.sv \
@@ -50,10 +38,6 @@ COMPUTE_SRCS := \
 	rtl/compute/matrix_engine.sv \
 	rtl/compute/postprocess_unit.sv
 
-
-# ================================================================
-# Core
-# ================================================================
 
 CORE_SRCS := \
 	rtl/core/matrix_controller.sv \
@@ -65,10 +49,6 @@ CORE_SRCS := \
 	rtl/core/npu_top.sv
 
 
-# ================================================================
-# NPU integration test
-# ================================================================
-
 NPU_TOP_SRCS := \
 	$(MEMORY_SRCS) \
 	$(DMA_SRCS) \
@@ -77,21 +57,11 @@ NPU_TOP_SRCS := \
 	sim/tb/npu_top_tb.sv
 
 
-# ================================================================
-# Default
-# ================================================================
-
 .PHONY: all
-
 all: npu_top
 
 
-# ================================================================
-# Descriptor-driven NPU
-# ================================================================
-
 .PHONY: npu_top
-
 npu_top:
 	mkdir -p $(BUILD_DIR)/npu_top
 	$(VERILATOR) $(VFLAGS) \
@@ -101,26 +71,6 @@ npu_top:
 	./$(BUILD_DIR)/npu_top/Vnpu_top_tb
 
 
-# ================================================================
-# Clean
-# ================================================================
-
 .PHONY: clean
-
 clean:
 	rm -rf $(BUILD_DIR)
-
-
-# ================================================================
-# Help
-# ================================================================
-
-.PHONY: help
-
-help:
-	@echo "Targets:"
-	@echo "  make npu_top"
-	@echo "      Run descriptor-driven optional-Bias NPU integration test"
-	@echo ""
-	@echo "  make clean"
-	@echo "      Remove build directory"

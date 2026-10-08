@@ -22,9 +22,15 @@ module npu_top_tb;
     // Workload
     // ============================================================
 
-    localparam int unsigned M_TOTAL = 8;
-    localparam int unsigned N_TOTAL = 8;
-    localparam int unsigned K_TOTAL = 260;
+    localparam int unsigned M_TOTAL =
+        8;
+
+    localparam int unsigned N_TOTAL =
+        8;
+
+    localparam int unsigned K_TOTAL =
+        260;
+
 
     localparam int unsigned WORD_BYTES =
         MEM_WORD_WIDTH / 8;
@@ -32,9 +38,11 @@ module npu_top_tb;
     localparam int unsigned AB_STRIDE_BYTES =
         K_TOTAL;
 
-    localparam int unsigned C_STRIDE_BYTES =
-        N_TOTAL *
-        (ACC_WIDTH / 8);
+    localparam int unsigned C_INT32_STRIDE =
+        N_TOTAL * 4;
+
+    localparam int unsigned C_INT8_STRIDE =
+        N_TOTAL;
 
     localparam int unsigned WORDS_PER_AB_ROW =
         AB_STRIDE_BYTES /
@@ -45,23 +53,26 @@ module npu_top_tb;
     // Memory map
     // ============================================================
 
-    localparam logic [ADDR_WIDTH-1:0] A_BASE =
+    localparam logic [63:0] A_BASE =
         64'h0000_0000_0000_1000;
 
-    localparam logic [ADDR_WIDTH-1:0] BT_BASE =
+    localparam logic [63:0] BT_BASE =
         64'h0000_0000_0000_2000;
 
-    localparam logic [ADDR_WIDTH-1:0] C0_BASE =
+    localparam logic [63:0] C0_BASE =
         64'h0000_0000_0000_3000;
 
-    localparam logic [ADDR_WIDTH-1:0] C1_BASE =
+    localparam logic [63:0] C1_BASE =
         64'h0000_0000_0000_3400;
 
-    localparam logic [ADDR_WIDTH-1:0] BIAS_BASE =
+    localparam logic [63:0] C2_BASE =
         64'h0000_0000_0000_3800;
 
-    localparam logic [ADDR_WIDTH-1:0] DESC_BASE =
-        64'h0000_0000_0000_4000;
+    localparam logic [63:0] PARAM_BASE =
+        64'h0000_0000_0000_5000;
+
+    localparam logic [63:0] DESC_BASE =
+        64'h0000_0000_0000_6000;
 
 
     localparam int unsigned A_WORD_BASE =
@@ -80,12 +91,16 @@ module npu_top_tb;
         32'h0000_3400 /
         WORD_BYTES;
 
-    localparam int unsigned BIAS_WORD_BASE =
+    localparam int unsigned C2_WORD_BASE =
         32'h0000_3800 /
         WORD_BYTES;
 
+    localparam int unsigned PARAM_WORD_BASE =
+        32'h0000_5000 /
+        WORD_BYTES;
+
     localparam int unsigned DESC_WORD_BASE =
-        32'h0000_4000 /
+        32'h0000_6000 /
         WORD_BYTES;
 
 
@@ -93,7 +108,26 @@ module npu_top_tb;
         8192;
 
     localparam int unsigned TIMEOUT_CYCLES =
-        20000;
+        30000;
+
+
+    // ============================================================
+    // Requant test parameters
+    //
+    // Scale:
+    //
+    //     S = M / 2^R
+    //       = 3 / 4
+    //       = 0.75
+    //
+    // This deliberately generates saturation and ReLU cases.
+    // ============================================================
+
+    localparam int unsigned TEST_MULTIPLIER =
+        3;
+
+    localparam int unsigned TEST_SHIFT =
+        2;
 
 
     // ============================================================
@@ -103,15 +137,20 @@ module npu_top_tb;
     logic clk;
     logic reset;
 
+
     initial begin
-        clk = 1'b0;
+
+        clk =
+            1'b0;
+
     end
+
 
     always #5 clk = ~clk;
 
 
     // ============================================================
-    // Host
+    // Host interface
     // ============================================================
 
     logic start;
@@ -122,13 +161,14 @@ module npu_top_tb;
     logic [DESC_COUNT_WIDTH-1:0]
         desc_count;
 
+
     logic npu_busy;
     logic npu_done;
     logic npu_error;
 
 
     // ============================================================
-    // Debug
+    // Debug RAW accumulator
     // ============================================================
 
     logic signed [ACC_WIDTH-1:0]
@@ -136,7 +176,7 @@ module npu_top_tb;
 
 
     // ============================================================
-    // AXI read
+    // AXI Read Address
     // ============================================================
 
     logic [ID_WIDTH-1:0]
@@ -154,9 +194,16 @@ module npu_top_tb;
     logic [1:0]
         axi_arburst;
 
-    logic axi_arvalid;
-    logic axi_arready;
+    logic
+        axi_arvalid;
 
+    logic
+        axi_arready;
+
+
+    // ============================================================
+    // AXI Read Data
+    // ============================================================
 
     logic [ID_WIDTH-1:0]
         axi_rid;
@@ -167,13 +214,18 @@ module npu_top_tb;
     logic [1:0]
         axi_rresp;
 
-    logic axi_rlast;
-    logic axi_rvalid;
-    logic axi_rready;
+    logic
+        axi_rlast;
+
+    logic
+        axi_rvalid;
+
+    logic
+        axi_rready;
 
 
     // ============================================================
-    // AXI write
+    // AXI Write Address
     // ============================================================
 
     logic [ID_WIDTH-1:0]
@@ -191,9 +243,16 @@ module npu_top_tb;
     logic [1:0]
         axi_awburst;
 
-    logic axi_awvalid;
-    logic axi_awready;
+    logic
+        axi_awvalid;
 
+    logic
+        axi_awready;
+
+
+    // ============================================================
+    // AXI Write Data
+    // ============================================================
 
     logic [MEM_WORD_WIDTH-1:0]
         axi_wdata;
@@ -201,10 +260,19 @@ module npu_top_tb;
     logic [(MEM_WORD_WIDTH/8)-1:0]
         axi_wstrb;
 
-    logic axi_wlast;
-    logic axi_wvalid;
-    logic axi_wready;
+    logic
+        axi_wlast;
 
+    logic
+        axi_wvalid;
+
+    logic
+        axi_wready;
+
+
+    // ============================================================
+    // AXI Write Response
+    // ============================================================
 
     logic [ID_WIDTH-1:0]
         axi_bid;
@@ -212,12 +280,15 @@ module npu_top_tb;
     logic [1:0]
         axi_bresp;
 
-    logic axi_bvalid;
-    logic axi_bready;
+    logic
+        axi_bvalid;
+
+    logic
+        axi_bready;
 
 
     // ============================================================
-    // External memory
+    // External memory model
     // ============================================================
 
     logic [MEM_WORD_WIDTH-1:0]
@@ -228,10 +299,11 @@ module npu_top_tb;
 
 
     // ============================================================
-    // AXI read state
+    // Read slave state
     // ============================================================
 
-    logic rd_active_q;
+    logic
+        rd_active_q;
 
     logic [ADDR_WIDTH-1:0]
         rd_addr_q;
@@ -241,10 +313,11 @@ module npu_top_tb;
 
 
     // ============================================================
-    // AXI write state
+    // Write slave state
     // ============================================================
 
-    logic wr_active_q;
+    logic
+        wr_active_q;
 
     logic [ADDR_WIDTH-1:0]
         wr_addr_q;
@@ -257,7 +330,7 @@ module npu_top_tb;
 
 
     // ============================================================
-    // Counters
+    // Performance / protocol counters
     // ============================================================
 
     integer cycle_count;
@@ -265,6 +338,7 @@ module npu_top_tb;
     integer total_ar_count;
     integer descriptor_ar_count;
     integer operand_ar_count;
+    integer global_param_ar_count;
     integer bias_ar_count;
 
     integer aw_count;
@@ -345,6 +419,210 @@ module npu_top_tb;
 
 
     // ============================================================
+    // Golden requant model
+    //
+    // round-to-nearest, ties away from zero
+    // ============================================================
+
+    function automatic integer signed requant_model (
+        input integer signed   value,
+        input integer unsigned multiplier,
+        input integer unsigned shift_amount,
+        input logic            relu
+    );
+
+        longint signed
+            value_ext;
+
+        longint signed
+            multiplier_ext;
+
+        longint signed
+            product;
+
+        longint signed
+            scaled;
+
+        longint unsigned
+            magnitude;
+
+        longint unsigned
+            rounded_magnitude;
+
+        longint unsigned
+            half;
+
+        begin
+
+            // ----------------------------------------------------
+            // Explicit 32 -> 64 extension.
+            //
+            // Avoid implicit width/sign behaviour in multiplication.
+            // ----------------------------------------------------
+
+            value_ext =
+                $signed(
+                    {
+                        {32{value[31]}},
+                        value[31:0]
+                    }
+                );
+
+
+            multiplier_ext =
+                $signed(
+                    {
+                        32'd0,
+                        multiplier[31:0]
+                    }
+                );
+
+
+            product =
+                value_ext *
+                multiplier_ext;
+
+
+            // ----------------------------------------------------
+            // Rounding right shift
+            // ----------------------------------------------------
+
+            if (
+                shift_amount ==
+                0
+            ) begin
+
+                scaled =
+                    product;
+
+            end else begin
+
+                if (
+                    product <
+                    0
+                ) begin
+
+                    magnitude =
+                        $unsigned(
+                            -product
+                        );
+
+                end else begin
+
+                    magnitude =
+                        $unsigned(
+                            product
+                        );
+
+                end
+
+
+                half =
+                    64'd1 <<
+                    (
+                        shift_amount -
+                        1
+                    );
+
+
+                rounded_magnitude =
+                    (
+                        magnitude +
+                        half
+                    ) >>
+                    shift_amount;
+
+
+                if (
+                    product <
+                    0
+                ) begin
+
+                    scaled =
+                        -$signed(
+                            rounded_magnitude
+                        );
+
+                end else begin
+
+                    scaled =
+                        $signed(
+                            rounded_magnitude
+                        );
+
+                end
+
+            end
+
+
+            // ----------------------------------------------------
+            // Saturation + optional ReLU
+            // ----------------------------------------------------
+
+            if (relu) begin
+
+                if (
+                    scaled <=
+                    0
+                ) begin
+
+                    requant_model =
+                        0;
+
+                end else if (
+                    scaled >
+                    127
+                ) begin
+
+                    requant_model =
+                        127;
+
+                end else begin
+
+                    // scaled is guaranteed to be 0...127 here.
+                    requant_model =
+                        $signed(
+                            scaled[31:0]
+                        );
+
+                end
+
+            end else begin
+
+                if (
+                    scaled >
+                    127
+                ) begin
+
+                    requant_model =
+                        127;
+
+                end else if (
+                    scaled <
+                    -128
+                ) begin
+
+                    requant_model =
+                        -128;
+
+                end else begin
+
+                    // scaled is guaranteed to fit signed INT8 here.
+                    requant_model =
+                        $signed(
+                            scaled[31:0]
+                        );
+
+                end
+
+            end
+
+        end
+
+    endfunction
+
+
+    // ============================================================
     // Cycle counter
     // ============================================================
 
@@ -358,7 +636,8 @@ module npu_top_tb;
         end else begin
 
             cycle_count <=
-                cycle_count + 1;
+                cycle_count +
+                1;
 
         end
 
@@ -366,7 +645,10 @@ module npu_top_tb;
 
 
     // ============================================================
-    // AXI read monitor / classification
+    // AXI Read Address monitor
+    //
+    // Also consumes/checks ARID so -Wall sees every interface
+    // signal being meaningfully verified.
     // ============================================================
 
     always_ff @(posedge clk) begin
@@ -382,6 +664,9 @@ module npu_top_tb;
             operand_ar_count <=
                 0;
 
+            global_param_ar_count <=
+                0;
+
             bias_ar_count <=
                 0;
 
@@ -390,9 +675,60 @@ module npu_top_tb;
             axi_arready
         ) begin
 
-            total_ar_count <=
-                total_ar_count + 1;
+            // ----------------------------------------------------
+            // Common AXI protocol checks
+            // ----------------------------------------------------
 
+            if (
+                axi_arid !=
+                '0
+            ) begin
+
+                $fatal(
+                    1,
+                    "Unexpected ARID: %0d",
+                    axi_arid
+                );
+
+            end
+
+
+            if (
+                axi_arsize !=
+                3'd2
+            ) begin
+
+                $fatal(
+                    1,
+                    "ARSIZE must be 2 for 32-bit AXI"
+                );
+
+            end
+
+
+            if (
+                axi_arburst !=
+                2'b01
+            ) begin
+
+                $fatal(
+                    1,
+                    "ARBURST must be INCR"
+                );
+
+            end
+
+
+            total_ar_count <=
+                total_ar_count +
+                1;
+
+
+            // ----------------------------------------------------
+            // Descriptor
+            //
+            // 3 descriptors × 64 bytes = 192 bytes
+            // ----------------------------------------------------
 
             if (
                 (axi_araddr >= DESC_BASE) &&
@@ -400,10 +736,15 @@ module npu_top_tb;
                     axi_araddr <
                     (
                         DESC_BASE +
-                        ADDR_WIDTH'(128)
+                        ADDR_WIDTH'(192)
                     )
                 )
             ) begin
+
+                descriptor_ar_count <=
+                    descriptor_ar_count +
+                    1;
+
 
                 if (
                     axi_arlen !=
@@ -417,40 +758,75 @@ module npu_top_tb;
 
                 end
 
+            end
+
+            // ----------------------------------------------------
+            // Global per-tensor M/R
+            //
+            // param_base + 0x00:
+            //     M
+            //
+            // param_base + 0x04:
+            //     R
+            //
+            // One 2-beat burst.
+            // ----------------------------------------------------
+
+            else if (
+                axi_araddr ==
+                PARAM_BASE
+            ) begin
+
+                global_param_ar_count <=
+                    global_param_ar_count +
+                    1;
+
 
                 if (
-                    axi_araddr !=
-                    (
-                        DESC_BASE +
-                        ADDR_WIDTH'(
-                            descriptor_ar_count * 4
-                        )
-                    )
+                    axi_arlen !=
+                    8'd1
                 ) begin
 
                     $fatal(
                         1,
-                        "Descriptor address mismatch"
+                        "Global M/R request must contain 2 beats"
                     );
 
                 end
 
+            end
 
-                descriptor_ar_count <=
-                    descriptor_ar_count + 1;
+            // ----------------------------------------------------
+            // Bias parameter region
+            //
+            // param_base + 0x10 ...
+            // ----------------------------------------------------
 
-            end else if (
-                (axi_araddr >= BIAS_BASE) &&
+            else if (
+                (
+                    axi_araddr >=
+                    (
+                        PARAM_BASE +
+                        64'd16
+                    )
+                ) &&
                 (
                     axi_araddr <
                     (
-                        BIAS_BASE +
+                        PARAM_BASE +
+                        64'd16 +
                         ADDR_WIDTH'(
-                            N_TOTAL * 4
+                            N_TOTAL *
+                            4
                         )
                     )
                 )
             ) begin
+
+                bias_ar_count <=
+                    bias_ar_count +
+                    1;
+
 
                 if (
                     axi_arlen !=
@@ -464,14 +840,17 @@ module npu_top_tb;
 
                 end
 
+            end
 
-                bias_ar_count <=
-                    bias_ar_count + 1;
+            // ----------------------------------------------------
+            // A/B operand traffic
+            // ----------------------------------------------------
 
-            end else begin
+            else begin
 
                 operand_ar_count <=
-                    operand_ar_count + 1;
+                    operand_ar_count +
+                    1;
 
             end
 
@@ -481,7 +860,7 @@ module npu_top_tb;
 
 
     // ============================================================
-    // AXI read slave
+    // AXI Read Slave
     // ============================================================
 
     assign axi_arready =
@@ -519,49 +898,14 @@ module npu_top_tb;
 
         end else begin
 
+            // ----------------------------------------------------
+            // Accept new AR burst
+            // ----------------------------------------------------
+
             if (
                 axi_arvalid &&
                 axi_arready
             ) begin
-
-                if (
-                    axi_arsize !=
-                    3'd2
-                ) begin
-
-                    $fatal(
-                        1,
-                        "AXI ARSIZE must be 2"
-                    );
-
-                end
-
-
-                if (
-                    axi_arburst !=
-                    2'b01
-                ) begin
-
-                    $fatal(
-                        1,
-                        "AXI read burst must be INCR"
-                    );
-
-                end
-
-
-                if (
-                    axi_arid !=
-                    '0
-                ) begin
-
-                    $fatal(
-                        1,
-                        "Unexpected ARID"
-                    );
-
-                end
-
 
                 rd_active_q <=
                     1'b1;
@@ -575,6 +919,10 @@ module npu_top_tb;
 
             end
 
+
+            // ----------------------------------------------------
+            // Current R beat consumed
+            // ----------------------------------------------------
 
             if (
                 axi_rvalid &&
@@ -604,12 +952,18 @@ module npu_top_tb;
 
                     rd_addr_q <=
                         rd_addr_q +
-                        ADDR_WIDTH'(WORD_BYTES);
+                        ADDR_WIDTH'(
+                            WORD_BYTES
+                        );
 
                 end
 
             end
 
+
+            // ----------------------------------------------------
+            // Produce next R beat
+            // ----------------------------------------------------
 
             if (
                 rd_active_q &&
@@ -644,7 +998,7 @@ module npu_top_tb;
 
 
     // ============================================================
-    // AXI write slave
+    // AXI Write Slave
     // ============================================================
 
     assign axi_awready =
@@ -693,10 +1047,32 @@ module npu_top_tb;
 
         end else begin
 
+            // ----------------------------------------------------
+            // AW handshake
+            // ----------------------------------------------------
+
             if (
                 axi_awvalid &&
                 axi_awready
             ) begin
+
+                // ------------------------------------------------
+                // Common AXI protocol checks
+                // ------------------------------------------------
+
+                if (
+                    axi_awid !=
+                    '0
+                ) begin
+
+                    $fatal(
+                        1,
+                        "Unexpected AWID: %0d",
+                        axi_awid
+                    );
+
+                end
+
 
                 if (
                     axi_awsize !=
@@ -705,7 +1081,7 @@ module npu_top_tb;
 
                     $fatal(
                         1,
-                        "AXI AWSIZE must be 2"
+                        "AWSIZE must be 2 for 32-bit AXI"
                     );
 
                 end
@@ -718,40 +1094,80 @@ module npu_top_tb;
 
                     $fatal(
                         1,
-                        "AXI write burst must be INCR"
+                        "AWBURST must be INCR"
                     );
 
                 end
 
 
+                // ------------------------------------------------
+                // INT8 output:
+                //
+                // C2 is packed as four INT8 values per 32-bit beat.
+                //
+                // One PE row:
+                //
+                //     4 × INT8 = 32 bit
+                //
+                // therefore AWLEN = 0.
+                // ------------------------------------------------
+
                 if (
-                    axi_awid !=
-                    '0
+                    (axi_awaddr >= C2_BASE) &&
+                    (
+                        axi_awaddr <
+                        (
+                            C2_BASE +
+                            ADDR_WIDTH'(
+                                M_TOTAL *
+                                N_TOTAL
+                            )
+                        )
+                    )
                 ) begin
 
-                    $fatal(
-                        1,
-                        "Unexpected AWID"
-                    );
+                    if (
+                        axi_awlen !=
+                        8'd0
+                    ) begin
 
-                end
+                        $fatal(
+                            1,
+                            "INT8 output row must be 1 beat"
+                        );
 
+                    end
 
-                if (
-                    axi_awlen !=
-                    8'd3
-                ) begin
+                end else begin
 
-                    $fatal(
-                        1,
-                        "Expected 4-beat C row"
-                    );
+                    // --------------------------------------------
+                    // INT32 output:
+                    //
+                    // 4 × INT32 = 128 bit
+                    //           = 4 × 32-bit AXI beats
+                    //
+                    // therefore AWLEN = 3.
+                    // --------------------------------------------
+
+                    if (
+                        axi_awlen !=
+                        8'd3
+                    ) begin
+
+                        $fatal(
+                            1,
+                            "INT32 output row must be 4 beats"
+                        );
+
+                    end
 
                 end
 
 
                 aw_count <=
-                    aw_count + 1;
+                    aw_count +
+                    1;
+
 
                 wr_active_q <=
                     1'b1;
@@ -769,6 +1185,10 @@ module npu_top_tb;
             end
 
 
+            // ----------------------------------------------------
+            // W handshake
+            // ----------------------------------------------------
+
             if (
                 axi_wvalid &&
                 axi_wready
@@ -781,7 +1201,8 @@ module npu_top_tb;
 
                     $fatal(
                         1,
-                        "Unexpected WSTRB"
+                        "Unexpected WSTRB: %b",
+                        axi_wstrb
                     );
 
                 end
@@ -803,14 +1224,15 @@ module npu_top_tb;
                 end
 
 
-                w_count <=
-                    w_count + 1;
-
-
                 write_memory[
                     wr_addr_q[14:2]
                 ] <=
                     axi_wdata;
+
+
+                w_count <=
+                    w_count +
+                    1;
 
 
                 if (
@@ -823,6 +1245,7 @@ module npu_top_tb;
 
                     wr_beats_left_q <=
                         '0;
+
 
                     axi_bid <=
                         wr_id_q;
@@ -841,23 +1264,30 @@ module npu_top_tb;
 
                     wr_addr_q <=
                         wr_addr_q +
-                        ADDR_WIDTH'(WORD_BYTES);
+                        ADDR_WIDTH'(
+                            WORD_BYTES
+                        );
 
                 end
 
             end
 
 
+            // ----------------------------------------------------
+            // B handshake
+            // ----------------------------------------------------
+
             if (
                 axi_bvalid &&
                 axi_bready
             ) begin
 
-                b_count <=
-                    b_count + 1;
-
                 axi_bvalid <=
                     1'b0;
+
+                b_count <=
+                    b_count +
+                    1;
 
             end
 
@@ -867,12 +1297,14 @@ module npu_top_tb;
 
 
     // ============================================================
-    // Fill A/B row
+    // Initialize one INT8 A/B row
+    //
+    // Four equal INT8 values are packed in every 32-bit memory word.
     // ============================================================
 
     task automatic fill_ab_row (
         input int unsigned base_word,
-        input logic [7:0] value
+        input logic [7:0]  value
     );
 
         integer word_idx;
@@ -903,54 +1335,82 @@ module npu_top_tb;
 
 
     // ============================================================
-    // Descriptor
+    // Descriptor writer
+    //
+    // flags[0] = BIAS_EN
+    // flags[1] = REQUANT_EN
+    // flags[2] = RELU_EN
+    //
+    // param1:param0 = param_base
     // ============================================================
 
     task automatic write_descriptor (
         input int unsigned desc_word_base_value,
-        input logic        bias_en,
-        input logic [63:0] c_base_value
+
+        input logic bias_en,
+        input logic requant_en,
+        input logic relu_en,
+
+        input logic [63:0] c_base_value,
+
+        input int unsigned c_stride_value
     );
+
+        logic [23:0]
+            flags;
 
         begin
 
+            flags =
+                '0;
+
+            flags[0] =
+                bias_en;
+
+            flags[1] =
+                requant_en;
+
+            flags[2] =
+                relu_en;
+
+
+            // ----------------------------------------------------
             // word 0:
-            // opcode = 1
-            // bit 8  = BIAS_EN
+            //
+            // [7:0]  = opcode = GEMM
+            // [31:8] = flags
+            // ----------------------------------------------------
 
-            if (bias_en) begin
-
-                read_memory[
-                    desc_word_base_value + 0
-                ] =
-                    32'h0000_0101;
-
-            end else begin
-
-                read_memory[
-                    desc_word_base_value + 0
-                ] =
-                    32'h0000_0001;
-
-            end
+            read_memory[
+                desc_word_base_value + 0
+            ] = {
+                flags,
+                8'h01
+            };
 
 
+            // M
             read_memory[
                 desc_word_base_value + 1
             ] =
                 32'(M_TOTAL);
 
+
+            // N
             read_memory[
                 desc_word_base_value + 2
             ] =
                 32'(N_TOTAL);
 
+
+            // K
             read_memory[
                 desc_word_base_value + 3
             ] =
                 32'(K_TOTAL);
 
 
+            // A base
             read_memory[
                 desc_word_base_value + 4
             ] =
@@ -962,6 +1422,7 @@ module npu_top_tb;
                 A_BASE[63:32];
 
 
+            // B^T base
             read_memory[
                 desc_word_base_value + 6
             ] =
@@ -973,6 +1434,7 @@ module npu_top_tb;
                 BT_BASE[63:32];
 
 
+            // C base
             read_memory[
                 desc_word_base_value + 8
             ] =
@@ -984,33 +1446,51 @@ module npu_top_tb;
                 c_base_value[63:32];
 
 
+            // A stride
             read_memory[
                 desc_word_base_value + 10
             ] =
-                32'(AB_STRIDE_BYTES);
+                32'(
+                    AB_STRIDE_BYTES
+                );
 
+
+            // B stride
             read_memory[
                 desc_word_base_value + 11
             ] =
-                32'(AB_STRIDE_BYTES);
+                32'(
+                    AB_STRIDE_BYTES
+                );
 
+
+            // C stride
             read_memory[
                 desc_word_base_value + 12
             ] =
-                32'(C_STRIDE_BYTES);
+                32'(
+                    c_stride_value
+                );
 
 
-            if (bias_en) begin
+            // ----------------------------------------------------
+            // param_base
+            // ----------------------------------------------------
+
+            if (
+                bias_en ||
+                requant_en
+            ) begin
 
                 read_memory[
                     desc_word_base_value + 13
                 ] =
-                    BIAS_BASE[31:0];
+                    PARAM_BASE[31:0];
 
                 read_memory[
                     desc_word_base_value + 14
                 ] =
-                    BIAS_BASE[63:32];
+                    PARAM_BASE[63:32];
 
             end else begin
 
@@ -1027,6 +1507,7 @@ module npu_top_tb;
             end
 
 
+            // reserved
             read_memory[
                 desc_word_base_value + 15
             ] =
@@ -1038,10 +1519,10 @@ module npu_top_tb;
 
 
     // ============================================================
-    // Result check
+    // INT32 output checker
     // ============================================================
 
-    task automatic check_matrix (
+    task automatic check_int32_matrix (
         input int unsigned c_word_base_value,
         input logic        bias_en
     );
@@ -1049,7 +1530,8 @@ module npu_top_tb;
         integer row_idx;
         integer col_idx;
 
-        integer signed expected;
+        integer signed
+            expected;
 
         logic signed [31:0]
             actual;
@@ -1081,6 +1563,16 @@ module npu_top_tb;
                         );
 
 
+                    // --------------------------------------------
+                    // A[i][k] = i+1
+                    // B^T[j][k] = j+1
+                    //
+                    // therefore:
+                    //
+                    // C[i][j] =
+                    // K * (i+1) * (j+1)
+                    // --------------------------------------------
+
                     expected =
                         K_TOTAL *
                         (row_idx + 1) *
@@ -1090,9 +1582,9 @@ module npu_top_tb;
                     if (bias_en) begin
 
                         expected =
-                            expected +
+                            expected -
                             (
-                                100 *
+                                1000 *
                                 (col_idx + 1)
                             );
 
@@ -1106,12 +1598,153 @@ module npu_top_tb;
 
                         $fatal(
                             1,
-                            "C[%0d][%0d] mismatch: got %0d expected %0d bias=%0b",
+                            "INT32 C[%0d][%0d] got %0d expected %0d",
                             row_idx,
                             col_idx,
                             actual,
-                            expected,
-                            bias_en
+                            expected
+                        );
+
+                    end
+
+                end
+
+            end
+
+        end
+
+    endtask
+
+
+    // ============================================================
+    // Packed INT8 output checker
+    //
+    // DDR layout:
+    //
+    // one 32-bit word =
+    //
+    // bits  7:0  -> q0
+    // bits 15:8  -> q1
+    // bits 23:16 -> q2
+    // bits 31:24 -> q3
+    // ============================================================
+
+    task automatic check_int8_matrix;
+
+        integer row_idx;
+        integer col_idx;
+
+        integer signed
+            raw_value;
+
+        integer signed
+            adjusted_value;
+
+        integer signed
+            expected;
+
+
+        logic [31:0]
+            packed_word;
+
+        logic signed [7:0]
+            actual;
+
+        logic signed [31:0]
+            actual_ext;
+
+        begin
+
+            for (
+                row_idx = 0;
+                row_idx < M_TOTAL;
+                row_idx = row_idx + 1
+            ) begin
+
+                for (
+                    col_idx = 0;
+                    col_idx < N_TOTAL;
+                    col_idx = col_idx + 1
+                ) begin
+
+                    // --------------------------------------------
+                    // Each 32-bit word contains 4 INT8 values.
+                    //
+                    // N=8 therefore gives 2 words per matrix row.
+                    // --------------------------------------------
+
+                    packed_word =
+                        write_memory[
+                            C2_WORD_BASE +
+                            (
+                                row_idx *
+                                (
+                                    N_TOTAL /
+                                    4
+                                )
+                            ) +
+                            (
+                                col_idx /
+                                4
+                            )
+                        ];
+
+
+                    actual =
+                        $signed(
+                            packed_word[
+                                (
+                                    (col_idx % 4) *
+                                    8
+                                )
+                                +: 8
+                            ]
+                        );
+
+
+                    // Explicit sign extension avoids WIDTHEXPAND
+                    // when comparing against 32-bit integer.
+                    actual_ext = {
+                        {24{actual[7]}},
+                        actual
+                    };
+
+
+                    raw_value =
+                        K_TOTAL *
+                        (row_idx + 1) *
+                        (col_idx + 1);
+
+
+                    adjusted_value =
+                        raw_value -
+                        (
+                            1000 *
+                            (col_idx + 1)
+                        );
+
+
+                    expected =
+                        requant_model(
+                            adjusted_value,
+                            TEST_MULTIPLIER,
+                            TEST_SHIFT,
+                            1'b1
+                        );
+
+
+                    if (
+                        actual_ext !==
+                        expected
+                    ) begin
+
+                        $fatal(
+                            1,
+                            "INT8 C[%0d][%0d] got %0d expected %0d",
+                            row_idx,
+                            col_idx,
+                            actual,
+                            expected
                         );
 
                     end
@@ -1131,14 +1764,18 @@ module npu_top_tb;
 
     initial begin
 
-        repeat (TIMEOUT_CYCLES) begin
+        repeat (
+            TIMEOUT_CYCLES
+        ) begin
+
             @(posedge clk);
+
         end
 
 
         $display("");
         $display("========================================");
-        $display("NPU OPTIONAL-BIAS TEST TIMEOUT");
+        $display("NPU REQUANT TEST TIMEOUT");
         $display("========================================");
 
         $display(
@@ -1172,7 +1809,12 @@ module npu_top_tb;
         );
 
         $display(
-            "bias AR       = %0d",
+            "M/R AR        = %0d",
+            global_param_ar_count
+        );
+
+        $display(
+            "Bias AR       = %0d",
             bias_ar_count
         );
 
@@ -1181,18 +1823,17 @@ module npu_top_tb;
 
         $fatal(
             1,
-            "Timeout"
+            "NPU requant integration test timeout"
         );
 
     end
 
 
     // ============================================================
-    // Main
+    // Main test
     // ============================================================
 
     integer init_idx;
-    integer row_idx;
 
     initial begin
 
@@ -1206,12 +1847,12 @@ module npu_top_tb;
             DESC_BASE;
 
         desc_count =
-            DESC_COUNT_WIDTH'(2);
+            DESC_COUNT_WIDTH'(3);
 
 
-        // --------------------------------------------------------
-        // Memory
-        // --------------------------------------------------------
+        // ========================================================
+        // Initialize memory
+        // ========================================================
 
         for (
             init_idx = 0;
@@ -1228,102 +1869,182 @@ module npu_top_tb;
         end
 
 
-        // --------------------------------------------------------
-        // A[i][k] = i+1
-        // --------------------------------------------------------
+        // ========================================================
+        // A[i][k] = i + 1
+        // ========================================================
 
         for (
-            row_idx = 0;
-            row_idx < M_TOTAL;
-            row_idx = row_idx + 1
+            init_idx = 0;
+            init_idx < M_TOTAL;
+            init_idx = init_idx + 1
         ) begin
 
             fill_ab_row(
                 A_WORD_BASE +
                 (
-                    row_idx *
+                    init_idx *
                     WORDS_PER_AB_ROW
                 ),
-                8'(row_idx + 1)
+                8'(
+                    init_idx +
+                    1
+                )
             );
 
         end
 
 
-        // --------------------------------------------------------
-        // B^T[j][k] = j+1
-        // --------------------------------------------------------
+        // ========================================================
+        // B^T[j][k] = j + 1
+        // ========================================================
 
         for (
-            row_idx = 0;
-            row_idx < N_TOTAL;
-            row_idx = row_idx + 1
+            init_idx = 0;
+            init_idx < N_TOTAL;
+            init_idx = init_idx + 1
         ) begin
 
             fill_ab_row(
                 BT_WORD_BASE +
                 (
-                    row_idx *
+                    init_idx *
                     WORDS_PER_AB_ROW
                 ),
-                8'(row_idx + 1)
+                8'(
+                    init_idx +
+                    1
+                )
             );
 
         end
 
 
+        // ========================================================
+        // Parameter block
+        //
+        // +0x00 multiplier
+        // +0x04 shift
+        // +0x08 reserved
+        // +0x0C reserved
+        // +0x10 bias[0]
+        // ...
+        // ========================================================
+
+        read_memory[
+            PARAM_WORD_BASE + 0
+        ] =
+            32'(
+                TEST_MULTIPLIER
+            );
+
+
+        read_memory[
+            PARAM_WORD_BASE + 1
+        ] =
+            32'(
+                TEST_SHIFT
+            );
+
+
+        read_memory[
+            PARAM_WORD_BASE + 2
+        ] =
+            32'd0;
+
+
+        read_memory[
+            PARAM_WORD_BASE + 3
+        ] =
+            32'd0;
+
+
         // --------------------------------------------------------
-        // Bias[j] = 100 × (j+1)
+        // Bias[j] = -1000 × (j+1)
         // --------------------------------------------------------
 
         for (
-            row_idx = 0;
-            row_idx < N_TOTAL;
-            row_idx = row_idx + 1
+            init_idx = 0;
+            init_idx < N_TOTAL;
+            init_idx = init_idx + 1
         ) begin
 
             read_memory[
-                BIAS_WORD_BASE +
-                row_idx
+                PARAM_WORD_BASE +
+                4 +
+                init_idx
             ] =
                 32'(
-                    100 *
-                    (row_idx + 1)
+                    -1000 *
+                    (
+                        init_idx +
+                        1
+                    )
                 );
 
         end
 
 
-        // --------------------------------------------------------
-        // Descriptor 0:
-        // pure GEMM
-        // --------------------------------------------------------
+        // ========================================================
+        // Descriptor 0
+        //
+        // A × B
+        // -> INT32
+        // ========================================================
 
         write_descriptor(
             DESC_WORD_BASE,
             1'b0,
-            C0_BASE
+            1'b0,
+            1'b0,
+            C0_BASE,
+            C_INT32_STRIDE
         );
 
 
-        // --------------------------------------------------------
-        // Descriptor 1:
-        // GEMM + Bias
-        // --------------------------------------------------------
+        // ========================================================
+        // Descriptor 1
+        //
+        // A × B + Bias
+        // -> INT32
+        // ========================================================
 
         write_descriptor(
             DESC_WORD_BASE + 16,
             1'b1,
-            C1_BASE
+            1'b0,
+            1'b0,
+            C1_BASE,
+            C_INT32_STRIDE
         );
 
 
-        // --------------------------------------------------------
-        // Reset
-        // --------------------------------------------------------
+        // ========================================================
+        // Descriptor 2
+        //
+        // A × B + Bias
+        // -> requant
+        // -> ReLU
+        // -> INT8
+        // ========================================================
+
+        write_descriptor(
+            DESC_WORD_BASE + 32,
+            1'b1,
+            1'b1,
+            1'b1,
+            C2_BASE,
+            C_INT8_STRIDE
+        );
+
+
+        // ========================================================
+        // Reset release
+        // ========================================================
 
         repeat (4) begin
+
             @(posedge clk);
+
         end
 
 
@@ -1333,9 +2054,9 @@ module npu_top_tb;
             1'b0;
 
 
-        // --------------------------------------------------------
-        // Launch descriptor list
-        // --------------------------------------------------------
+        // ========================================================
+        // Launch all 3 descriptors
+        // ========================================================
 
         @(negedge clk);
 
@@ -1368,63 +2089,142 @@ module npu_top_tb;
             1'b1
         );
 
+
         #1;
 
 
         // ========================================================
-        // Status
+        // NPU status
         // ========================================================
 
         if (npu_error) begin
 
             $fatal(
                 1,
-                "NPU reported an error"
+                "NPU reported error"
             );
 
         end
 
 
         // ========================================================
-        // AXI checks
+        // Functional result checks
+        // ========================================================
+
+        check_int32_matrix(
+            C0_WORD_BASE,
+            1'b0
+        );
+
+
+        check_int32_matrix(
+            C1_WORD_BASE,
+            1'b1
+        );
+
+
+        check_int8_matrix();
+
+
+        // ========================================================
+        // RAW accumulator check
+        //
+        // Last calculated C tile is:
+        //
+        // rows 4..7
+        // cols 4..7
+        //
+        // Therefore local acc_out[0][0] corresponds to:
+        //
+        // C[4][4]
+        //
+        // = 260 × 5 × 5
+        // = 6500
+        //
+        // This proves Bias/Requant/ReLU are outside the PE/C
+        // accumulator datapath.
         // ========================================================
 
         if (
-            descriptor_ar_count !=
-            32
+            acc_out[0][0] !==
+            32'sd6500
         ) begin
 
             $fatal(
                 1,
-                "Expected 32 descriptor reads, got %0d",
+                "RAW accumulator changed by postprocess: got %0d expected 6500",
+                acc_out[0][0]
+            );
+
+        end
+
+
+        // ========================================================
+        // AXI Read traffic
+        // ========================================================
+
+        // 3 descriptors × 16 words
+        if (
+            descriptor_ar_count !=
+            48
+        ) begin
+
+            $fatal(
+                1,
+                "Expected 48 descriptor AR, got %0d",
                 descriptor_ar_count
             );
 
         end
 
 
+        // 64 operand requests per GEMM × 3.
         if (
             operand_ar_count !=
-            128
+            192
         ) begin
 
             $fatal(
                 1,
-                "Expected 128 operand reads, got %0d",
+                "Expected 192 operand AR, got %0d",
                 operand_ar_count
             );
 
         end
 
 
+        // Only descriptor 2 enables requant.
+        //
+        // Per-tensor M/R must be loaded exactly once.
         if (
-            bias_ar_count !=
-            4
+            global_param_ar_count !=
+            1
         ) begin
 
             $fatal(
                 1,
-                "Expected 4 Bias reads, got %0d",
+                "Expected one M/R load, got %0d",
+                global_param_ar_count
+            );
+
+        end
+
+
+        // Descriptor 1:
+        //     4 output C tiles -> 4 Bias loads
+        //
+        // Descriptor 2:
+        //     4 output C tiles -> 4 Bias loads
+        //
+        // total = 8.
+        if (
+            bias_ar_count !=
+            8
+        ) begin
+
+            $fatal(
+                1,
+                "Expected 8 Bias loads, got %0d",
                 bias_ar_count
             );
 
@@ -1433,40 +2233,66 @@ module npu_top_tb;
 
         if (
             total_ar_count !=
-            164
+            249
         ) begin
 
             $fatal(
                 1,
-                "Expected 164 total AR requests, got %0d",
+                "Expected 249 total AR, got %0d",
                 total_ar_count
             );
 
         end
 
 
+        // ========================================================
+        // AXI Write traffic
+        // ========================================================
+
+        // 16 C rows per descriptor × 3.
         if (
             aw_count !=
-            32
+            48
         ) begin
 
             $fatal(
                 1,
-                "Expected 32 AW requests, got %0d",
+                "Expected 48 AW requests, got %0d",
                 aw_count
             );
 
         end
 
 
+        // --------------------------------------------------------
+        // Descriptor 0:
+        //
+        // 16 rows × 4 INT32 beats
+        // = 64
+        //
+        // Descriptor 1:
+        //
+        // 16 rows × 4 INT32 beats
+        // = 64
+        //
+        // Descriptor 2:
+        //
+        // 16 rows × 1 packed INT8 beat
+        // = 16
+        //
+        // total:
+        //
+        // 64 + 64 + 16 = 144
+        // --------------------------------------------------------
+
         if (
             w_count !=
-            128
+            144
         ) begin
 
             $fatal(
                 1,
-                "Expected 128 W beats, got %0d",
+                "Expected 144 W beats, got %0d",
                 w_count
             );
 
@@ -1475,12 +2301,12 @@ module npu_top_tb;
 
         if (
             b_count !=
-            32
+            48
         ) begin
 
             $fatal(
                 1,
-                "Expected 32 B responses, got %0d",
+                "Expected 48 B responses, got %0d",
                 b_count
             );
 
@@ -1488,51 +2314,13 @@ module npu_top_tb;
 
 
         // ========================================================
-        // Functional results
-        // ========================================================
-
-        check_matrix(
-            C0_WORD_BASE,
-            1'b0
-        );
-
-
-        check_matrix(
-            C1_WORD_BASE,
-            1'b1
-        );
-
-
-        // Bias is outside the PE array.
-        //
-        // Therefore debug accumulator remains RAW GEMM C.
-        if (
-            acc_out[0][0] !==
-            32'sd6500
-        ) begin
-
-            $fatal(
-                1,
-                "Raw accumulator mismatch: got %0d expected 6500",
-                acc_out[0][0]
-            );
-
-        end
-
-
-        // ========================================================
-        // Report
+        // Final report
         // ========================================================
 
         $display("");
         $display("========================================");
-        $display("OPTIONAL-BIAS NPU TEST PASSED");
+        $display("REQUANT NPU TEST PASSED");
         $display("========================================");
-
-        $display(
-            "descriptor count    = %0d",
-            desc_count
-        );
 
         $display(
             "descriptor AR       = %0d",
@@ -1540,12 +2328,17 @@ module npu_top_tb;
         );
 
         $display(
-            "operand A/B AR      = %0d",
+            "operand AR          = %0d",
             operand_ar_count
         );
 
         $display(
-            "Bias AR             = %0d",
+            "M/R loads           = %0d",
+            global_param_ar_count
+        );
+
+        $display(
+            "Bias loads          = %0d",
             bias_ar_count
         );
 
@@ -1555,12 +2348,12 @@ module npu_top_tb;
         );
 
         $display(
-            "AXI write requests  = %0d",
+            "AW requests         = %0d",
             aw_count
         );
 
         $display(
-            "AXI write beats     = %0d",
+            "write beats         = %0d",
             w_count
         );
 
@@ -1569,8 +2362,15 @@ module npu_top_tb;
             cycle_count
         );
 
-        $display("pure GEMM           = PASS");
-        $display("GEMM + Bias         = PASS");
+        $display(
+            "RAW final C[4][4]   = %0d",
+            acc_out[0][0]
+        );
+
+        $display("");
+        $display("pure GEMM INT32            = PASS");
+        $display("GEMM + Bias INT32          = PASS");
+        $display("Bias + Requant + ReLU INT8 = PASS");
 
         $display("========================================");
         $display("");
