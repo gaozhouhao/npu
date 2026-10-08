@@ -21,9 +21,7 @@ module npu_top #(
     input logic reset,
 
     // ============================================================
-    // Host control
-    //
-    // External host only needs to provide a descriptor list.
+    // Host
     // ============================================================
 
     input logic
@@ -36,17 +34,12 @@ module npu_top #(
         desc_count,
 
     // ============================================================
-    // NPU status
+    // Status
     // ============================================================
 
-    output logic
-        busy,
-
-    output logic
-        done,
-
-    output logic
-        error,
+    output logic busy,
+    output logic done,
+    output logic error,
 
     // ============================================================
     // Debug accumulator
@@ -56,7 +49,7 @@ module npu_top #(
         acc_out [ROWS][COLS],
 
     // ============================================================
-    // Shared AXI4 Read Address Channel
+    // Shared AXI Read Address
     // ============================================================
 
     output logic [ID_WIDTH-1:0]
@@ -81,7 +74,7 @@ module npu_top #(
         m_axi_arready,
 
     // ============================================================
-    // Shared AXI4 Read Data Channel
+    // Shared AXI Read Data
     // ============================================================
 
     input logic [ID_WIDTH-1:0]
@@ -103,9 +96,7 @@ module npu_top #(
         m_axi_rready,
 
     // ============================================================
-    // AXI4 Write Address Channel
-    //
-    // Only GEMM executor writes external memory.
+    // AXI Write Address
     // ============================================================
 
     output logic [ID_WIDTH-1:0]
@@ -130,7 +121,7 @@ module npu_top #(
         m_axi_awready,
 
     // ============================================================
-    // AXI4 Write Data Channel
+    // AXI Write Data
     // ============================================================
 
     output logic [MEM_WORD_WIDTH-1:0]
@@ -149,7 +140,7 @@ module npu_top #(
         m_axi_wready,
 
     // ============================================================
-    // AXI4 Write Response Channel
+    // AXI Write Response
     // ============================================================
 
     input logic [ID_WIDTH-1:0]
@@ -167,7 +158,7 @@ module npu_top #(
 
 
     // ============================================================
-    // Supported descriptor opcodes
+    // Opcodes
     // ============================================================
 
     localparam logic [7:0] OPCODE_GEMM =
@@ -245,13 +236,27 @@ module npu_top #(
 
 
     // ============================================================
-    // Descriptor command validation / dispatch
+    // Descriptor interpretation
+    //
+    // opcode 1 = GEMM
+    //
+    // flags[0] = BIAS_EN
+    //
+    // if BIAS_EN:
+    //   param1:param0 = 64-bit bias base address
+    //
+    // flags[23:1] currently reserved
     // ============================================================
 
     logic descriptor_supported;
+    logic frontend_bias_en;
 
     logic unsupported_accept;
     logic unsupported_pending_q;
+
+
+    assign frontend_bias_en =
+        frontend_cmd_flags[0];
 
 
     assign descriptor_supported =
@@ -260,21 +265,20 @@ module npu_top #(
             OPCODE_GEMM
         ) &&
         (
-            frontend_cmd_flags ==
-            24'd0
+            frontend_cmd_flags[23:1] ==
+            23'd0
         ) &&
         (
-            frontend_cfg_param0 ==
-            32'd0
-        ) &&
-        (
-            frontend_cfg_param1 ==
-            32'd0
+            frontend_bias_en ||
+            (
+                (frontend_cfg_param0 == 32'd0) &&
+                (frontend_cfg_param1 == 32'd0)
+            )
         );
 
 
     // ============================================================
-    // GEMM executor command interface
+    // GEMM executor command
     // ============================================================
 
     logic executor_cmd_valid;
@@ -290,14 +294,6 @@ module npu_top #(
         descriptor_supported;
 
 
-    // ------------------------------------------------------------
-    // Supported descriptor:
-    //     wait until executor accepts.
-    //
-    // Unsupported descriptor:
-    //     consume immediately and report error.
-    // ------------------------------------------------------------
-
     assign frontend_cmd_ready =
         descriptor_supported
             ? executor_cmd_ready
@@ -311,14 +307,7 @@ module npu_top #(
 
 
     // ============================================================
-    // Unsupported descriptor completion
-    //
-    // command_frontend transitions:
-    //
-    // ST_ISSUE -> ST_WAIT_EXEC
-    //
-    // Therefore an unsupported descriptor needs a completion pulse
-    // one cycle after it is consumed.
+    // Unsupported-command completion
     // ============================================================
 
     always_ff @(posedge clk) begin
@@ -356,7 +345,7 @@ module npu_top #(
 
 
     // ============================================================
-    // Command frontend instance
+    // Command frontend
     // ============================================================
 
     command_frontend #(
@@ -372,10 +361,6 @@ module npu_top #(
             reset
         ),
 
-        // --------------------------------------------------------
-        // Host command
-        // --------------------------------------------------------
-
         .start (
             start
         ),
@@ -387,10 +372,6 @@ module npu_top #(
         .desc_count (
             desc_count
         ),
-
-        // --------------------------------------------------------
-        // Descriptor memory read
-        // --------------------------------------------------------
 
         .mem_read_req (
             frontend_mem_read_req
@@ -411,10 +392,6 @@ module npu_top #(
         .mem_read_data (
             frontend_mem_read_data
         ),
-
-        // --------------------------------------------------------
-        // Decoded descriptor
-        // --------------------------------------------------------
 
         .cmd_valid (
             frontend_cmd_valid
@@ -476,17 +453,9 @@ module npu_top #(
             frontend_cfg_param1
         ),
 
-        // --------------------------------------------------------
-        // Executor completion
-        // --------------------------------------------------------
-
         .exec_done (
             frontend_exec_done
         ),
-
-        // --------------------------------------------------------
-        // Status
-        // --------------------------------------------------------
 
         .busy (
             frontend_busy
@@ -500,8 +469,6 @@ module npu_top #(
 
     // ============================================================
     // Descriptor AXI read master
-    //
-    // Every command_frontend request reads exactly one 32-bit word.
     // ============================================================
 
     logic desc_req_ready;
@@ -519,10 +486,6 @@ module npu_top #(
     logic desc_axi_error;
 
 
-    // ============================================================
-    // Descriptor AXI channels
-    // ============================================================
-
     logic [ID_WIDTH-1:0]
         desc_axi_arid;
 
@@ -538,11 +501,8 @@ module npu_top #(
     logic [1:0]
         desc_axi_arburst;
 
-    logic
-        desc_axi_arvalid;
-
-    logic
-        desc_axi_arready;
+    logic desc_axi_arvalid;
+    logic desc_axi_arready;
 
 
     logic [ID_WIDTH-1:0]
@@ -554,14 +514,9 @@ module npu_top #(
     logic [1:0]
         desc_axi_rresp;
 
-    logic
-        desc_axi_rlast;
-
-    logic
-        desc_axi_rvalid;
-
-    logic
-        desc_axi_rready;
+    logic desc_axi_rlast;
+    logic desc_axi_rvalid;
+    logic desc_axi_rready;
 
 
     assign frontend_mem_read_ready =
@@ -572,7 +527,6 @@ module npu_top #(
         1'b1;
 
 
-    // A descriptor request is always exactly one beat.
     assign frontend_mem_read_valid =
         desc_data_valid &&
         desc_data_last;
@@ -603,10 +557,6 @@ module npu_top #(
             reset
         ),
 
-        // --------------------------------------------------------
-        // Request
-        // --------------------------------------------------------
-
         .req_valid (
             frontend_mem_read_req
         ),
@@ -625,10 +575,6 @@ module npu_top #(
             32'd1
         ),
 
-        // --------------------------------------------------------
-        // Data stream
-        // --------------------------------------------------------
-
         .data_valid (
             desc_data_valid
         ),
@@ -645,10 +591,6 @@ module npu_top #(
             desc_data_last
         ),
 
-        // --------------------------------------------------------
-        // Status
-        // --------------------------------------------------------
-
         .busy (
             desc_axi_busy
         ),
@@ -660,10 +602,6 @@ module npu_top #(
         .error (
             desc_axi_error
         ),
-
-        // --------------------------------------------------------
-        // AXI AR
-        // --------------------------------------------------------
 
         .m_axi_arid (
             desc_axi_arid
@@ -693,10 +631,6 @@ module npu_top #(
             desc_axi_arready
         ),
 
-        // --------------------------------------------------------
-        // AXI R
-        // --------------------------------------------------------
-
         .m_axi_rid (
             desc_axi_rid
         ),
@@ -724,7 +658,7 @@ module npu_top #(
 
 
     // ============================================================
-    // GEMM executor AXI read channel
+    // GEMM executor AXI read side
     // ============================================================
 
     logic [ID_WIDTH-1:0]
@@ -742,11 +676,8 @@ module npu_top #(
     logic [1:0]
         gemm_axi_arburst;
 
-    logic
-        gemm_axi_arvalid;
-
-    logic
-        gemm_axi_arready;
+    logic gemm_axi_arvalid;
+    logic gemm_axi_arready;
 
 
     logic [ID_WIDTH-1:0]
@@ -758,14 +689,9 @@ module npu_top #(
     logic [1:0]
         gemm_axi_rresp;
 
-    logic
-        gemm_axi_rlast;
-
-    logic
-        gemm_axi_rvalid;
-
-    logic
-        gemm_axi_rready;
+    logic gemm_axi_rlast;
+    logic gemm_axi_rvalid;
+    logic gemm_axi_rready;
 
 
     // ============================================================
@@ -825,10 +751,6 @@ module npu_top #(
             reset
         ),
 
-        // --------------------------------------------------------
-        // GEMM command
-        // --------------------------------------------------------
-
         .cmd_valid (
             executor_cmd_valid
         ),
@@ -879,9 +801,18 @@ module npu_top #(
             frontend_cfg_c_stride
         ),
 
-        // --------------------------------------------------------
-        // Status
-        // --------------------------------------------------------
+        .cmd_bias_en (
+            frontend_bias_en
+        ),
+
+        .cmd_bias_base (
+            ADDR_WIDTH'(
+                {
+                    frontend_cfg_param1,
+                    frontend_cfg_param0
+                }
+            )
+        ),
 
         .busy (
             executor_busy
@@ -895,17 +826,9 @@ module npu_top #(
             executor_error
         ),
 
-        // --------------------------------------------------------
-        // Debug
-        // --------------------------------------------------------
-
         .acc_out (
             acc_out
         ),
-
-        // --------------------------------------------------------
-        // AXI read
-        // --------------------------------------------------------
 
         .m_axi_arid (
             gemm_axi_arid
@@ -958,10 +881,6 @@ module npu_top #(
         .m_axi_rready (
             gemm_axi_rready
         ),
-
-        // --------------------------------------------------------
-        // AXI write directly leaves NPU top
-        // --------------------------------------------------------
 
         .m_axi_awid (
             m_axi_awid
@@ -1030,7 +949,7 @@ module npu_top #(
 
 
     // ============================================================
-    // Shared read-channel mux
+    // Shared descriptor/GEMM AXI read mux
     // ============================================================
 
     axi_read_mux #(
@@ -1053,10 +972,6 @@ module npu_top #(
         .reset (
             reset
         ),
-
-        // --------------------------------------------------------
-        // Descriptor master
-        // --------------------------------------------------------
 
         .desc_arid (
             desc_axi_arid
@@ -1110,10 +1025,6 @@ module npu_top #(
             desc_axi_rready
         ),
 
-        // --------------------------------------------------------
-        // GEMM master
-        // --------------------------------------------------------
-
         .gemm_arid (
             gemm_axi_arid
         ),
@@ -1165,10 +1076,6 @@ module npu_top #(
         .gemm_rready (
             gemm_axi_rready
         ),
-
-        // --------------------------------------------------------
-        // Shared external AXI
-        // --------------------------------------------------------
 
         .m_axi_arid (
             m_axi_arid
@@ -1241,9 +1148,7 @@ module npu_top #(
 
 
     // ============================================================
-    // Sticky top-level error
-    //
-    // Cleared when a new NPU job is started.
+    // Sticky error
     // ============================================================
 
     always_ff @(posedge clk) begin
@@ -1285,8 +1190,6 @@ module npu_top #(
 
     initial begin
 
-        // command_frontend descriptor words are currently fixed
-        // at 32 bits, so the shared AXI data width must also be 32.
         if (MEM_WORD_WIDTH != 32) begin
 
             $fatal(

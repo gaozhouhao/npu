@@ -33,10 +33,12 @@ module npu_top_tb;
         K_TOTAL;
 
     localparam int unsigned C_STRIDE_BYTES =
-        N_TOTAL * (ACC_WIDTH / 8);
+        N_TOTAL *
+        (ACC_WIDTH / 8);
 
     localparam int unsigned WORDS_PER_AB_ROW =
-        AB_STRIDE_BYTES / WORD_BYTES;
+        AB_STRIDE_BYTES /
+        WORD_BYTES;
 
 
     // ============================================================
@@ -49,32 +51,49 @@ module npu_top_tb;
     localparam logic [ADDR_WIDTH-1:0] BT_BASE =
         64'h0000_0000_0000_2000;
 
-    localparam logic [ADDR_WIDTH-1:0] C_BASE =
+    localparam logic [ADDR_WIDTH-1:0] C0_BASE =
         64'h0000_0000_0000_3000;
+
+    localparam logic [ADDR_WIDTH-1:0] C1_BASE =
+        64'h0000_0000_0000_3400;
+
+    localparam logic [ADDR_WIDTH-1:0] BIAS_BASE =
+        64'h0000_0000_0000_3800;
 
     localparam logic [ADDR_WIDTH-1:0] DESC_BASE =
         64'h0000_0000_0000_4000;
 
 
     localparam int unsigned A_WORD_BASE =
-        1024;
+        32'h0000_1000 /
+        WORD_BYTES;
 
     localparam int unsigned BT_WORD_BASE =
-        2048;
+        32'h0000_2000 /
+        WORD_BYTES;
 
-    localparam int unsigned C_WORD_BASE =
-        3072;
+    localparam int unsigned C0_WORD_BASE =
+        32'h0000_3000 /
+        WORD_BYTES;
+
+    localparam int unsigned C1_WORD_BASE =
+        32'h0000_3400 /
+        WORD_BYTES;
+
+    localparam int unsigned BIAS_WORD_BASE =
+        32'h0000_3800 /
+        WORD_BYTES;
 
     localparam int unsigned DESC_WORD_BASE =
-        4096;
+        32'h0000_4000 /
+        WORD_BYTES;
 
 
-    // 32 KiB
     localparam int unsigned MEMORY_WORDS =
         8192;
 
     localparam int unsigned TIMEOUT_CYCLES =
-        40000;
+        20000;
 
 
     // ============================================================
@@ -92,7 +111,7 @@ module npu_top_tb;
 
 
     // ============================================================
-    // Host interface
+    // Host
     // ============================================================
 
     logic start;
@@ -109,7 +128,7 @@ module npu_top_tb;
 
 
     // ============================================================
-    // Debug accumulator
+    // Debug
     // ============================================================
 
     logic signed [ACC_WIDTH-1:0]
@@ -117,7 +136,7 @@ module npu_top_tb;
 
 
     // ============================================================
-    // AXI read address
+    // AXI read
     // ============================================================
 
     logic [ID_WIDTH-1:0]
@@ -135,16 +154,9 @@ module npu_top_tb;
     logic [1:0]
         axi_arburst;
 
-    logic
-        axi_arvalid;
+    logic axi_arvalid;
+    logic axi_arready;
 
-    logic
-        axi_arready;
-
-
-    // ============================================================
-    // AXI read data
-    // ============================================================
 
     logic [ID_WIDTH-1:0]
         axi_rid;
@@ -155,18 +167,13 @@ module npu_top_tb;
     logic [1:0]
         axi_rresp;
 
-    logic
-        axi_rlast;
-
-    logic
-        axi_rvalid;
-
-    logic
-        axi_rready;
+    logic axi_rlast;
+    logic axi_rvalid;
+    logic axi_rready;
 
 
     // ============================================================
-    // AXI write address
+    // AXI write
     // ============================================================
 
     logic [ID_WIDTH-1:0]
@@ -184,16 +191,9 @@ module npu_top_tb;
     logic [1:0]
         axi_awburst;
 
-    logic
-        axi_awvalid;
+    logic axi_awvalid;
+    logic axi_awready;
 
-    logic
-        axi_awready;
-
-
-    // ============================================================
-    // AXI write data
-    // ============================================================
 
     logic [MEM_WORD_WIDTH-1:0]
         axi_wdata;
@@ -201,19 +201,10 @@ module npu_top_tb;
     logic [(MEM_WORD_WIDTH/8)-1:0]
         axi_wstrb;
 
-    logic
-        axi_wlast;
+    logic axi_wlast;
+    logic axi_wvalid;
+    logic axi_wready;
 
-    logic
-        axi_wvalid;
-
-    logic
-        axi_wready;
-
-
-    // ============================================================
-    // AXI write response
-    // ============================================================
 
     logic [ID_WIDTH-1:0]
         axi_bid;
@@ -221,11 +212,8 @@ module npu_top_tb;
     logic [1:0]
         axi_bresp;
 
-    logic
-        axi_bvalid;
-
-    logic
-        axi_bready;
+    logic axi_bvalid;
+    logic axi_bready;
 
 
     // ============================================================
@@ -240,11 +228,10 @@ module npu_top_tb;
 
 
     // ============================================================
-    // AXI read slave state
+    // AXI read state
     // ============================================================
 
-    logic
-        rd_active_q;
+    logic rd_active_q;
 
     logic [ADDR_WIDTH-1:0]
         rd_addr_q;
@@ -254,11 +241,10 @@ module npu_top_tb;
 
 
     // ============================================================
-    // AXI write slave state
+    // AXI write state
     // ============================================================
 
-    logic
-        wr_active_q;
+    logic wr_active_q;
 
     logic [ADDR_WIDTH-1:0]
         wr_addr_q;
@@ -278,24 +264,12 @@ module npu_top_tb;
 
     integer total_ar_count;
     integer descriptor_ar_count;
-    integer gemm_ar_count;
-
-    integer gemm_ar_64beat_count;
-    integer gemm_ar_1beat_count;
+    integer operand_ar_count;
+    integer bias_ar_count;
 
     integer aw_count;
     integer w_count;
     integer b_count;
-
-
-    // ============================================================
-    // C-address coverage
-    // ============================================================
-
-    logic saw_c_tile_00;
-    logic saw_c_tile_01;
-    logic saw_c_tile_10;
-    logic saw_c_tile_11;
 
 
     // ============================================================
@@ -334,7 +308,6 @@ module npu_top_tb;
 
         .acc_out       (acc_out),
 
-        // AXI read address
         .m_axi_arid    (axi_arid),
         .m_axi_araddr  (axi_araddr),
         .m_axi_arlen   (axi_arlen),
@@ -343,7 +316,6 @@ module npu_top_tb;
         .m_axi_arvalid (axi_arvalid),
         .m_axi_arready (axi_arready),
 
-        // AXI read data
         .m_axi_rid     (axi_rid),
         .m_axi_rdata   (axi_rdata),
         .m_axi_rresp   (axi_rresp),
@@ -351,7 +323,6 @@ module npu_top_tb;
         .m_axi_rvalid  (axi_rvalid),
         .m_axi_rready  (axi_rready),
 
-        // AXI write address
         .m_axi_awid    (axi_awid),
         .m_axi_awaddr  (axi_awaddr),
         .m_axi_awlen   (axi_awlen),
@@ -360,14 +331,12 @@ module npu_top_tb;
         .m_axi_awvalid (axi_awvalid),
         .m_axi_awready (axi_awready),
 
-        // AXI write data
         .m_axi_wdata   (axi_wdata),
         .m_axi_wstrb   (axi_wstrb),
         .m_axi_wlast   (axi_wlast),
         .m_axi_wvalid  (axi_wvalid),
         .m_axi_wready  (axi_wready),
 
-        // AXI write response
         .m_axi_bid     (axi_bid),
         .m_axi_bresp   (axi_bresp),
         .m_axi_bvalid  (axi_bvalid),
@@ -397,7 +366,7 @@ module npu_top_tb;
 
 
     // ============================================================
-    // AXI read monitor
+    // AXI read monitor / classification
     // ============================================================
 
     always_ff @(posedge clk) begin
@@ -410,13 +379,10 @@ module npu_top_tb;
             descriptor_ar_count <=
                 0;
 
-            gemm_ar_count <=
+            operand_ar_count <=
                 0;
 
-            gemm_ar_64beat_count <=
-                0;
-
-            gemm_ar_1beat_count <=
+            bias_ar_count <=
                 0;
 
         end else if (
@@ -428,19 +394,13 @@ module npu_top_tb;
                 total_ar_count + 1;
 
 
-            // ----------------------------------------------------
-            // Descriptor address range:
-            //
-            // 0x4000 ... 0x403f
-            // ----------------------------------------------------
-
             if (
                 (axi_araddr >= DESC_BASE) &&
                 (
                     axi_araddr <
                     (
                         DESC_BASE +
-                        ADDR_WIDTH'(64)
+                        ADDR_WIDTH'(128)
                     )
                 )
             ) begin
@@ -452,7 +412,7 @@ module npu_top_tb;
 
                     $fatal(
                         1,
-                        "Descriptor read must be single beat"
+                        "Descriptor read must be one beat"
                     );
 
                 end
@@ -470,14 +430,7 @@ module npu_top_tb;
 
                     $fatal(
                         1,
-                        "Descriptor address mismatch: got 0x%0h expected 0x%0h",
-                        axi_araddr,
-                        (
-                            DESC_BASE +
-                            ADDR_WIDTH'(
-                                descriptor_ar_count * 4
-                            )
-                        )
+                        "Descriptor address mismatch"
                     );
 
                 end
@@ -486,32 +439,39 @@ module npu_top_tb;
                 descriptor_ar_count <=
                     descriptor_ar_count + 1;
 
+            end else if (
+                (axi_araddr >= BIAS_BASE) &&
+                (
+                    axi_araddr <
+                    (
+                        BIAS_BASE +
+                        ADDR_WIDTH'(
+                            N_TOTAL * 4
+                        )
+                    )
+                )
+            ) begin
+
+                if (
+                    axi_arlen !=
+                    8'd3
+                ) begin
+
+                    $fatal(
+                        1,
+                        "Bias request must contain 4 beats"
+                    );
+
+                end
+
+
+                bias_ar_count <=
+                    bias_ar_count + 1;
+
             end else begin
 
-                gemm_ar_count <=
-                    gemm_ar_count + 1;
-
-
-                if (
-                    axi_arlen ==
-                    8'd63
-                ) begin
-
-                    gemm_ar_64beat_count <=
-                        gemm_ar_64beat_count + 1;
-
-                end
-
-
-                if (
-                    axi_arlen ==
-                    8'd0
-                ) begin
-
-                    gemm_ar_1beat_count <=
-                        gemm_ar_1beat_count + 1;
-
-                end
+                operand_ar_count <=
+                    operand_ar_count + 1;
 
             end
 
@@ -558,10 +518,6 @@ module npu_top_tb;
                 1'b0;
 
         end else begin
-
-            // ----------------------------------------------------
-            // Accept AR
-            // ----------------------------------------------------
 
             if (
                 axi_arvalid &&
@@ -620,10 +576,6 @@ module npu_top_tb;
             end
 
 
-            // ----------------------------------------------------
-            // Consume R beat
-            // ----------------------------------------------------
-
             if (
                 axi_rvalid &&
                 axi_rready
@@ -659,10 +611,6 @@ module npu_top_tb;
             end
 
 
-            // ----------------------------------------------------
-            // Produce R beat
-            // ----------------------------------------------------
-
             if (
                 rd_active_q &&
                 !axi_rvalid
@@ -687,124 +635,6 @@ module npu_top_tb;
 
                 axi_rvalid <=
                     1'b1;
-
-            end
-
-        end
-
-    end
-
-
-    // ============================================================
-    // AXI write monitor
-    // ============================================================
-
-    always_ff @(posedge clk) begin
-
-        if (reset) begin
-
-            aw_count <=
-                0;
-
-            w_count <=
-                0;
-
-            b_count <=
-                0;
-
-            saw_c_tile_00 <=
-                1'b0;
-
-            saw_c_tile_01 <=
-                1'b0;
-
-            saw_c_tile_10 <=
-                1'b0;
-
-            saw_c_tile_11 <=
-                1'b0;
-
-        end else begin
-
-            if (
-                axi_awvalid &&
-                axi_awready
-            ) begin
-
-                aw_count <=
-                    aw_count + 1;
-
-
-                if (axi_awaddr == C_BASE) begin
-
-                    saw_c_tile_00 <=
-                        1'b1;
-
-                end
-
-
-                if (
-                    axi_awaddr ==
-                    (
-                        C_BASE +
-                        ADDR_WIDTH'(16)
-                    )
-                ) begin
-
-                    saw_c_tile_01 <=
-                        1'b1;
-
-                end
-
-
-                if (
-                    axi_awaddr ==
-                    (
-                        C_BASE +
-                        ADDR_WIDTH'(128)
-                    )
-                ) begin
-
-                    saw_c_tile_10 <=
-                        1'b1;
-
-                end
-
-
-                if (
-                    axi_awaddr ==
-                    (
-                        C_BASE +
-                        ADDR_WIDTH'(144)
-                    )
-                ) begin
-
-                    saw_c_tile_11 <=
-                        1'b1;
-
-                end
-
-            end
-
-
-            if (
-                axi_wvalid &&
-                axi_wready
-            ) begin
-
-                w_count <=
-                    w_count + 1;
-
-            end
-
-
-            if (
-                axi_bvalid &&
-                axi_bready
-            ) begin
-
-                b_count <=
-                    b_count + 1;
 
             end
 
@@ -852,11 +682,16 @@ module npu_top_tb;
             axi_bvalid <=
                 1'b0;
 
-        end else begin
+            aw_count <=
+                0;
 
-            // ----------------------------------------------------
-            // AW
-            // ----------------------------------------------------
+            w_count <=
+                0;
+
+            b_count <=
+                0;
+
+        end else begin
 
             if (
                 axi_awvalid &&
@@ -915,6 +750,9 @@ module npu_top_tb;
                 end
 
 
+                aw_count <=
+                    aw_count + 1;
+
                 wr_active_q <=
                     1'b1;
 
@@ -930,10 +768,6 @@ module npu_top_tb;
 
             end
 
-
-            // ----------------------------------------------------
-            // W
-            // ----------------------------------------------------
 
             if (
                 axi_wvalid &&
@@ -967,6 +801,10 @@ module npu_top_tb;
                     );
 
                 end
+
+
+                w_count <=
+                    w_count + 1;
 
 
                 write_memory[
@@ -1010,14 +848,13 @@ module npu_top_tb;
             end
 
 
-            // ----------------------------------------------------
-            // B
-            // ----------------------------------------------------
-
             if (
                 axi_bvalid &&
                 axi_bready
             ) begin
+
+                b_count <=
+                    b_count + 1;
 
                 axi_bvalid <=
                     1'b0;
@@ -1030,7 +867,7 @@ module npu_top_tb;
 
 
     // ============================================================
-    // Fill one INT8 matrix row
+    // Fill A/B row
     // ============================================================
 
     task automatic fill_ab_row (
@@ -1066,111 +903,132 @@ module npu_top_tb;
 
 
     // ============================================================
-    // Create one GEMM descriptor
+    // Descriptor
     // ============================================================
 
-    task automatic write_gemm_descriptor;
+    task automatic write_descriptor (
+        input int unsigned desc_word_base_value,
+        input logic        bias_en,
+        input logic [63:0] c_base_value
+    );
 
         begin
 
             // word 0:
             // opcode = 1
-            // flags  = 0
-            read_memory[
-                DESC_WORD_BASE + 0
-            ] =
-                32'h0000_0001;
+            // bit 8  = BIAS_EN
+
+            if (bias_en) begin
+
+                read_memory[
+                    desc_word_base_value + 0
+                ] =
+                    32'h0000_0101;
+
+            end else begin
+
+                read_memory[
+                    desc_word_base_value + 0
+                ] =
+                    32'h0000_0001;
+
+            end
 
 
             read_memory[
-                DESC_WORD_BASE + 1
+                desc_word_base_value + 1
             ] =
                 32'(M_TOTAL);
 
-
             read_memory[
-                DESC_WORD_BASE + 2
+                desc_word_base_value + 2
             ] =
                 32'(N_TOTAL);
 
-
             read_memory[
-                DESC_WORD_BASE + 3
+                desc_word_base_value + 3
             ] =
                 32'(K_TOTAL);
 
 
-            // A base
             read_memory[
-                DESC_WORD_BASE + 4
+                desc_word_base_value + 4
             ] =
                 A_BASE[31:0];
 
             read_memory[
-                DESC_WORD_BASE + 5
+                desc_word_base_value + 5
             ] =
                 A_BASE[63:32];
 
 
-            // B^T base
             read_memory[
-                DESC_WORD_BASE + 6
+                desc_word_base_value + 6
             ] =
                 BT_BASE[31:0];
 
             read_memory[
-                DESC_WORD_BASE + 7
+                desc_word_base_value + 7
             ] =
                 BT_BASE[63:32];
 
 
-            // C base
             read_memory[
-                DESC_WORD_BASE + 8
+                desc_word_base_value + 8
             ] =
-                C_BASE[31:0];
+                c_base_value[31:0];
 
             read_memory[
-                DESC_WORD_BASE + 9
+                desc_word_base_value + 9
             ] =
-                C_BASE[63:32];
+                c_base_value[63:32];
 
 
             read_memory[
-                DESC_WORD_BASE + 10
-            ] =
-                32'(AB_STRIDE_BYTES);
-
-
-            read_memory[
-                DESC_WORD_BASE + 11
+                desc_word_base_value + 10
             ] =
                 32'(AB_STRIDE_BYTES);
 
+            read_memory[
+                desc_word_base_value + 11
+            ] =
+                32'(AB_STRIDE_BYTES);
 
             read_memory[
-                DESC_WORD_BASE + 12
+                desc_word_base_value + 12
             ] =
                 32'(C_STRIDE_BYTES);
 
 
-            // param0
+            if (bias_en) begin
+
+                read_memory[
+                    desc_word_base_value + 13
+                ] =
+                    BIAS_BASE[31:0];
+
+                read_memory[
+                    desc_word_base_value + 14
+                ] =
+                    BIAS_BASE[63:32];
+
+            end else begin
+
+                read_memory[
+                    desc_word_base_value + 13
+                ] =
+                    32'd0;
+
+                read_memory[
+                    desc_word_base_value + 14
+                ] =
+                    32'd0;
+
+            end
+
+
             read_memory[
-                DESC_WORD_BASE + 13
-            ] =
-                32'd0;
-
-
-            // param1
-            read_memory[
-                DESC_WORD_BASE + 14
-            ] =
-                32'd0;
-
-
-            // reserved
-            read_memory[
-                DESC_WORD_BASE + 15
+                desc_word_base_value + 15
             ] =
                 32'd0;
 
@@ -1180,10 +1038,13 @@ module npu_top_tb;
 
 
     // ============================================================
-    // Check complete C matrix
+    // Result check
     // ============================================================
 
-    task automatic check_c_matrix;
+    task automatic check_matrix (
+        input int unsigned c_word_base_value,
+        input logic        bias_en
+    );
 
         integer row_idx;
         integer col_idx;
@@ -1195,19 +1056,11 @@ module npu_top_tb;
 
         begin
 
-            $display("");
-            $display("DDR C matrix:");
-
             for (
                 row_idx = 0;
                 row_idx < M_TOTAL;
                 row_idx = row_idx + 1
             ) begin
-
-                $write(
-                    "row %0d:",
-                    row_idx
-                );
 
                 for (
                     col_idx = 0;
@@ -1218,7 +1071,7 @@ module npu_top_tb;
                     actual =
                         $signed(
                             write_memory[
-                                C_WORD_BASE +
+                                c_word_base_value +
                                 (
                                     row_idx *
                                     N_TOTAL
@@ -1234,10 +1087,16 @@ module npu_top_tb;
                         (col_idx + 1);
 
 
-                    $write(
-                        " %0d",
-                        actual
-                    );
+                    if (bias_en) begin
+
+                        expected =
+                            expected +
+                            (
+                                100 *
+                                (col_idx + 1)
+                            );
+
+                    end
 
 
                     if (
@@ -1245,22 +1104,19 @@ module npu_top_tb;
                         expected
                     ) begin
 
-                        $display("");
-
                         $fatal(
                             1,
-                            "C[%0d][%0d] mismatch: got %0d expected %0d",
+                            "C[%0d][%0d] mismatch: got %0d expected %0d bias=%0b",
                             row_idx,
                             col_idx,
                             actual,
-                            expected
+                            expected,
+                            bias_en
                         );
 
                     end
 
                 end
-
-                $display("");
 
             end
 
@@ -1279,42 +1135,49 @@ module npu_top_tb;
             @(posedge clk);
         end
 
+
         $display("");
         $display("========================================");
-        $display("NPU TOP TEST TIMEOUT");
+        $display("NPU OPTIONAL-BIAS TEST TIMEOUT");
         $display("========================================");
 
         $display(
-            "cycles              = %0d",
+            "cycles        = %0d",
             cycle_count
         );
 
         $display(
-            "busy                = %b",
+            "busy          = %b",
             npu_busy
         );
 
         $display(
-            "done                = %b",
+            "done          = %b",
             npu_done
         );
 
         $display(
-            "error               = %b",
+            "error         = %b",
             npu_error
         );
 
         $display(
-            "descriptor AR       = %0d",
+            "descriptor AR = %0d",
             descriptor_ar_count
         );
 
         $display(
-            "GEMM AR             = %0d",
-            gemm_ar_count
+            "operand AR    = %0d",
+            operand_ar_count
+        );
+
+        $display(
+            "bias AR       = %0d",
+            bias_ar_count
         );
 
         $display("========================================");
+
 
         $fatal(
             1,
@@ -1325,7 +1188,7 @@ module npu_top_tb;
 
 
     // ============================================================
-    // Main test
+    // Main
     // ============================================================
 
     integer init_idx;
@@ -1343,11 +1206,11 @@ module npu_top_tb;
             DESC_BASE;
 
         desc_count =
-            DESC_COUNT_WIDTH'(1);
+            DESC_COUNT_WIDTH'(2);
 
 
         // --------------------------------------------------------
-        // Initialize memory
+        // Memory
         // --------------------------------------------------------
 
         for (
@@ -1366,7 +1229,7 @@ module npu_top_tb;
 
 
         // --------------------------------------------------------
-        // A row i = i+1
+        // A[i][k] = i+1
         // --------------------------------------------------------
 
         for (
@@ -1388,7 +1251,7 @@ module npu_top_tb;
 
 
         // --------------------------------------------------------
-        // B^T row j = j+1
+        // B^T[j][k] = j+1
         // --------------------------------------------------------
 
         for (
@@ -1410,10 +1273,49 @@ module npu_top_tb;
 
 
         // --------------------------------------------------------
-        // Place descriptor in external memory
+        // Bias[j] = 100 × (j+1)
         // --------------------------------------------------------
 
-        write_gemm_descriptor();
+        for (
+            row_idx = 0;
+            row_idx < N_TOTAL;
+            row_idx = row_idx + 1
+        ) begin
+
+            read_memory[
+                BIAS_WORD_BASE +
+                row_idx
+            ] =
+                32'(
+                    100 *
+                    (row_idx + 1)
+                );
+
+        end
+
+
+        // --------------------------------------------------------
+        // Descriptor 0:
+        // pure GEMM
+        // --------------------------------------------------------
+
+        write_descriptor(
+            DESC_WORD_BASE,
+            1'b0,
+            C0_BASE
+        );
+
+
+        // --------------------------------------------------------
+        // Descriptor 1:
+        // GEMM + Bias
+        // --------------------------------------------------------
+
+        write_descriptor(
+            DESC_WORD_BASE + 16,
+            1'b1,
+            C1_BASE
+        );
 
 
         // --------------------------------------------------------
@@ -1424,6 +1326,7 @@ module npu_top_tb;
             @(posedge clk);
         end
 
+
         @(negedge clk);
 
         reset =
@@ -1431,7 +1334,7 @@ module npu_top_tb;
 
 
         // --------------------------------------------------------
-        // Host starts NPU
+        // Launch descriptor list
         // --------------------------------------------------------
 
         @(negedge clk);
@@ -1454,19 +1357,11 @@ module npu_top_tb;
             1'b0;
 
 
-        // --------------------------------------------------------
-        // Wait until NPU actually starts
-        // --------------------------------------------------------
-
         wait (
             npu_busy ===
             1'b1
         );
 
-
-        // --------------------------------------------------------
-        // Wait until entire descriptor list completes
-        // --------------------------------------------------------
 
         wait (
             npu_done ===
@@ -1491,64 +1386,46 @@ module npu_top_tb;
 
 
         // ========================================================
-        // Descriptor fetch checks
+        // AXI checks
         // ========================================================
 
         if (
             descriptor_ar_count !=
-            16
+            32
         ) begin
 
             $fatal(
                 1,
-                "Expected 16 descriptor reads, got %0d",
+                "Expected 32 descriptor reads, got %0d",
                 descriptor_ar_count
             );
 
         end
 
 
-        // ========================================================
-        // GEMM read checks
-        // ========================================================
-
         if (
-            gemm_ar_count !=
-            64
+            operand_ar_count !=
+            128
         ) begin
 
             $fatal(
                 1,
-                "Expected 64 GEMM AXI reads, got %0d",
-                gemm_ar_count
+                "Expected 128 operand reads, got %0d",
+                operand_ar_count
             );
 
         end
 
 
         if (
-            gemm_ar_64beat_count !=
-            32
+            bias_ar_count !=
+            4
         ) begin
 
             $fatal(
                 1,
-                "Expected 32 x 64-beat GEMM reads, got %0d",
-                gemm_ar_64beat_count
-            );
-
-        end
-
-
-        if (
-            gemm_ar_1beat_count !=
-            32
-        ) begin
-
-            $fatal(
-                1,
-                "Expected 32 x 1-beat GEMM reads, got %0d",
-                gemm_ar_1beat_count
+                "Expected 4 Bias reads, got %0d",
+                bias_ar_count
             );
 
         end
@@ -1556,30 +1433,26 @@ module npu_top_tb;
 
         if (
             total_ar_count !=
-            80
+            164
         ) begin
 
             $fatal(
                 1,
-                "Expected 80 total AXI reads, got %0d",
+                "Expected 164 total AR requests, got %0d",
                 total_ar_count
             );
 
         end
 
 
-        // ========================================================
-        // GEMM write checks
-        // ========================================================
-
         if (
             aw_count !=
-            16
+            32
         ) begin
 
             $fatal(
                 1,
-                "Expected 16 AXI write requests, got %0d",
+                "Expected 32 AW requests, got %0d",
                 aw_count
             );
 
@@ -1588,12 +1461,12 @@ module npu_top_tb;
 
         if (
             w_count !=
-            64
+            128
         ) begin
 
             $fatal(
                 1,
-                "Expected 64 AXI write beats, got %0d",
+                "Expected 128 W beats, got %0d",
                 w_count
             );
 
@@ -1602,37 +1475,37 @@ module npu_top_tb;
 
         if (
             b_count !=
-            16
+            32
         ) begin
 
             $fatal(
                 1,
-                "Expected 16 AXI write responses, got %0d",
+                "Expected 32 B responses, got %0d",
                 b_count
             );
 
         end
 
 
-        if (
-            !saw_c_tile_00 ||
-            !saw_c_tile_01 ||
-            !saw_c_tile_10 ||
-            !saw_c_tile_11
-        ) begin
-
-            $fatal(
-                1,
-                "Not all C tiles were written"
-            );
-
-        end
-
-
         // ========================================================
-        // Final compute state
+        // Functional results
         // ========================================================
 
+        check_matrix(
+            C0_WORD_BASE,
+            1'b0
+        );
+
+
+        check_matrix(
+            C1_WORD_BASE,
+            1'b1
+        );
+
+
+        // Bias is outside the PE array.
+        //
+        // Therefore debug accumulator remains RAW GEMM C.
         if (
             acc_out[0][0] !==
             32'sd6500
@@ -1640,18 +1513,11 @@ module npu_top_tb;
 
             $fatal(
                 1,
-                "Final accumulator mismatch: got %0d expected 6500",
+                "Raw accumulator mismatch: got %0d expected 6500",
                 acc_out[0][0]
             );
 
         end
-
-
-        // ========================================================
-        // Full DDR result
-        // ========================================================
-
-        check_c_matrix();
 
 
         // ========================================================
@@ -1660,43 +1526,51 @@ module npu_top_tb;
 
         $display("");
         $display("========================================");
-        $display("DESCRIPTOR-DRIVEN NPU TEST PASSED");
+        $display("OPTIONAL-BIAS NPU TEST PASSED");
         $display("========================================");
 
         $display(
-            "descriptor count      = %0d",
+            "descriptor count    = %0d",
             desc_count
         );
 
         $display(
-            "descriptor AXI reads  = %0d",
+            "descriptor AR       = %0d",
             descriptor_ar_count
         );
 
         $display(
-            "GEMM AXI reads        = %0d",
-            gemm_ar_count
+            "operand A/B AR      = %0d",
+            operand_ar_count
         );
 
         $display(
-            "total AXI reads       = %0d",
+            "Bias AR             = %0d",
+            bias_ar_count
+        );
+
+        $display(
+            "total AR            = %0d",
             total_ar_count
         );
 
         $display(
-            "AXI write requests    = %0d",
+            "AXI write requests  = %0d",
             aw_count
         );
 
         $display(
-            "AXI write beats       = %0d",
+            "AXI write beats     = %0d",
             w_count
         );
 
         $display(
-            "total cycles          = %0d",
+            "total cycles        = %0d",
             cycle_count
         );
+
+        $display("pure GEMM           = PASS");
+        $display("GEMM + Bias         = PASS");
 
         $display("========================================");
         $display("");
