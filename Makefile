@@ -1,3 +1,4 @@
+
 VERILATOR ?= verilator
 
 BUILD_DIR ?= build
@@ -57,6 +58,12 @@ NPU_TOP_SRCS := \
 	sim/tb/npu_top_tb.sv
 
 
+CONV_PATCH_SRCS := \
+	rtl/memory/operand_loader.sv \
+	rtl/dma/conv_patch_loader.sv \
+	sim/tb/conv_patch_loader_tb.sv
+
+
 .PHONY: all
 all: npu_top
 
@@ -69,6 +76,20 @@ npu_top:
 		--top-module npu_top_tb \
 		$(NPU_TOP_SRCS)
 	./$(BUILD_DIR)/npu_top/Vnpu_top_tb
+
+
+.PHONY: conv_patch
+conv_patch:
+	mkdir -p $(BUILD_DIR)/conv_patch
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(BUILD_DIR)/conv_patch \
+		--top-module conv_patch_loader_tb \
+		$(CONV_PATCH_SRCS)
+	./$(BUILD_DIR)/conv_patch/Vconv_patch_loader_tb
+
+
+.PHONY: regression
+regression: npu_top conv_patch
 
 
 .PHONY: clean
