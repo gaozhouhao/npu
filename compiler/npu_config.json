@@ -1,0 +1,15 @@
+{
+  "pe_rows": 4,
+  "pe_cols": 4,
+  "k_tile_size": 256,
+  "a_buffer_count": 2,
+  "b_buffer_count": 2,
+  "axi_data_width": 32,
+  "data_width": 8,
+  "acc_width": 32,
+  "activation_layout": "HWC",
+  "alignment_bytes": 4,
+  "ddr_base": 0,
+  "ddr_capacity_bytes": 32768,
+  "tile_count_width": 16
+}

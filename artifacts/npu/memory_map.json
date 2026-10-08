@@ -1,0 +1,163 @@
+{
+  "ddr_base": 0,
+  "ddr_capacity_bytes": 32768,
+  "image_bytes": 26304,
+  "regions": {
+    "conv1_weights": {
+      "address": 0,
+      "bytes": 96,
+      "shape": [
+        8,
+        12
+      ],
+      "dtype": "i1",
+      "layout": "B_transpose[N][aligned_K]",
+      "logical_k": 9,
+      "row_stride_bytes": 12
+    },
+    "conv2_weights": {
+      "address": 96,
+      "bytes": 1152,
+      "shape": [
+        16,
+        72
+      ],
+      "dtype": "i1",
+      "layout": "B_transpose[N][aligned_K]",
+      "logical_k": 72,
+      "row_stride_bytes": 72
+    },
+    "fc_weights": {
+      "address": 1248,
+      "bytes": 9408,
+      "shape": [
+        12,
+        784
+      ],
+      "dtype": "i1",
+      "layout": "B_transpose[N][aligned_K]",
+      "logical_k": 784,
+      "row_stride_bytes": 784
+    },
+    "conv1_params": {
+      "address": 10656,
+      "bytes": 48,
+      "shape": [
+        12
+      ],
+      "dtype": "<u4",
+      "layout": "header[4] + signed_bias[N]"
+    },
+    "conv2_params": {
+      "address": 10704,
+      "bytes": 80,
+      "shape": [
+        20
+      ],
+      "dtype": "<u4",
+      "layout": "header[4] + signed_bias[N]"
+    },
+    "fc_params": {
+      "address": 10784,
+      "bytes": 64,
+      "shape": [
+        16
+      ],
+      "dtype": "<u4",
+      "layout": "header[4] + signed_bias[N]"
+    },
+    "input": {
+      "address": 10848,
+      "bytes": 784,
+      "shape": [
+        28,
+        28,
+        1
+      ],
+      "dtype": "i1",
+      "layout": "HWC"
+    },
+    "conv1_output": {
+      "address": 11632,
+      "bytes": 6272,
+      "shape": [
+        28,
+        28,
+        8
+      ],
+      "dtype": "i1",
+      "layout": "HWC"
+    },
+    "pool1_output": {
+      "address": 17904,
+      "bytes": 1568,
+      "shape": [
+        14,
+        14,
+        8
+      ],
+      "dtype": "i1",
+      "layout": "HWC"
+    },
+    "conv2_output": {
+      "address": 19472,
+      "bytes": 3136,
+      "shape": [
+        14,
+        14,
+        16
+      ],
+      "dtype": "i1",
+      "layout": "HWC"
+    },
+    "pool2_output_fc_input": {
+      "address": 22608,
+      "bytes": 3136,
+      "shape": [
+        4,
+        784
+      ],
+      "dtype": "i1",
+      "layout": "row0=HWC[7,7,16]; remaining rows zero",
+      "logical_output_shape": [
+        7,
+        7,
+        16
+      ],
+      "logical_output_bytes": 784,
+      "padding_bytes": 2352
+    },
+    "fc_output": {
+      "address": 25744,
+      "bytes": 192,
+      "shape": [
+        4,
+        12
+      ],
+      "dtype": "<i4",
+      "layout": "row-major; use row0 columns0..9"
+    },
+    "commands": {
+      "address": 25984,
+      "bytes": 320,
+      "shape": [
+        5,
+        16
+      ],
+      "dtype": "<u4",
+      "layout": "5 little-endian descriptors"
+    }
+  },
+  "bundles": {
+    "weights": {
+      "address": 0,
+      "bytes": 10656
+    },
+    "params": {
+      "address": 10656,
+      "bytes": 192
+    }
+  },
+  "desc_base": 25984,
+  "desc_count": 5
+}

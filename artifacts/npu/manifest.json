@@ -1,0 +1,732 @@
+{
+  "format_version": 1,
+  "files": {
+    "commands.bin": {
+      "bytes": 320,
+      "sha256": "56050e74f00d1398f5f05c9ddf0985b2ff671f05954f0583a71502ccda918981",
+      "dtype": "<u4",
+      "byte_order": "little",
+      "layout": "descriptor words",
+      "shape": [
+        5,
+        16
+      ],
+      "load_address": 25984
+    },
+    "weights.bin": {
+      "bytes": 10656,
+      "sha256": "2273e8f7e685bad10025b1ac68cbbfb2f9310631d5a79ad7949db2e98b760f53",
+      "dtype": "|u1",
+      "byte_order": "little",
+      "layout": "see memory_map regions",
+      "shape": [
+        10656
+      ],
+      "load_address": 0
+    },
+    "params.bin": {
+      "bytes": 192,
+      "sha256": "01b06309d3e11cfeb157866ab7a77c909fa35a2c303b8f3a33bdbbb493dc9667",
+      "dtype": "|u1",
+      "byte_order": "little",
+      "layout": "see memory_map regions",
+      "shape": [
+        192
+      ],
+      "load_address": 10656
+    },
+    "model.bin": {
+      "bytes": 26352,
+      "sha256": "f73efdcbe85ae1998c5f2b58de4301c7e3ddcf2fc50bb663124b018477a88828",
+      "dtype": "|u1",
+      "byte_order": "little",
+      "layout": "48-byte NPUMV0 header + zero-input DDR template; parse header before loading"
+    },
+    "inputs/image_0000.bin": {
+      "bytes": 784,
+      "sha256": "1e88ae0f5e119f19ac4205a36bb97f14e30d199e2cb7d7fa8806b46df4310840",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        1
+      ],
+      "load_address": 10848
+    },
+    "ddr/image_0000.bin": {
+      "bytes": 26304,
+      "sha256": "751bf36221a49f200b0de80ede397649a2cd73a453a101a0b4a1afc8d4511c95",
+      "dtype": "|u1",
+      "byte_order": "little",
+      "layout": "bytes",
+      "shape": [
+        26304
+      ],
+      "load_address": 0
+    },
+    "golden/image_0000/conv1.mac.bin": {
+      "bytes": 25088,
+      "sha256": "044e2db66b9618df1b7ccc81047cb280a65b47fa521ace5006b70e945a4a1c9a",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ]
+    },
+    "golden/image_0000/conv1.acc.bin": {
+      "bytes": 25088,
+      "sha256": "65d0560ee39141e7441fcf3da2365f9449b6ec8b443ba89d702bd35382bced09",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ]
+    },
+    "golden/image_0000/conv1.bin": {
+      "bytes": 6272,
+      "sha256": "17c0c1f16147cdb600dfadf1550ba47850ed86ffd9fe4859271bf8ba7f6eace4",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ],
+      "load_address": 11632
+    },
+    "golden/image_0000/pool1.bin": {
+      "bytes": 1568,
+      "sha256": "ba3128dc044815aae52725b46126e677d8d8d3e7cc084de60c4d3f604d20cdc7",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        8
+      ],
+      "load_address": 17904
+    },
+    "golden/image_0000/conv2.mac.bin": {
+      "bytes": 12544,
+      "sha256": "fe5025c100052644cf25a4163f44f905fa3e2f5f2721b678946d5cb0cc9d3292",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ]
+    },
+    "golden/image_0000/conv2.acc.bin": {
+      "bytes": 12544,
+      "sha256": "f38686b54103105b65594911b5135be72bbe2f5be50eaeb5bbe749fb21ae5e06",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ]
+    },
+    "golden/image_0000/conv2.bin": {
+      "bytes": 3136,
+      "sha256": "0a5a95ec2fe3e7e40af91649a1dc740f7f4654ac72230bcb5b86abd270f64cb8",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ],
+      "load_address": 19472
+    },
+    "golden/image_0000/pool2.bin": {
+      "bytes": 784,
+      "sha256": "ce3dcc7c7dc07c3804a6dd0a73252a2d110f1dc1becaae9fa3db66b5a0041b7d",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        7,
+        7,
+        16
+      ],
+      "load_address": 22608
+    },
+    "golden/image_0000/fc.mac.bin": {
+      "bytes": 192,
+      "sha256": "5b4f25c4761ff6b22ae91da6e1d85a4f470e18daf7deb91c9cb8d32e1ef9ff1c",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ]
+    },
+    "golden/image_0000/fc.acc.bin": {
+      "bytes": 192,
+      "sha256": "2caa0c3b10673db2558fff8da2e4ed8db96885f5da6cc785d019547dab5e6f2f",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ]
+    },
+    "golden/image_0000/fc.bin": {
+      "bytes": 192,
+      "sha256": "2caa0c3b10673db2558fff8da2e4ed8db96885f5da6cc785d019547dab5e6f2f",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ],
+      "load_address": 25744
+    },
+    "golden/image_0000/logits.bin": {
+      "bytes": 40,
+      "sha256": "e585adf6de434b623db709d8f02a7b4caf999d0f4243bec6db8c5b82856ac0b2",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "classes 0..9",
+      "shape": [
+        10
+      ]
+    },
+    "inputs/image_0001.bin": {
+      "bytes": 784,
+      "sha256": "98f04b76c2640be0dbc29497911c05aa1f578306b9e76836b853fe164f394447",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        1
+      ],
+      "load_address": 10848
+    },
+    "ddr/image_0001.bin": {
+      "bytes": 26304,
+      "sha256": "77d770b8d0c8b213d32944f0b66d385e808b577f205a57c31d3c8df08883d93a",
+      "dtype": "|u1",
+      "byte_order": "little",
+      "layout": "bytes",
+      "shape": [
+        26304
+      ],
+      "load_address": 0
+    },
+    "golden/image_0001/conv1.mac.bin": {
+      "bytes": 25088,
+      "sha256": "e842406a25b5f6dd89e898acb7993165398255125a250198f82b2fcfaf67030e",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ]
+    },
+    "golden/image_0001/conv1.acc.bin": {
+      "bytes": 25088,
+      "sha256": "7d38333ffa92ad53a798d342db4f4e1fe5e4b9fc7b1e28b585ce12400f9ef798",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ]
+    },
+    "golden/image_0001/conv1.bin": {
+      "bytes": 6272,
+      "sha256": "ef7767a6345d10f66ab5ba25dc0f66f94cd2bf891a36fdba871c5943e81cc47d",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ],
+      "load_address": 11632
+    },
+    "golden/image_0001/pool1.bin": {
+      "bytes": 1568,
+      "sha256": "4ae2df5e7e448780b8d42e4997b7070ef240b4d447a3b6ab286f801c935b3b8d",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        8
+      ],
+      "load_address": 17904
+    },
+    "golden/image_0001/conv2.mac.bin": {
+      "bytes": 12544,
+      "sha256": "d1bfeacc9c7e361c89d9a82662ae96b0029754fb20683b3fe4a97143c31173a4",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ]
+    },
+    "golden/image_0001/conv2.acc.bin": {
+      "bytes": 12544,
+      "sha256": "c83fa1da4f29aab793ae5197bff6a3f512c7294cfa19f98f8931146653299c61",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ]
+    },
+    "golden/image_0001/conv2.bin": {
+      "bytes": 3136,
+      "sha256": "21c3a42de1c4a25debf5fad155982edbda759a0d416d1ad6ca25a9fa92ae1579",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ],
+      "load_address": 19472
+    },
+    "golden/image_0001/pool2.bin": {
+      "bytes": 784,
+      "sha256": "79f4a17a68c0a32b94a14415dc0ca36cdc2c2b039d58e5688cfacbe9227b4e6a",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        7,
+        7,
+        16
+      ],
+      "load_address": 22608
+    },
+    "golden/image_0001/fc.mac.bin": {
+      "bytes": 192,
+      "sha256": "e5453828292dcaa1610f55c767eb3e306459a134613ae469718520825f8ed76d",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ]
+    },
+    "golden/image_0001/fc.acc.bin": {
+      "bytes": 192,
+      "sha256": "38035cace2689949105061da8da1626df216a016f6a5a1a8163278c4b67311f7",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ]
+    },
+    "golden/image_0001/fc.bin": {
+      "bytes": 192,
+      "sha256": "38035cace2689949105061da8da1626df216a016f6a5a1a8163278c4b67311f7",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ],
+      "load_address": 25744
+    },
+    "golden/image_0001/logits.bin": {
+      "bytes": 40,
+      "sha256": "68ee5af4431d02547ee3f6375fe43b6c32b150017e9bd86130899715fee7ab1d",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "classes 0..9",
+      "shape": [
+        10
+      ]
+    },
+    "inputs/image_0002.bin": {
+      "bytes": 784,
+      "sha256": "a1b97c1517998085953f581bccb87597250e3fdf27850b135258247ed893e3a7",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        1
+      ],
+      "load_address": 10848
+    },
+    "ddr/image_0002.bin": {
+      "bytes": 26304,
+      "sha256": "73476bf1352400b03cc5ce75490681fda560f028c98e9e5cb19687db8204cccd",
+      "dtype": "|u1",
+      "byte_order": "little",
+      "layout": "bytes",
+      "shape": [
+        26304
+      ],
+      "load_address": 0
+    },
+    "golden/image_0002/conv1.mac.bin": {
+      "bytes": 25088,
+      "sha256": "1130671a98a1486324ca23c602f4a382728f43fbcee818a0d1f27a4febcaaa23",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ]
+    },
+    "golden/image_0002/conv1.acc.bin": {
+      "bytes": 25088,
+      "sha256": "d308476b37f71e46e86d364e0c3c38af1bd6feb161270ee0d780b396ee0f60fc",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ]
+    },
+    "golden/image_0002/conv1.bin": {
+      "bytes": 6272,
+      "sha256": "bfa3c27b3ea51f3e34f5e98fb7a6fd7a3dbe6eb41780e6eb696ce923771ba372",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ],
+      "load_address": 11632
+    },
+    "golden/image_0002/pool1.bin": {
+      "bytes": 1568,
+      "sha256": "ddc6f8c6332bf5a8e2a6279a59a90dcc0a5065d65d427a94a51d88a8122bdeb1",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        8
+      ],
+      "load_address": 17904
+    },
+    "golden/image_0002/conv2.mac.bin": {
+      "bytes": 12544,
+      "sha256": "612d3eaf911c5c1b069e2f693ebffff3f491c6c9578b4e8a51ad1b815211accf",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ]
+    },
+    "golden/image_0002/conv2.acc.bin": {
+      "bytes": 12544,
+      "sha256": "0cf10ffb7d449f6aea72f7cc938cfa9e94d9959515de46e62c30a232b5f4014f",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ]
+    },
+    "golden/image_0002/conv2.bin": {
+      "bytes": 3136,
+      "sha256": "c288935a89990aa0e0486cd16ce0dff58ca0d1254a71bd803b17f4a9ab705779",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ],
+      "load_address": 19472
+    },
+    "golden/image_0002/pool2.bin": {
+      "bytes": 784,
+      "sha256": "de14ec8a5e194a7eba49638fb080d1ae307c4ac99886cac01d2d91b95e67ca3d",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        7,
+        7,
+        16
+      ],
+      "load_address": 22608
+    },
+    "golden/image_0002/fc.mac.bin": {
+      "bytes": 192,
+      "sha256": "93034d48145a79d7e52be40481ecd0c4af7eec6f97d0dda369241260a3df5d9d",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ]
+    },
+    "golden/image_0002/fc.acc.bin": {
+      "bytes": 192,
+      "sha256": "f10900a05f9794cf558ae214aa44115b0663429f8a2c60a569ac8df6ec0cb29c",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ]
+    },
+    "golden/image_0002/fc.bin": {
+      "bytes": 192,
+      "sha256": "f10900a05f9794cf558ae214aa44115b0663429f8a2c60a569ac8df6ec0cb29c",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ],
+      "load_address": 25744
+    },
+    "golden/image_0002/logits.bin": {
+      "bytes": 40,
+      "sha256": "e835e59c3489afec9ba2eae9b2d4a2a1957ac447dc228578b7276e1f0268bbf5",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "classes 0..9",
+      "shape": [
+        10
+      ]
+    },
+    "inputs/image_0003.bin": {
+      "bytes": 784,
+      "sha256": "dc4b0b43709b246b48a9817e5c57f83d5625c5e9fe5ad619d003b6b9f9b6c165",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        1
+      ],
+      "load_address": 10848
+    },
+    "ddr/image_0003.bin": {
+      "bytes": 26304,
+      "sha256": "d870386fea011b93e4fefb0f61d8b24b10f36a6632151fd2aa5b7b632623cfc4",
+      "dtype": "|u1",
+      "byte_order": "little",
+      "layout": "bytes",
+      "shape": [
+        26304
+      ],
+      "load_address": 0
+    },
+    "golden/image_0003/conv1.mac.bin": {
+      "bytes": 25088,
+      "sha256": "86749bf08911fa5a4777176109bca924d39ed39b76ddc0e167efe491864b0986",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ]
+    },
+    "golden/image_0003/conv1.acc.bin": {
+      "bytes": 25088,
+      "sha256": "7b4b541a6354ace67bea86f68f6b8c420d8ab40b2905c6e3441203501267c456",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ]
+    },
+    "golden/image_0003/conv1.bin": {
+      "bytes": 6272,
+      "sha256": "040cd3e59e47ade0865f463ca7238cacb477ce751f942d0426f811c39fe643a6",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        28,
+        28,
+        8
+      ],
+      "load_address": 11632
+    },
+    "golden/image_0003/pool1.bin": {
+      "bytes": 1568,
+      "sha256": "ff33c4212856a725c325a1c9fbb5960628e175858072f085167c88c5d9e9c1ea",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        8
+      ],
+      "load_address": 17904
+    },
+    "golden/image_0003/conv2.mac.bin": {
+      "bytes": 12544,
+      "sha256": "62717d5d570fcdec8bce99504719cd20d568c07e9949b6e4567641c547a378d2",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ]
+    },
+    "golden/image_0003/conv2.acc.bin": {
+      "bytes": 12544,
+      "sha256": "6e09141813b092ec08b796026fe820ad6f234739fedf5602cb1335f75fc0515a",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ]
+    },
+    "golden/image_0003/conv2.bin": {
+      "bytes": 3136,
+      "sha256": "95643eb1203ea63f6e4c6dce8be05b230da5ef6f8feec255575edcb890eba744",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        14,
+        14,
+        16
+      ],
+      "load_address": 19472
+    },
+    "golden/image_0003/pool2.bin": {
+      "bytes": 784,
+      "sha256": "27a23ebd5ee1d0181783e4211cd38f4d3126ae0a1194241cf41fad2e80057a24",
+      "dtype": "i1",
+      "byte_order": "little",
+      "layout": "HWC",
+      "shape": [
+        7,
+        7,
+        16
+      ],
+      "load_address": 22608
+    },
+    "golden/image_0003/fc.mac.bin": {
+      "bytes": 192,
+      "sha256": "68545f892fa14cf53bcbe1ef366a3d1536d7db59037d4a8233a0c5b5754addcc",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ]
+    },
+    "golden/image_0003/fc.acc.bin": {
+      "bytes": 192,
+      "sha256": "d458f641488b7e08006a38b639d7ddb84c4f36139f2230dbb0679878ead91932",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ]
+    },
+    "golden/image_0003/fc.bin": {
+      "bytes": 192,
+      "sha256": "d458f641488b7e08006a38b639d7ddb84c4f36139f2230dbb0679878ead91932",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "MN",
+      "shape": [
+        4,
+        12
+      ],
+      "load_address": 25744
+    },
+    "golden/image_0003/logits.bin": {
+      "bytes": 40,
+      "sha256": "a651b580906811123b308645f0cf2a2a1daadf7fa1f73f2a4d0ed3f2b6953e71",
+      "dtype": "<i4",
+      "byte_order": "little",
+      "layout": "classes 0..9",
+      "shape": [
+        10
+      ]
+    },
+    "memory_map.json": {
+      "bytes": 2947,
+      "sha256": "7e9264ff8c2f297d4e06bc5a9dec1c068865a7f8cb21961f6ac075bed0b90418",
+      "dtype": "|u1",
+      "byte_order": "little",
+      "layout": "JSON UTF-8"
+    },
+    "compilation_report.json": {
+      "bytes": 7309,
+      "sha256": "aca05128acb3ee67ce9db05b0ec5d1a9f13c54d2ae0793ef0c39b08f687fdbc9",
+      "dtype": "|u1",
+      "byte_order": "little",
+      "layout": "JSON UTF-8"
+    }
+  }
+}

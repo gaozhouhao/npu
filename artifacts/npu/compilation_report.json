@@ -1,0 +1,323 @@
+{
+  "rtl_commit": "87cc23c73760820701ebd697d2c04df04fcea050",
+  "hardware_config": {
+    "pe_rows": 4,
+    "pe_cols": 4,
+    "k_tile_size": 256,
+    "a_buffer_count": 2,
+    "b_buffer_count": 2,
+    "axi_data_width": 32,
+    "data_width": 8,
+    "acc_width": 32,
+    "activation_layout": "HWC",
+    "alignment_bytes": 4,
+    "ddr_base": 0,
+    "ddr_capacity_bytes": 32768,
+    "tile_count_width": 16
+  },
+  "source_sha256": {
+    "artifacts\\fp32_state_dict.pt": "918b75f223115eb41522a33324a4d910c33d48db500844f32d138c74540cd1e0",
+    "common.py": "a058e8d2d2cdfd48e8ab40a5c882748b8a54c893c9b6e707f147d10d82fb7a10",
+    "quantize_export.py": "ccfc3527a747728654618fa7254e46e74672a1ea3206bdc00d527e2baf100e79",
+    "artifacts\\int8\\manifest.json": "f21deeb8ddc279ee9bb995c5bb2033bf4ecbe6c08d56fc7e5aa9adf6d7ce7f0d",
+    "artifacts\\int8\\conv1.weight.bin": "a75551924ae58cd1bba9f36d46e29ad7afc8d5e69208077a796b58df6b6fffb0",
+    "artifacts\\int8\\conv1.bias.bin": "c988753ed7577b4a51e6eb03ac21fa557b13ff8f4b9eb0fa724273ef157d10b5",
+    "artifacts\\int8\\conv2.weight.bin": "944d6caceee4aa2d9cdec47c46b7c6d6226c1480e3cca3da29d9dca75cc78710",
+    "artifacts\\int8\\conv2.bias.bin": "56bc1b5be0b2aa7fff2c44ecf19545d48c7ef4309793f1997d90bd52588d3d07",
+    "artifacts\\int8\\fc.weight.bin": "5a71b6fb502f02bb7e94eac5d488af4261c130ddd9c4003f6220f8545def3a6e",
+    "artifacts\\int8\\fc.bias.bin": "ec624130d6dcd2ac14acfe76e39b84d41f38342794b652d92dc77e46f6917a77"
+  },
+  "layers": [
+    {
+      "name": "conv1",
+      "m": 784,
+      "n": 8,
+      "k": 9,
+      "a_region": "input",
+      "b_region": "conv1_weights",
+      "c_region": "conv1_output",
+      "a_stride_bytes": null,
+      "b_stride_bytes": 12,
+      "c_stride_bytes": 8,
+      "padding": "K row bytes only",
+      "tile_counts_m_n_k": [
+        196,
+        2,
+        1
+      ],
+      "compute_tiles": 392,
+      "k_segments": [
+        9
+      ],
+      "weight_bytes": 96,
+      "output_bytes": 6272
+    },
+    {
+      "name": "pool1",
+      "input_shape": [
+        28,
+        28,
+        8
+      ],
+      "output_shape": [
+        14,
+        14,
+        8
+      ],
+      "a_region": "conv1_output",
+      "c_region": "pool1_output",
+      "output_bytes": 1568
+    },
+    {
+      "name": "conv2",
+      "m": 196,
+      "n": 16,
+      "k": 72,
+      "a_region": "pool1_output",
+      "b_region": "conv2_weights",
+      "c_region": "conv2_output",
+      "a_stride_bytes": null,
+      "b_stride_bytes": 72,
+      "c_stride_bytes": 16,
+      "padding": "K row bytes only",
+      "tile_counts_m_n_k": [
+        49,
+        4,
+        1
+      ],
+      "compute_tiles": 196,
+      "k_segments": [
+        72
+      ],
+      "weight_bytes": 1152,
+      "output_bytes": 3136
+    },
+    {
+      "name": "pool2",
+      "input_shape": [
+        14,
+        14,
+        16
+      ],
+      "output_shape": [
+        7,
+        7,
+        16
+      ],
+      "a_region": "conv2_output",
+      "c_region": "pool2_output_fc_input",
+      "output_bytes": 784
+    },
+    {
+      "name": "fc",
+      "m": 4,
+      "n": 12,
+      "k": 784,
+      "logical_m": 1,
+      "logical_n": 10,
+      "a_region": "pool2_output_fc_input",
+      "b_region": "fc_weights",
+      "c_region": "fc_output",
+      "a_stride_bytes": 784,
+      "b_stride_bytes": 784,
+      "c_stride_bytes": 48,
+      "padding": "zero A rows, B rows and extra bias channels",
+      "tile_counts_m_n_k": [
+        1,
+        3,
+        4
+      ],
+      "compute_tiles": 12,
+      "k_segments": [
+        256,
+        256,
+        256,
+        16
+      ],
+      "weight_bytes": 9408,
+      "output_bytes": 192
+    }
+  ],
+  "descriptors": [
+    {
+      "opcode": 2,
+      "flags": 7,
+      "m": 784,
+      "n": 8,
+      "k": 9,
+      "a": 10848,
+      "b": 0,
+      "c": 11632,
+      "words10_12": [
+        1835036,
+        50528257,
+        16843009
+      ],
+      "param": 10656
+    },
+    {
+      "opcode": 3,
+      "flags": 0,
+      "m": 28,
+      "n": 28,
+      "k": 8,
+      "a": 11632,
+      "b": 0,
+      "c": 17904,
+      "words10_12": [
+        0,
+        0,
+        0
+      ],
+      "param": 0
+    },
+    {
+      "opcode": 2,
+      "flags": 7,
+      "m": 196,
+      "n": 16,
+      "k": 72,
+      "a": 17904,
+      "b": 96,
+      "c": 19472,
+      "words10_12": [
+        917518,
+        50528264,
+        16843009
+      ],
+      "param": 10704
+    },
+    {
+      "opcode": 3,
+      "flags": 0,
+      "m": 14,
+      "n": 14,
+      "k": 16,
+      "a": 19472,
+      "b": 0,
+      "c": 22608,
+      "words10_12": [
+        0,
+        0,
+        0
+      ],
+      "param": 0
+    },
+    {
+      "opcode": 1,
+      "flags": 1,
+      "m": 4,
+      "n": 12,
+      "k": 784,
+      "a": 22608,
+      "b": 1248,
+      "c": 25744,
+      "words10_12": [
+        784,
+        784,
+        48
+      ],
+      "param": 10784
+    }
+  ],
+  "images": [
+    {
+      "image": "image_0000",
+      "label": 7,
+      "prediction": 7,
+      "logits": [
+        -24889,
+        -19286,
+        -5205,
+        -1050,
+        -36415,
+        -24150,
+        -66140,
+        41175,
+        -11023,
+        96
+      ]
+    },
+    {
+      "image": "image_0001",
+      "label": 2,
+      "prediction": 2,
+      "logits": [
+        -21325,
+        18368,
+        33421,
+        -6440,
+        -54497,
+        -33730,
+        -6403,
+        -52894,
+        -5797,
+        -47010
+      ]
+    },
+    {
+      "image": "image_0002",
+      "label": 1,
+      "prediction": 1,
+      "logits": [
+        -7586,
+        19946,
+        -8925,
+        -11893,
+        -7030,
+        -18938,
+        -7434,
+        -12328,
+        -4661,
+        -16942
+      ]
+    },
+    {
+      "image": "image_0003",
+      "label": 0,
+      "prediction": 0,
+      "logits": [
+        29127,
+        -39345,
+        -14260,
+        -28127,
+        -26731,
+        -19300,
+        2241,
+        -27973,
+        -19535,
+        -10597
+      ]
+    }
+  ],
+  "software_accuracy": {
+    "source": "re-evaluated unchanged integer PTQ on full test set",
+    "correct": 9833,
+    "samples": 10000,
+    "accuracy": 0.9833,
+    "exported_ddr_interpreter_samples": 4
+  },
+  "quantization_changed": false,
+  "rounding": "RTL signed ties-away then ReLU equals original ReLU then positive ties-up",
+  "checks": [
+    "FP32/PTQ weights and bias exact",
+    "scale chain unchanged",
+    "BIN readback",
+    "Conv OIHW/OHWI equivalence",
+    "independent signed FC permutation",
+    "RTL requant boundary values",
+    "DDR address/stride/padding/4KiB writes",
+    "descriptor encode/decode",
+    "four DDR chains match original PTQ at every output"
+  ],
+  "rtl_execution_verified": false,
+  "all_five_descriptors_static_compatible": true,
+  "rtl_limitations": [
+    "No M/N lane masking: compiler pads FC to 4x12 and allocates all output rows.",
+    "scratchpad swaps A/B lane and buffer parameters; V0 rejects rectangular/asymmetric configurations.",
+    "Existing cnn_pool TB embeds small fixed inputs and a two-descriptor check, not a generic BIN runner.",
+    "C++ DPI memory is a simple-port backend; existing AXI top TB uses its own SV memory. Connect through existing AXI responder when loading these images."
+  ],
+  "required_rtl_changes_for_this_model": [],
+  "validation_limit": "Software functional checks and RTL source audit only; no Verilator run or RTL changes."
+}
