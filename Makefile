@@ -49,7 +49,7 @@ COMPUTE_SRCS := \
 
 
 # ================================================================
-# Core
+# GEMM core
 # ================================================================
 
 CORE_SRCS := \
@@ -61,46 +61,48 @@ CORE_SRCS := \
 
 
 # ================================================================
-# GEMM executor integration test
+# Common GEMM RTL
 # ================================================================
 
-GEMM_EXECUTOR_SRCS := \
+GEMM_RTL_SRCS := \
 	$(MEMORY_SRCS) \
 	$(DMA_SRCS) \
 	$(COMPUTE_SRCS) \
-	$(CORE_SRCS) \
+	$(CORE_SRCS)
+
+
+# ================================================================
+# GEMM executor TB
+# ================================================================
+
+GEMM_EXECUTOR_SRCS := \
+	$(GEMM_RTL_SRCS) \
 	sim/tb/gemm_executor_tb.sv
 
 
 # ================================================================
+# NPU top RTL / TB
+# ================================================================
+
+NPU_TOP_SRCS := \
+	$(GEMM_RTL_SRCS) \
+	rtl/dma/axi_read_mux.sv \
+	rtl/core/command_frontend.sv \
+	rtl/core/npu_top.sv \
+	sim/tb/npu_top_tb.sv
+
+
+# ================================================================
 # Default
-#
-# Current development configuration = double buffer.
 # ================================================================
 
 .PHONY: all
 
-all: gemm_executor_db
+all: npu_top
 
 
 # ================================================================
-# Alias
-# ================================================================
-
-.PHONY: gemm_executor
-
-gemm_executor: gemm_executor_db
-
-
-# ================================================================
-# Double-buffer test
-#
-# A bank0/bank1
-# B bank0/bank1
-#
-# Expected:
-#   functional PASS
-#   DMA/compute overlap > 0
+# Double-buffer GEMM regression
 # ================================================================
 
 .PHONY: gemm_executor_db
@@ -118,12 +120,6 @@ gemm_executor_db:
 
 # ================================================================
 # Single-buffer baseline
-#
-# Used only as the baseline for double-buffer comparison.
-#
-# Expected:
-#   functional PASS
-#   overlap is not required
 # ================================================================
 
 .PHONY: gemm_executor_sb
@@ -140,37 +136,51 @@ gemm_executor_sb:
 
 
 # ================================================================
-# Run both baselines
+# Single vs double comparison
 # ================================================================
 
 .PHONY: gemm_executor_compare
 
 gemm_executor_compare:
-	@echo ""
-	@echo "========================================"
-	@echo "Running single-buffer baseline"
-	@echo "========================================"
 	$(MAKE) gemm_executor_sb
-	@echo ""
-	@echo "========================================"
-	@echo "Running double-buffer configuration"
-	@echo "========================================"
 	$(MAKE) gemm_executor_db
 
 
 # ================================================================
-# Clean only these integration builds.
-#
-# This deliberately does NOT delete the entire build/ directory,
-# because other unit-test build products may exist there.
+# Descriptor-driven NPU integration test
 # ================================================================
 
-.PHONY: clean-gemm-executor
+.PHONY: npu_top
 
-clean-gemm-executor:
-	rm -rf \
-		$(BUILD_DIR)/gemm_executor_sb \
-		$(BUILD_DIR)/gemm_executor_db
+npu_top:
+	mkdir -p $(BUILD_DIR)/npu_top
+	$(VERILATOR) $(VFLAGS) \
+		--Mdir $(BUILD_DIR)/npu_top \
+		--top-module npu_top_tb \
+		$(NPU_TOP_SRCS)
+	./$(BUILD_DIR)/npu_top/Vnpu_top_tb
+
+
+# ================================================================
+# Regression
+# ================================================================
+
+.PHONY: regression
+
+regression:
+	$(MAKE) gemm_executor_sb
+	$(MAKE) gemm_executor_db
+	$(MAKE) npu_top
+
+
+# ================================================================
+# Clean
+# ================================================================
+
+.PHONY: clean
+
+clean:
+	rm -rf $(BUILD_DIR)
 
 
 # ================================================================
@@ -180,19 +190,20 @@ clean-gemm-executor:
 .PHONY: help
 
 help:
-	@echo "Available targets:"
+	@echo "Targets:"
+	@echo "  make npu_top"
+	@echo "      Descriptor-driven NPU end-to-end test"
 	@echo ""
 	@echo "  make gemm_executor_db"
-	@echo "      Run double-buffer GEMM test"
+	@echo "      Double-buffer GEMM regression"
 	@echo ""
 	@echo "  make gemm_executor_sb"
-	@echo "      Run single-buffer baseline"
+	@echo "      Single-buffer baseline"
 	@echo ""
 	@echo "  make gemm_executor_compare"
-	@echo "      Run single-buffer then double-buffer"
+	@echo "      Run single/double comparison"
 	@echo ""
-	@echo "  make gemm_executor"
-	@echo "      Alias for double-buffer test"
+	@echo "  make regression"
+	@echo "      Run all current integration tests"
 	@echo ""
-	@echo "  make clean-gemm-executor"
-	@echo "      Remove only GEMM executor build directories"
+	@echo "  make clean"
