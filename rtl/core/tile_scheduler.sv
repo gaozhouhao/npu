@@ -1,7 +1,9 @@
 module tile_scheduler #(
     parameter int unsigned TILE_COUNT_WIDTH = 16,
     parameter int unsigned K_TILE_SIZE      = 256,
-    parameter int unsigned K_SIZE_WIDTH     = $clog2(K_TILE_SIZE + 1)
+    parameter int unsigned K_SIZE_WIDTH     = $clog2(K_TILE_SIZE + 1),
+    parameter bit ENABLE_MULTI_K_A_REUSE = 1'b0,
+    parameter int unsigned A_REUSE_BLOCK_SIZE = 4
 ) (
     input logic clk,
     input logic reset,
@@ -191,7 +193,9 @@ module tile_scheduler #(
     // ============================================================
 
     tile_policy #(
-        .TILE_COUNT_WIDTH (TILE_COUNT_WIDTH)
+        .TILE_COUNT_WIDTH      (TILE_COUNT_WIDTH),
+        .ENABLE_MULTI_K_A_REUSE (ENABLE_MULTI_K_A_REUSE),
+        .A_REUSE_BLOCK_SIZE    (A_REUSE_BLOCK_SIZE)
     ) u_tile_policy (
         .m_tile_count       (m_tile_count_q),
         .n_tile_count       (n_tile_count_q),
@@ -495,6 +499,22 @@ module tile_scheduler #(
                     // =============================================
 
                     LD_REQ: begin
+
+                        // A and B loads are accepted independently.
+                        //
+                        // One operand may finish while the other
+                        // is still waiting for a buffer bank.
+                        //
+                        // Record completion pulses immediately,
+                        // even before entering LD_WAIT.
+
+                        if (a_load_done_effective) begin
+                            a_load_finished_q <= 1'b1;
+                        end
+
+                        if (b_load_done) begin
+                            b_load_finished_q <= 1'b1;
+                        end
 
                         if (a_load_accept_effective) begin
 

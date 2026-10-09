@@ -134,6 +134,30 @@ module gemm_executor #(
     localparam int unsigned BIAS_BYTES = ACC_WIDTH / 8;
     localparam int unsigned BIAS_TILE_BYTES = COLS * BIAS_BYTES;
 
+    // Four physical C slots: 4 x 4 x INT32 x 4 = 256 bytes.
+    localparam int unsigned PSUM_SLOT_COUNT = 4;
+    localparam int unsigned PSUM_SLOT_WIDTH =
+        $clog2(PSUM_SLOT_COUNT);
+
+    // Select 1, 2, 3 or 4 outputs per N block.
+`ifdef NPU_PSUM_BLOCK_SIZE
+    localparam int unsigned PSUM_BLOCK_SIZE =
+        `NPU_PSUM_BLOCK_SIZE;
+`else
+    localparam int unsigned PSUM_BLOCK_SIZE = 4;
+`endif
+
+    // A-reuse requires the C SRAM partial-sum path.
+`ifdef NPU_PSUM_EXPERIMENT
+`ifdef NPU_AS_REUSE_EXPERIMENT
+    localparam bit ENABLE_MULTI_K_A_REUSE = 1'b1;
+`else
+    localparam bit ENABLE_MULTI_K_A_REUSE = 1'b0;
+`endif
+`else
+    localparam bit ENABLE_MULTI_K_A_REUSE = 1'b0;
+`endif
+
     // Enable only for experimental multi-K validation.
 `ifdef NPU_PSUM_EXPERIMENT
     localparam bit ENABLE_PSUM_EXPERIMENT = 1'b1;
@@ -402,14 +426,17 @@ module gemm_executor #(
     logic psum_rd_valid;
     logic psum_wr_en;
 
-    logic [0:0] psum_rd_slot;
-    logic [0:0] psum_wr_slot;
+    logic [PSUM_SLOT_WIDTH-1:0] psum_rd_slot;
+    logic [PSUM_SLOT_WIDTH-1:0] psum_wr_slot;
 
     logic [PSUM_ROW_WIDTH-1:0] psum_rd_row;
     logic [PSUM_ROW_WIDTH-1:0] psum_wr_row;
     logic [PSUM_ROW_WIDTH-1:0] psum_sram_rd_row;
 
     logic psum_sram_rd_en;
+    logic [PSUM_SLOT_WIDTH-1:0] psum_sram_rd_slot;
+    logic [PSUM_SLOT_WIDTH-1:0] psum_target_slot;
+    logic use_multi_k_a_reuse;
 
     logic [PSUM_DATA_WIDTH-1:0] psum_sram_rd_data;
     logic [PSUM_DATA_WIDTH-1:0] psum_wr_data;
@@ -426,6 +453,12 @@ module gemm_executor #(
     assign use_psum_path =
         ENABLE_PSUM_EXPERIMENT &&
         (k_tile_count_q > TILE_COUNT_WIDTH'(1));
+
+    assign use_multi_k_a_reuse =
+        ENABLE_MULTI_K_A_REUSE &&
+        (PSUM_BLOCK_SIZE > 1) &&
+        (k_tile_count_q > TILE_COUNT_WIDTH'(1)) &&
+        (n_tile_count_q > TILE_COUNT_WIDTH'(1));
 
     assign psum_start =
         use_psum_path && core_done;
@@ -532,9 +565,11 @@ module gemm_executor #(
     // ============================================================
 
     tile_scheduler #(
-        .TILE_COUNT_WIDTH (TILE_COUNT_WIDTH),
-        .K_TILE_SIZE      (K_TILE_SIZE),
-        .K_SIZE_WIDTH     (K_SIZE_WIDTH)
+        .TILE_COUNT_WIDTH      (TILE_COUNT_WIDTH),
+        .K_TILE_SIZE           (K_TILE_SIZE),
+        .K_SIZE_WIDTH          (K_SIZE_WIDTH),
+        .ENABLE_MULTI_K_A_REUSE (ENABLE_MULTI_K_A_REUSE),
+        .A_REUSE_BLOCK_SIZE    (PSUM_BLOCK_SIZE)
     ) u_tile_scheduler (
         .clk                (clk),
         .reset              (reset),
@@ -958,14 +993,14 @@ module gemm_executor #(
         .ROWS       (ROWS),
         .COLS       (COLS),
         .ACC_WIDTH  (ACC_WIDTH),
-        .PSUM_SLOTS (1)
+        .PSUM_SLOTS (PSUM_SLOT_COUNT)
     ) u_psum_engine (
         .clk              (clk),
         .reset            (reset),
 
         .start            (psum_start),
         .first_k          (scheduler_clear_acc),
-        .slot             (1'b0),
+        .slot             (psum_target_slot),
         .pe_tile          (psum_pe_tile),
 
         .busy             (psum_busy),
@@ -992,6 +1027,17 @@ module gemm_executor #(
     // 1. Intermediate K partial-sum accumulation
     // 2. Final DDR writeback
 
+    assign psum_target_slot =
+        PSUM_SLOT_WIDTH'(
+            compute_n_tile_idx %
+            TILE_COUNT_WIDTH'(PSUM_BLOCK_SIZE)
+        );
+
+    // During read-modify-write, select the engine's slot.
+    // During final DDR writeback, select the output slot.
+    assign psum_sram_rd_slot =
+        psum_rd_en ? psum_rd_slot : psum_target_slot;
+
     assign psum_sram_rd_en =
         psum_rd_en ||
         (use_psum_path && c_ren);
@@ -1005,13 +1051,13 @@ module gemm_executor #(
         .ROWS       (ROWS),
         .COLS       (COLS),
         .ACC_WIDTH  (ACC_WIDTH),
-        .PSUM_SLOTS (1)
+        .PSUM_SLOTS (PSUM_SLOT_COUNT)
     ) u_psum_sram (
         .clk       (clk),
         .reset     (reset),
 
         .rd_en     (psum_sram_rd_en),
-        .rd_slot   (psum_rd_slot),
+        .rd_slot   (psum_sram_rd_slot),
         .rd_row    (psum_sram_rd_row),
         .rd_valid  (psum_rd_valid),
         .rd_data   (psum_sram_rd_data),
@@ -1219,7 +1265,11 @@ module gemm_executor #(
 
             if (
                 scheduler_matrix_start &&
-                scheduler_clear_acc &&
+                (
+                    use_multi_k_a_reuse
+                        ? scheduler_writeback_en
+                        : scheduler_clear_acc
+                ) &&
                 bias_en_q
             ) begin
 
@@ -1444,6 +1494,12 @@ module gemm_executor #(
     // ============================================================
 
     initial begin
+
+        if (
+            (PSUM_BLOCK_SIZE < 1) ||
+            (PSUM_BLOCK_SIZE > PSUM_SLOT_COUNT)
+        )
+            $fatal(1, "PSUM_BLOCK_SIZE must be 1..4");
 
         if (ADDR_WIDTH < 12)
             $fatal(1, "ADDR_WIDTH must be >= 12");
