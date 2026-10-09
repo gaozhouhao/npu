@@ -1,7 +1,5 @@
-
 module mnist_npu_tb;
 
-    // 32 KiB AXI DDR model
     localparam int unsigned MEM_WORDS = 8192;
     localparam int unsigned DDR_IMAGE_BYTES = 26304;
     localparam int unsigned MAX_GOLD_BYTES = 6272;
@@ -18,21 +16,28 @@ module mnist_npu_tb;
 
     logic signed [31:0] acc_out [4][4];
 
+    // ============================================================
+    // AXI Bus
+    // ============================================================
+
     logic [0:0] arid, rid, awid, bid;
     logic [63:0] araddr, awaddr;
     logic [7:0] arlen, awlen;
     logic [2:0] arsize, awsize;
-    logic [1:0] arburst, awburst;
-    logic [1:0] rresp, bresp;
+    logic [1:0] arburst, awburst, rresp, bresp;
 
     logic arvalid, arready;
-    logic rlast, rvalid, rready;
+    logic rvalid, rready, rlast;
     logic awvalid, awready;
-    logic wlast, wvalid, wready;
+    logic wvalid, wready, wlast;
     logic bvalid, bready;
 
     logic [31:0] rdata, wdata;
     logic [3:0] wstrb;
+
+    // ============================================================
+    // DDR Memory Model
+    // ============================================================
 
     logic [31:0] init_mem [0:MEM_WORDS-1];
     logic [31:0] mem [0:MEM_WORDS-1];
@@ -60,11 +65,71 @@ module mnist_npu_tb;
 
     string data_root;
 
+    // ============================================================
+    // Performance Monitor V1
+    // ============================================================
+
+    logic [63:0] perf_total_cycles;
+    logic [63:0] perf_executor_cycles;
+    logic [63:0] perf_pool_cycles;
+
+    logic [63:0] perf_ar_transactions;
+    logic [63:0] perf_r_beats;
+    logic [63:0] perf_aw_transactions;
+    logic [63:0] perf_w_beats;
+    logic [63:0] perf_written_bytes;
+
+    logic [63:0] perf_ar_stall_cycles;
+    logic [63:0] perf_r_wait_cycles;
+    logic [63:0] perf_aw_stall_cycles;
+    logic [63:0] perf_w_stall_cycles;
+    logic [63:0] perf_b_wait_cycles;
+
+    logic perf_layer_done_pulse;
+    logic [31:0] perf_completed_layer_index;
+    logic [7:0] perf_completed_layer_opcode;
+    logic [63:0] perf_completed_layer_cycles;
+    logic [63:0] perf_completed_layer_executor_cycles;
+    logic [63:0] perf_completed_layer_pool_cycles;
+    logic [63:0] perf_completed_layer_ar;
+    logic [63:0] perf_completed_layer_r_beats;
+    logic [63:0] perf_completed_layer_aw;
+    logic [63:0] perf_completed_layer_w_beats;
+
+    // ============================================================
+    // Performance Monitor V2
+    // ============================================================
+
+    logic [15:0] pe_fire;
+    logic [4:0] pe_mac_fires;
+
+    logic [63:0] perf2_matrix_cycles;
+    logic [63:0] perf2_matrix_tiles;
+    logic [63:0] perf2_pe_mac_events;
+    logic [63:0] perf2_pe_active_cycles;
+    logic [63:0] perf2_bank_wait_cycles;
+    logic [63:0] perf2_dma_overlap_cycles;
+    logic [63:0] perf2_dma_only_cycles;
+
+    logic perf2_layer_done_pulse;
+
+    logic [63:0] perf2_layer_matrix_cycles;
+    logic [63:0] perf2_layer_matrix_tiles;
+    logic [63:0] perf2_layer_pe_mac_events;
+    logic [63:0] perf2_layer_pe_active_cycles;
+    logic [63:0] perf2_layer_bank_wait_cycles;
+    logic [63:0] perf2_layer_dma_overlap_cycles;
+    logic [63:0] perf2_layer_dma_only_cycles;
+
+    // ============================================================
+    // Clock
+    // ============================================================
+
     initial clk = 1'b0;
     always #5 clk = ~clk;
 
     // ============================================================
-    // NPU DUT
+    // DUT
     // ============================================================
 
     npu_top u_dut (
@@ -112,8 +177,214 @@ module mnist_npu_tb;
         .m_axi_bid(bid),
         .m_axi_bresp(bresp),
         .m_axi_bvalid(bvalid),
-        .m_axi_bready(bready)
+        .m_axi_bready(bready),
+
+        .perf_total_cycles(perf_total_cycles),
+        .perf_executor_cycles(perf_executor_cycles),
+        .perf_pool_cycles(perf_pool_cycles),
+
+        .perf_ar_transactions(perf_ar_transactions),
+        .perf_r_beats(perf_r_beats),
+        .perf_aw_transactions(perf_aw_transactions),
+        .perf_w_beats(perf_w_beats),
+        .perf_written_bytes(perf_written_bytes),
+
+        .perf_ar_stall_cycles(perf_ar_stall_cycles),
+        .perf_r_wait_cycles(perf_r_wait_cycles),
+        .perf_aw_stall_cycles(perf_aw_stall_cycles),
+        .perf_w_stall_cycles(perf_w_stall_cycles),
+        .perf_b_wait_cycles(perf_b_wait_cycles),
+
+        .perf_layer_done_pulse(perf_layer_done_pulse),
+        .perf_completed_layer_index(perf_completed_layer_index),
+        .perf_completed_layer_opcode(perf_completed_layer_opcode),
+        .perf_completed_layer_cycles(perf_completed_layer_cycles),
+
+        .perf_completed_layer_executor_cycles(
+            perf_completed_layer_executor_cycles
+        ),
+        .perf_completed_layer_pool_cycles(
+            perf_completed_layer_pool_cycles
+        ),
+
+        .perf_completed_layer_ar(perf_completed_layer_ar),
+        .perf_completed_layer_r_beats(perf_completed_layer_r_beats),
+        .perf_completed_layer_aw(perf_completed_layer_aw),
+        .perf_completed_layer_w_beats(perf_completed_layer_w_beats)
     );
+
+    // ============================================================
+    // Actual PE MAC Events
+    //
+    // pe.sv:
+    //   if (a_valid_in && b_valid_in) accumulator += product
+    //
+    // Count the same condition at the input of each PE.
+    // Exclude reset/clear cycles.
+    // ============================================================
+
+    genvar gr, gc;
+
+    generate
+        for (gr = 0; gr < 4; gr++) begin : gen_pe_row
+            for (gc = 0; gc < 4; gc++) begin : gen_pe_col
+
+                assign pe_fire[gr*4 + gc] =
+                    u_dut.u_gemm_executor
+                         .u_gemm_core
+                         .u_matrix_engine
+                         .u_array
+                         .a_valid_wire[gr][gc] &&
+
+                    u_dut.u_gemm_executor
+                         .u_gemm_core
+                         .u_matrix_engine
+                         .u_array
+                         .b_valid_wire[gr][gc] &&
+
+                    !u_dut.u_gemm_executor
+                          .u_gemm_core.clear;
+
+            end
+        end
+    endgenerate
+
+    assign pe_mac_fires = 5'($countones(pe_fire));
+
+    // ============================================================
+    // Compute Performance Monitor V2
+    //
+    // Hierarchical connections are verification-only.
+    // The monitor does not drive any DUT signals.
+    // ============================================================
+
+    npu_perf_v2_monitor #(
+        .PE_COUNT(16)
+    ) u_perf_v2 (
+        .clk(clk),
+        .reset(reset),
+
+        .run_start(start && !busy),
+        .run_done(done),
+
+        .layer_start(
+            u_dut.frontend_cmd_valid &&
+            u_dut.frontend_cmd_ready
+        ),
+
+        .layer_done(u_dut.frontend_exec_done),
+
+        .matrix_start(
+            u_dut.u_gemm_executor.scheduler_matrix_start
+        ),
+
+        .matrix_done(
+            u_dut.u_gemm_executor.core_done
+        ),
+
+        .pe_mac_fires(pe_mac_fires),
+
+        .executor_busy(u_dut.executor_busy),
+
+        .read_path_busy(
+            u_dut.u_gemm_executor.read_path_busy
+        ),
+
+        .a_compute_req(
+            u_dut.u_gemm_executor.scheduler_a_compute_req
+        ),
+
+        .a_compute_grant(
+            u_dut.u_gemm_executor.scheduler_a_compute_grant
+        ),
+
+        .b_compute_req(
+            u_dut.u_gemm_executor.scheduler_b_compute_req
+        ),
+
+        .b_compute_grant(
+            u_dut.u_gemm_executor.scheduler_b_compute_grant
+        ),
+
+        .matrix_cycles(perf2_matrix_cycles),
+        .matrix_tiles(perf2_matrix_tiles),
+        .pe_mac_events(perf2_pe_mac_events),
+        .pe_active_cycles(perf2_pe_active_cycles),
+        .bank_wait_cycles(perf2_bank_wait_cycles),
+        .dma_compute_overlap_cycles(perf2_dma_overlap_cycles),
+        .dma_only_cycles(perf2_dma_only_cycles),
+
+        .layer_done_pulse(perf2_layer_done_pulse),
+
+        .completed_matrix_cycles(
+            perf2_layer_matrix_cycles
+        ),
+
+        .completed_matrix_tiles(
+            perf2_layer_matrix_tiles
+        ),
+
+        .completed_pe_mac_events(
+            perf2_layer_pe_mac_events
+        ),
+
+        .completed_pe_active_cycles(
+            perf2_layer_pe_active_cycles
+        ),
+
+        .completed_bank_wait_cycles(
+            perf2_layer_bank_wait_cycles
+        ),
+
+        .completed_dma_overlap_cycles(
+            perf2_layer_dma_overlap_cycles
+        ),
+
+        .completed_dma_only_cycles(
+            perf2_layer_dma_only_cycles
+        )
+    );
+
+    // ============================================================
+    // Layer Reports
+    // ============================================================
+
+    always @(negedge clk) begin
+        if (!reset) begin
+
+            if (perf_layer_done_pulse) begin
+                $display(
+                    "PERF layer=%0d opcode=0x%02h cycles=%0d executor=%0d pool=%0d AR=%0d R=%0d AW=%0d W=%0d",
+                    perf_completed_layer_index,
+                    perf_completed_layer_opcode,
+                    perf_completed_layer_cycles,
+                    perf_completed_layer_executor_cycles,
+                    perf_completed_layer_pool_cycles,
+                    perf_completed_layer_ar,
+                    perf_completed_layer_r_beats,
+                    perf_completed_layer_aw,
+                    perf_completed_layer_w_beats
+                );
+            end
+
+            if (perf2_layer_done_pulse) begin
+                $display(
+                    "PERF2 matrix_cycles=%0d tiles=%0d PE_MACs=%0d PE_active_cycles=%0d",
+                    perf2_layer_matrix_cycles,
+                    perf2_layer_matrix_tiles,
+                    perf2_layer_pe_mac_events,
+                    perf2_layer_pe_active_cycles
+                );
+
+                $display(
+                    "PERF2 bank_wait=%0d DMA_compute_overlap=%0d DMA_only=%0d",
+                    perf2_layer_bank_wait_cycles,
+                    perf2_layer_dma_overlap_cycles,
+                    perf2_layer_dma_only_cycles
+                );
+            end
+        end
+    end
 
     // ============================================================
     // AXI Read Memory Model
@@ -137,8 +408,11 @@ module mnist_npu_tb;
 
             read_beats_q <= '0;
             read_transactions_q <= '0;
+
         end else begin
+
             if (arvalid && arready) begin
+
                 if (
                     arsize != 3'd2 ||
                     arburst != 2'b01 ||
@@ -163,6 +437,7 @@ module mnist_npu_tb;
                     read_transactions_q + 32'd1;
 
             end else if (rvalid && rready) begin
+
                 read_beats_q <= read_beats_q + 32'd1;
 
                 if (rlast) begin
@@ -192,18 +467,18 @@ module mnist_npu_tb;
             wr_addr_q <= '0;
             wr_left_q <= '0;
             wr_id_q <= '0;
-
             bvalid_q <= 1'b0;
 
             write_beats_q <= '0;
             write_transactions_q <= '0;
 
-            for (int i = 0; i < MEM_WORDS; i++) begin
+            for (int i = 0; i < MEM_WORDS; i++)
                 mem[i] <= init_mem[i];
-            end
+
         end else begin
 
             if (awvalid && awready) begin
+
                 if (
                     awsize != 3'd2 ||
                     awburst != 2'b01 ||
@@ -229,6 +504,7 @@ module mnist_npu_tb;
             end
 
             if (wvalid && wready) begin
+
                 if (
                     wlast != (wr_left_q == 9'd1) ||
                     wr_addr_q >= 64'(MEM_WORDS * 4)
@@ -243,7 +519,8 @@ module mnist_npu_tb;
                 for (int lane = 0; lane < 4; lane++) begin
                     if (wstrb[lane]) begin
                         mem[int'(wr_addr_q >> 2)]
-                           [8*lane +: 8] <= wdata[8*lane +: 8];
+                           [8*lane +: 8] <=
+                           wdata[8*lane +: 8];
                     end
                 end
 
@@ -258,17 +535,17 @@ module mnist_npu_tb;
                 end
             end
 
-            if (bvalid && bready) begin
+            if (bvalid && bready)
                 bvalid_q <= 1'b0;
-            end
         end
     end
 
     // ============================================================
-    // Load Real MNIST DDR Image
+    // Load DDR Image
     // ============================================================
 
     task automatic load_ddr(input int image_index);
+
         string image_path;
         int fd;
         int read_bytes;
@@ -281,37 +558,29 @@ module mnist_npu_tb;
 
         fd = $fopen(image_path, "rb");
 
-        if (fd == 0) begin
-            $fatal(1, "Cannot open DDR image: %s", image_path);
-        end
+        if (fd == 0)
+            $fatal(
+                1,
+                "Cannot open DDR image: %s",
+                image_path
+            );
 
         read_bytes = $fread(ddr_bytes, fd);
         $fclose(fd);
 
-        if (read_bytes != int'(DDR_IMAGE_BYTES)) begin
+        if (read_bytes != int'(DDR_IMAGE_BYTES))
             $fatal(
                 1,
                 "DDR image length mismatch: %s",
                 image_path
             );
-        end
 
-        for (int i = 0; i < MEM_WORDS; i++) begin
+        for (int i = 0; i < MEM_WORDS; i++)
             init_mem[i] = '0;
-        end
 
-        // Explicit little-endian packing:
-        // byte 0 -> AXI data[7:0]
-        // byte 1 -> AXI data[15:8]
-        // byte 2 -> AXI data[23:16]
-        // byte 3 -> AXI data[31:24]
-
-        for (int i = 0; i < int'(DDR_IMAGE_BYTES); i++) begin
+        for (int i = 0; i < int'(DDR_IMAGE_BYTES); i++)
             init_mem[i >> 2][8*(i & 3) +: 8] =
                 ddr_bytes[i];
-        end
-
-        // Check all five descriptor opcodes.
 
         if (
             init_mem[DESC_BASE/4] != 32'h0000_0702 ||
@@ -322,7 +591,7 @@ module mnist_npu_tb;
         ) begin
             $fatal(
                 1,
-                "DDR image descriptors do not match SmallCNN"
+                "Unexpected SmallCNN descriptor sequence"
             );
         end
 
@@ -359,13 +628,12 @@ module mnist_npu_tb;
 
         fd = $fopen(golden_path, "rb");
 
-        if (fd == 0) begin
+        if (fd == 0)
             $fatal(
                 1,
                 "Cannot open golden: %s",
                 golden_path
             );
-        end
 
         read_bytes = $fread(
             golden_bytes,
@@ -376,22 +644,23 @@ module mnist_npu_tb;
 
         $fclose(fd);
 
-        if (read_bytes != int'(byte_count)) begin
+        if (read_bytes != int'(byte_count))
             $fatal(
                 1,
                 "Golden length mismatch: %s",
                 golden_path
             );
-        end
 
         for (int i = 0; i < int'(byte_count); i++) begin
-            actual = mem[(base_addr + 32'(i)) >> 2]
-                        [8*((base_addr + 32'(i)) & 32'd3) +: 8];
+
+            actual =
+                mem[(base_addr + 32'(i)) >> 2]
+                   [8*((base_addr + 32'(i)) & 32'd3) +: 8];
 
             if (actual !== golden_bytes[i]) begin
                 $fatal(
                     1,
-                    "Image %0d %s MISMATCH addr=0x%h offset=%0d got=0x%02h expected=0x%02h",
+                    "Image %0d %s MISMATCH addr=0x%h offset=%0d actual=0x%02h expected=0x%02h",
                     image_index,
                     layer_name,
                     base_addr + 32'(i),
@@ -449,35 +718,97 @@ module mnist_npu_tb;
         if (!done) begin
             $fatal(
                 1,
-                "MNIST image %0d TIMEOUT cycles=%0d AR=%0d R=%0d AW=%0d W=%0d last_rd=0x%h last_wr=0x%h",
+                "MNIST image %0d TIMEOUT cycles=%0d AR=%0d R=%0d AW=%0d W=%0d",
                 image_index,
                 cycles,
                 read_transactions_q,
                 read_beats_q,
                 write_transactions_q,
-                write_beats_q,
-                rd_addr_q,
-                wr_addr_q
+                write_beats_q
             );
         end
 
-        if (error) begin
+        if (error)
             $fatal(
                 1,
                 "MNIST image %0d NPU reported error",
                 image_index
             );
-        end
 
-        if (busy) begin
+        if (busy)
             $fatal(
                 1,
-                "MNIST image %0d busy after completion",
+                "MNIST image %0d NPU busy at done",
                 image_index
+            );
+
+        // ========================================================
+        // V1 Independent AXI Counter Cross-Check
+        // ========================================================
+
+        if (
+            perf_ar_transactions != 64'(read_transactions_q) ||
+            perf_r_beats != 64'(read_beats_q) ||
+            perf_aw_transactions != 64'(write_transactions_q) ||
+            perf_w_beats != 64'(write_beats_q)
+        ) begin
+            $fatal(
+                1,
+                "Performance monitor AXI counters disagree with TB: AR=%0d/%0d R=%0d/%0d AW=%0d/%0d W=%0d/%0d",
+                perf_ar_transactions,
+                read_transactions_q,
+                perf_r_beats,
+                read_beats_q,
+                perf_aw_transactions,
+                write_transactions_q,
+                perf_w_beats,
+                write_beats_q
             );
         end
 
-        // Compare every serialized DDR output.
+        $display(
+            "PERF run=%0d executor=%0d pool=%0d AR=%0d R=%0d AW=%0d W=%0d written_bytes=%0d",
+            perf_total_cycles,
+            perf_executor_cycles,
+            perf_pool_cycles,
+            perf_ar_transactions,
+            perf_r_beats,
+            perf_aw_transactions,
+            perf_w_beats,
+            perf_written_bytes
+        );
+
+        $display(
+            "PERF stalls AR=%0d R_gap=%0d AW=%0d W=%0d B_response=%0d",
+            perf_ar_stall_cycles,
+            perf_r_wait_cycles,
+            perf_aw_stall_cycles,
+            perf_w_stall_cycles,
+            perf_b_wait_cycles
+        );
+
+        // ========================================================
+        // V2 Whole-Run Counters
+        // ========================================================
+
+        $display(
+            "PERF2 RUN matrix_cycles=%0d tiles=%0d PE_MACs=%0d PE_active_cycles=%0d",
+            perf2_matrix_cycles,
+            perf2_matrix_tiles,
+            perf2_pe_mac_events,
+            perf2_pe_active_cycles
+        );
+
+        $display(
+            "PERF2 RUN bank_wait=%0d DMA_compute_overlap=%0d DMA_only=%0d",
+            perf2_bank_wait_cycles,
+            perf2_dma_overlap_cycles,
+            perf2_dma_only_cycles
+        );
+
+        // ========================================================
+        // Golden Model Validation
+        // ========================================================
 
         check_layer(image_index, "conv1", 11632, 6272);
         check_layer(image_index, "pool1", 17904, 1568);
@@ -485,16 +816,17 @@ module mnist_npu_tb;
         check_layer(image_index, "pool2", 22608, 784);
         check_layer(image_index, "fc", FC_OUTPUT_BASE, 192);
 
-        // FC output is 4x12 INT32.
-        // Only row 0, columns 0..9 represent real classes.
+        // ========================================================
+        // Classification
+        // ========================================================
 
         best_logit = $signed(mem[FC_OUTPUT_BASE/4]);
         predicted_label = 0;
 
         for (int cls = 1; cls < 10; cls++) begin
-            current_logit = $signed(
-                mem[FC_OUTPUT_BASE/4 + cls]
-            );
+
+            current_logit =
+                $signed(mem[FC_OUTPUT_BASE/4 + cls]);
 
             if (current_logit > best_logit) begin
                 best_logit = current_logit;
@@ -510,14 +842,13 @@ module mnist_npu_tb;
             default: expected_label = -1;
         endcase
 
-        if (predicted_label != expected_label) begin
+        if (predicted_label != expected_label)
             $fatal(
                 1,
-                "Classification mismatch: got=%0d expected=%0d",
+                "Classification mismatch: predicted=%0d expected=%0d",
                 predicted_label,
                 expected_label
             );
-        end
 
         $display(
             "MNIST image_%04d PASS pred=%0d cycles=%0d AR=%0d R_beats=%0d AW=%0d W_beats=%0d acc00=%0d",
@@ -533,7 +864,7 @@ module mnist_npu_tb;
     endtask
 
     // ============================================================
-    // Main Test Sequence
+    // Test Sequence
     // ============================================================
 
     initial begin : test_sequence
@@ -543,23 +874,23 @@ module mnist_npu_tb;
         reset = 1'b1;
         start = 1'b0;
 
-        if (!$value$plusargs("NPU_DATA_ROOT=%s", data_root)) begin
+        if (!$value$plusargs("NPU_DATA_ROOT=%s", data_root))
             data_root = "artifacts/npu";
-        end
 
         if ($value$plusargs("IMAGE=%d", only_image)) begin
 
-            if (only_image < 0 || only_image > 3) begin
-                $fatal(1, "+IMAGE must be 0, 1, 2 or 3");
-            end
+            if (only_image < 0 || only_image > 3)
+                $fatal(
+                    1,
+                    "+IMAGE must be 0, 1, 2 or 3"
+                );
 
             run_image(only_image);
 
         end else begin
 
-            for (int i = 0; i < 4; i++) begin
+            for (int i = 0; i < 4; i++)
                 run_image(i);
-            end
 
         end
 
