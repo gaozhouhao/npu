@@ -134,6 +134,13 @@ module gemm_executor #(
     localparam int unsigned BIAS_BYTES = ACC_WIDTH / 8;
     localparam int unsigned BIAS_TILE_BYTES = COLS * BIAS_BYTES;
 
+    // Enable only for experimental multi-K validation.
+`ifdef NPU_PSUM_EXPERIMENT
+    localparam bit ENABLE_PSUM_EXPERIMENT = 1'b1;
+`else
+    localparam bit ENABLE_PSUM_EXPERIMENT = 1'b0;
+`endif
+
     // ============================================================
     // Executor state
     // ============================================================
@@ -369,6 +376,65 @@ module gemm_executor #(
     logic signed [7:0] c_lane_int8 [COLS];
 
     // ============================================================
+    // C SRAM partial-sum accumulation
+    // First stage: one output slot, OS scheduling.
+    // ============================================================
+
+    localparam int unsigned PSUM_ROW_WIDTH =
+        (ROWS <= 1) ? 1 : $clog2(ROWS);
+
+    localparam int unsigned PSUM_DATA_WIDTH =
+        COLS * ACC_WIDTH;
+
+    localparam int unsigned PSUM_TILE_WIDTH =
+        ROWS * PSUM_DATA_WIDTH;
+
+    logic use_psum_path;
+    logic matrix_done_effective;
+
+    logic psum_start;
+    logic psum_busy;
+    logic psum_done;
+
+    logic [PSUM_TILE_WIDTH-1:0] psum_pe_tile;
+
+    logic psum_rd_en;
+    logic psum_rd_valid;
+    logic psum_wr_en;
+
+    logic [0:0] psum_rd_slot;
+    logic [0:0] psum_wr_slot;
+
+    logic [PSUM_ROW_WIDTH-1:0] psum_rd_row;
+    logic [PSUM_ROW_WIDTH-1:0] psum_wr_row;
+    logic [PSUM_ROW_WIDTH-1:0] psum_sram_rd_row;
+
+    logic psum_sram_rd_en;
+
+    logic [PSUM_DATA_WIDTH-1:0] psum_sram_rd_data;
+    logic [PSUM_DATA_WIDTH-1:0] psum_wr_data;
+
+    logic [PSUM_DATA_WIDTH-1:0] psum_alu_a;
+    logic [PSUM_DATA_WIDTH-1:0] psum_alu_b;
+    logic [PSUM_DATA_WIDTH-1:0] psum_alu_sum;
+
+    logic psum_alu_use;
+
+    logic signed [ACC_WIDTH-1:0] pp_data [COLS];
+    logic signed [ACC_WIDTH-1:0] pp_addend [COLS];
+
+    assign use_psum_path =
+        ENABLE_PSUM_EXPERIMENT &&
+        (k_tile_count_q > TILE_COUNT_WIDTH'(1));
+
+    assign psum_start =
+        use_psum_path && core_done;
+
+    // Scheduler must wait for the C SRAM commit.
+    assign matrix_done_effective =
+        use_psum_path ? psum_done : core_done;
+
+    // ============================================================
     // Epilogue parameter loading
     // ============================================================
 
@@ -452,6 +518,7 @@ module gemm_executor #(
         scheduler_busy ||
         read_path_busy ||
         core_busy ||
+        psum_busy ||
         c_write_busy ||
         param_loader_busy ||
         param_axi_busy ||
@@ -502,7 +569,7 @@ module gemm_executor #(
         .b_release_bank     (scheduler_b_release_bank),
 
         .matrix_start       (scheduler_matrix_start),
-        .matrix_done        (core_done),
+        .matrix_done        (matrix_done_effective),
 
         .writeback_done     (c_write_done),
         .clear_acc          (scheduler_clear_acc),
@@ -840,8 +907,12 @@ module gemm_executor #(
 
         .start        (scheduler_matrix_start),
         .tile_k_size  (scheduler_compute_k_size),
-        .clear_acc    (scheduler_clear_acc),
-        .writeback_en (scheduler_writeback_en),
+        .clear_acc    (
+            use_psum_path ? 1'b1 : scheduler_clear_acc
+        ),
+        .writeback_en (
+            use_psum_path ? 1'b0 : scheduler_writeback_en
+        ),
 
         .busy         (core_busy),
         .done         (core_done),
@@ -868,6 +939,90 @@ module gemm_executor #(
     );
 
     // ============================================================
+    // Capture all 4x4 PE accumulators
+    // ============================================================
+
+    for (genvar pr = 0; pr < ROWS; pr++) begin : gen_psum_rows
+        for (genvar pc = 0; pc < COLS; pc++) begin : gen_psum_cols
+            assign psum_pe_tile[
+                (pr * COLS + pc) * ACC_WIDTH +: ACC_WIDTH
+            ] = acc_out[pr][pc];
+        end
+    end
+
+    // ============================================================
+    // SRAM read / modify / write controller
+    // ============================================================
+
+    psum_tile_engine #(
+        .ROWS       (ROWS),
+        .COLS       (COLS),
+        .ACC_WIDTH  (ACC_WIDTH),
+        .PSUM_SLOTS (1)
+    ) u_psum_engine (
+        .clk              (clk),
+        .reset            (reset),
+
+        .start            (psum_start),
+        .first_k          (scheduler_clear_acc),
+        .slot             (1'b0),
+        .pe_tile          (psum_pe_tile),
+
+        .busy             (psum_busy),
+        .done             (psum_done),
+
+        .sram_rd_en       (psum_rd_en),
+        .sram_rd_slot     (psum_rd_slot),
+        .sram_rd_row      (psum_rd_row),
+        .sram_rd_valid    (psum_rd_valid),
+        .sram_rd_data     (psum_sram_rd_data),
+
+        .sram_wr_en       (psum_wr_en),
+        .sram_wr_slot     (psum_wr_slot),
+        .sram_wr_row      (psum_wr_row),
+        .sram_wr_data     (psum_wr_data),
+
+        .alu_use_psum     (psum_alu_use),
+        .alu_a            (psum_alu_a),
+        .alu_b            (psum_alu_b),
+        .alu_sum          (psum_alu_sum)
+    );
+
+    // The C SRAM read port is shared between:
+    // 1. Intermediate K partial-sum accumulation
+    // 2. Final DDR writeback
+
+    assign psum_sram_rd_en =
+        psum_rd_en ||
+        (use_psum_path && c_ren);
+
+    assign psum_sram_rd_row =
+        psum_rd_en
+            ? psum_rd_row
+            : PSUM_ROW_WIDTH'(c_raddr);
+
+    psum_tile_sram #(
+        .ROWS       (ROWS),
+        .COLS       (COLS),
+        .ACC_WIDTH  (ACC_WIDTH),
+        .PSUM_SLOTS (1)
+    ) u_psum_sram (
+        .clk       (clk),
+        .reset     (reset),
+
+        .rd_en     (psum_sram_rd_en),
+        .rd_slot   (psum_rd_slot),
+        .rd_row    (psum_sram_rd_row),
+        .rd_valid  (psum_rd_valid),
+        .rd_data   (psum_sram_rd_data),
+
+        .wr_en     (psum_wr_en),
+        .wr_slot   (psum_wr_slot),
+        .wr_row    (psum_wr_row),
+        .wr_data   (psum_wr_data)
+    );
+
+    // ============================================================
     // Existing postprocess
     // ============================================================
 
@@ -884,17 +1039,66 @@ module gemm_executor #(
 
     endgenerate
 
+    // PSUM update:
+    //     PE_ACC + old_C
+    //
+    // Final output:
+    //     completed_C + Bias
+    //
+    // Legacy mode:
+    //     original_core_C + Bias
+
+    for (genvar pl = 0; pl < COLS; pl++) begin : gen_psum_postprocess
+
+        assign pp_data[pl] =
+            psum_alu_use
+                ? $signed(
+                    psum_alu_a[
+                        pl*ACC_WIDTH +: ACC_WIDTH
+                    ]
+                  )
+                : use_psum_path
+                    ? $signed(
+                        psum_sram_rd_data[
+                            pl*ACC_WIDTH +: ACC_WIDTH
+                        ]
+                      )
+                    : c_lane_raw[pl];
+
+        assign pp_addend[pl] =
+            psum_alu_use
+                ? $signed(
+                    psum_alu_b[
+                        pl*ACC_WIDTH +: ACC_WIDTH
+                    ]
+                  )
+                : bias_values[pl];
+
+        assign psum_alu_sum[
+            pl*ACC_WIDTH +: ACC_WIDTH
+        ] = c_lane_int32[pl];
+
+    end
+
     postprocess_unit #(
         .LANES     (COLS),
         .ACC_WIDTH (ACC_WIDTH),
         .OUT_WIDTH (8)
     ) u_postprocess (
-        .bias_en        (bias_en_q),
-        .requant_en     (requant_en_q),
-        .relu_en        (relu_en_q),
+        .bias_en (
+            bias_en_q || psum_alu_use
+        ),
 
-        .data_in        (c_lane_raw),
-        .bias           (bias_values),
+        .requant_en (
+            requant_en_q && !psum_alu_use
+        ),
+
+        .relu_en (
+            relu_en_q && !psum_alu_use
+        ),
+
+        .data_in        (pp_data),
+        .bias           (pp_addend),
         .multiplier     (requant_multiplier),
         .shift          (requant_shift),
 
@@ -1044,7 +1248,7 @@ module gemm_executor #(
             if (bias_load_done)
                 bias_ready_q <= 1'b1;
 
-            if (core_done && scheduler_writeback_en) begin
+            if (matrix_done_effective && scheduler_writeback_en) begin
 
                 if (postprocess_ready) begin
 
