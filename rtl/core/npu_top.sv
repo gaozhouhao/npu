@@ -88,7 +88,9 @@ module npu_top #(
 
     localparam logic [7:0] OP_GEMM = 8'h01;
     localparam logic [7:0] OP_CONV = 8'h02;
+    localparam logic [7:0] OP_ADD = 8'h05;
     localparam logic [7:0] OP_MAXPOOL = 8'h03;
+    localparam logic [7:0] OP_GLOBAL_AVGPOOL = 8'h04;
 
     // ============================================================
     // Internal AXI Bundles
@@ -130,35 +132,45 @@ module npu_top #(
     axar_t exec_ar;
     axar_t pool_ar;
     axar_t selected_ar;
+    axar_t add_ar;
 
     axr_t desc_r;
     axr_t exec_r;
     axr_t pool_r;
     axr_t selected_r;
+    axr_t add_r;
 
     axaw_t exec_aw;
     axaw_t pool_aw;
+    axaw_t add_aw;
 
     axw_t exec_w;
     axw_t pool_w;
+    axw_t add_w;
 
     axb_t exec_b;
     axb_t pool_b;
+    axb_t add_b;
 
     logic desc_arready;
     logic desc_rready;
     logic exec_arready;
     logic exec_rready;
     logic pool_arready;
+    logic add_arready;
     logic pool_rready;
+    logic add_rready;
     logic selected_arready;
     logic selected_rready;
     logic exec_awready;
     logic pool_awready;
+    logic add_awready;
     logic exec_wready;
     logic pool_wready;
+    logic add_wready;
     logic exec_bready;
     logic pool_bready;
+    logic add_bready;
 
     // ============================================================
     // Command Frontend
@@ -214,6 +226,8 @@ module npu_top #(
     logic frontend_bias_en;
     logic frontend_requant_en;
     logic frontend_relu_en;
+    logic frontend_same_en;
+    logic frontend_per_channel_en;
 
     logic [31:0] conv_input_h;
     logic [31:0] conv_input_w;
@@ -243,6 +257,8 @@ module npu_top #(
     assign frontend_bias_en = frontend_cmd_flags[0];
     assign frontend_requant_en = frontend_cmd_flags[1];
     assign frontend_relu_en = frontend_cmd_flags[2];
+    assign frontend_same_en = frontend_cmd_flags[4];
+    assign frontend_per_channel_en = frontend_cmd_flags[3];
 
     assign conv_mode = (frontend_cmd_opcode == OP_CONV);
 
@@ -268,7 +284,9 @@ module npu_top #(
         {24'd0, frontend_cfg_c_stride[31:24]};
 
     assign common_flags_valid =
-        frontend_cmd_flags[23:3] == 21'd0 &&
+        frontend_cmd_flags[23:5] == 19'd0 &&
+        (!frontend_same_en || conv_mode) &&
+        !(frontend_per_channel_en && !frontend_requant_en) &&
         !(frontend_relu_en && !frontend_requant_en) &&
         (
             frontend_bias_en ||
@@ -312,6 +330,19 @@ module npu_top #(
                 conv_wout_calc =
                     ((conv_padded_w - 64'(conv_kernel_w)) >> 1)
                     + 64'd1;
+        end
+
+        // TFLite SAME may have odd total padding. In that case
+        // pad_top/pad_left encode only the leading edge and the
+        // trailing edge is implicit from the requested output count.
+        if (conv_mode && frontend_same_en &&
+            conv_stride_h != 32'd0 && conv_stride_w != 32'd0) begin
+            conv_hout_calc =
+                (64'(conv_input_h) + 64'(conv_stride_h) - 64'd1) /
+                64'(conv_stride_h);
+            conv_wout_calc =
+                (64'(conv_input_w) + 64'(conv_stride_w) - 64'd1) /
+                64'(conv_stride_w);
         end
 
         conv_m_calc = conv_hout_calc * conv_wout_calc;
@@ -384,18 +415,37 @@ module npu_top #(
     logic pool_done;
     logic pool_error;
     logic pool_active_q;
+    logic add_active_q;
+    logic add_cmd;
+    logic add_descriptor_valid;
+    logic add_cmd_valid;
+    logic add_cmd_ready;
+    logic add_busy;
+    logic add_done;
+    logic add_error;
 
     assign gemm_conv_cmd =
         (frontend_cmd_opcode == OP_GEMM) || conv_mode;
 
     assign pool_cmd =
-        (frontend_cmd_opcode == OP_MAXPOOL);
+        (frontend_cmd_opcode == OP_MAXPOOL) ||
+        (frontend_cmd_opcode == OP_GLOBAL_AVGPOOL);
 
     assign pool_descriptor_valid =
         pool_cmd &&
         frontend_cmd_flags == 24'd0 &&
-        frontend_cfg_m >= 32'd2 &&
-        frontend_cfg_n >= 32'd2 &&
+        (
+            (
+                (frontend_cmd_opcode == OP_MAXPOOL) &&
+                (frontend_cfg_m >= 32'd2) &&
+                (frontend_cfg_n >= 32'd2)
+            ) ||
+            (
+                (frontend_cmd_opcode == OP_GLOBAL_AVGPOOL) &&
+                (frontend_cfg_m != 32'd0) &&
+                (frontend_cfg_n != 32'd0)
+            )
+        ) &&
         frontend_cfg_k != 32'd0 &&
         frontend_cfg_k[1:0] == 2'b00 &&
         frontend_cfg_a_base[1:0] == 2'b00 &&
@@ -407,13 +457,33 @@ module npu_top #(
         frontend_cfg_param0 == 32'd0 &&
         frontend_cfg_param1 == 32'd0;
 
+    assign add_cmd = (frontend_cmd_opcode == OP_ADD);
+    assign add_descriptor_valid =
+        add_cmd &&
+        (frontend_cmd_flags[23:1] == 23'd0) &&
+        (frontend_cfg_m != 32'd0) &&
+        (frontend_cfg_m[1:0] == 2'b00) &&
+        (frontend_cfg_n == 32'd0) &&
+        (frontend_cfg_k == 32'd0) &&
+        (frontend_cfg_a_base[1:0] == 2'b00) &&
+        (frontend_cfg_b_base[1:0] == 2'b00) &&
+        (frontend_cfg_c_base[1:0] == 2'b00) &&
+        (frontend_cfg_param0[1:0] == 2'b00) &&
+        (frontend_cfg_a_stride == 32'd0) &&
+        (frontend_cfg_b_stride == 32'd0) &&
+        (frontend_cfg_c_stride == 32'd0);
+
+    assign add_cmd_valid = frontend_cmd_valid &&
+        add_descriptor_valid && !add_active_q;
+
     assign descriptor_supported =
         (
             gemm_conv_cmd &&
             common_flags_valid &&
             (!conv_mode || conv_geometry_valid)
         ) ||
-        pool_descriptor_valid;
+        pool_descriptor_valid ||
+        add_descriptor_valid;
 
     assign executor_cmd_valid =
         frontend_cmd_valid &&
@@ -426,6 +496,8 @@ module npu_top #(
         !pool_active_q;
 
     assign frontend_cmd_ready =
+        (add_cmd && add_descriptor_valid) ?
+        (add_cmd_ready && !add_active_q) :
         descriptor_supported ?
         (
             pool_cmd ?
@@ -440,7 +512,7 @@ module npu_top #(
         !descriptor_supported;
 
     assign frontend_exec_done =
-        executor_done ||
+        add_done || executor_done ||
         pool_done ||
         unsupported_pending_q;
 
@@ -448,8 +520,13 @@ module npu_top #(
         if (reset) begin
             unsupported_pending_q <= 1'b0;
             pool_active_q <= 1'b0;
+            add_active_q <= 1'b0;
         end else begin
             unsupported_pending_q <= unsupported_accept;
+            if (add_cmd_valid && add_cmd_ready)
+                add_active_q <= 1'b1;
+            else if (add_done)
+                add_active_q <= 1'b0;
             if (pool_cmd_valid && pool_cmd_ready)
                 pool_active_q <= 1'b1;
             else if (pool_done)
@@ -581,6 +658,7 @@ module npu_top #(
         .cmd_bias_en(frontend_bias_en),
         .cmd_requant_en(frontend_requant_en),
         .cmd_relu_en(frontend_relu_en),
+        .cmd_per_channel_en(frontend_per_channel_en),
         .cmd_param_base(
             ADDR_WIDTH'({
                 frontend_cfg_param1,
@@ -636,6 +714,9 @@ module npu_top #(
         .reset(reset),
         .cmd_valid(pool_cmd_valid),
         .cmd_ready(pool_cmd_ready),
+        .cmd_global_avg(
+            frontend_cmd_opcode == OP_GLOBAL_AVGPOOL
+        ),
         .cmd_input_base(
             ADDR_WIDTH'(frontend_cfg_a_base)
         ),
@@ -682,26 +763,62 @@ module npu_top #(
     );
 
     // ============================================================
+    // ResNet Residual Add (serialized AXI baseline)
+    // ============================================================
+    residual_add_engine #(
+        .ADDR_WIDTH(ADDR_WIDTH), .ID_WIDTH(ID_WIDTH)
+    ) u_residual_add (
+        .clk(clk), .reset(reset),
+        .cmd_valid(add_cmd_valid), .cmd_ready(add_cmd_ready),
+        .cmd_a_base(ADDR_WIDTH'(frontend_cfg_a_base)),
+        .cmd_b_base(ADDR_WIDTH'(frontend_cfg_b_base)),
+        .cmd_c_base(ADDR_WIDTH'(frontend_cfg_c_base)),
+        .cmd_param_base(ADDR_WIDTH'({frontend_cfg_param1, frontend_cfg_param0})),
+        .cmd_elements(frontend_cfg_m),
+        .cmd_relu(frontend_cmd_flags[0]),
+        .busy(add_busy), .done(add_done), .error(add_error),
+        .m_axi_arid(add_ar.id), .m_axi_araddr(add_ar.addr),
+        .m_axi_arlen(add_ar.len), .m_axi_arsize(add_ar.size),
+        .m_axi_arburst(add_ar.burst), .m_axi_arvalid(add_ar.valid),
+        .m_axi_arready(add_arready),
+        .m_axi_rid(add_r.id), .m_axi_rdata(add_r.data),
+        .m_axi_rresp(add_r.resp), .m_axi_rlast(add_r.last),
+        .m_axi_rvalid(add_r.valid), .m_axi_rready(add_rready),
+        .m_axi_awid(add_aw.id), .m_axi_awaddr(add_aw.addr),
+        .m_axi_awlen(add_aw.len), .m_axi_awsize(add_aw.size),
+        .m_axi_awburst(add_aw.burst), .m_axi_awvalid(add_aw.valid),
+        .m_axi_awready(add_awready),
+        .m_axi_wdata(add_w.data), .m_axi_wstrb(add_w.strb),
+        .m_axi_wlast(add_w.last), .m_axi_wvalid(add_w.valid),
+        .m_axi_wready(add_wready),
+        .m_axi_bid(add_b.id), .m_axi_bresp(add_b.resp),
+        .m_axi_bvalid(add_b.valid), .m_axi_bready(add_bready)
+    );
+
+    // ============================================================
     // Shared AXI Read Mux
     // ============================================================
 
     assign selected_ar =
-        pool_active_q ? pool_ar : exec_ar;
+        add_active_q ? add_ar : (pool_active_q ? pool_ar : exec_ar);
 
     assign exec_arready =
-        !pool_active_q && selected_arready;
+        !pool_active_q && !add_active_q && selected_arready;
 
     assign pool_arready =
-        pool_active_q && selected_arready;
+        pool_active_q && !add_active_q && selected_arready;
+    assign add_arready = add_active_q && selected_arready;
 
     assign selected_rready =
-        pool_active_q ? pool_rready : exec_rready;
+        add_active_q ? add_rready :
+        (pool_active_q ? pool_rready : exec_rready);
 
     assign exec_r =
-        pool_active_q ? '0 : selected_r;
+        (pool_active_q || add_active_q) ? '0 : selected_r;
 
     assign pool_r =
-        pool_active_q ? selected_r : '0;
+        (pool_active_q && !add_active_q) ? selected_r : '0;
+    assign add_r = add_active_q ? selected_r : '0;
 
     axi_read_mux #(
         .ADDR_WIDTH(ADDR_WIDTH),
@@ -759,59 +876,74 @@ module npu_top #(
     // ============================================================
 
     assign m_axi_awid =
-        pool_active_q ? pool_aw.id : exec_aw.id;
+        add_active_q ? add_aw.id :
+        (pool_active_q ? pool_aw.id : exec_aw.id);
 
     assign m_axi_awaddr =
-        pool_active_q ? pool_aw.addr : exec_aw.addr;
+        add_active_q ? add_aw.addr :
+        (pool_active_q ? pool_aw.addr : exec_aw.addr);
 
     assign m_axi_awlen =
-        pool_active_q ? pool_aw.len : exec_aw.len;
+        add_active_q ? add_aw.len :
+        (pool_active_q ? pool_aw.len : exec_aw.len);
 
     assign m_axi_awsize =
-        pool_active_q ? pool_aw.size : exec_aw.size;
+        add_active_q ? add_aw.size :
+        (pool_active_q ? pool_aw.size : exec_aw.size);
 
     assign m_axi_awburst =
-        pool_active_q ? pool_aw.burst : exec_aw.burst;
+        add_active_q ? add_aw.burst :
+        (pool_active_q ? pool_aw.burst : exec_aw.burst);
 
     assign m_axi_awvalid =
-        pool_active_q ? pool_aw.valid : exec_aw.valid;
+        add_active_q ? add_aw.valid :
+        (pool_active_q ? pool_aw.valid : exec_aw.valid);
 
     assign exec_awready =
-        !pool_active_q && m_axi_awready;
+        !pool_active_q && !add_active_q && m_axi_awready;
 
     assign pool_awready =
-        pool_active_q && m_axi_awready;
+        pool_active_q && !add_active_q && m_axi_awready;
+    assign add_awready = add_active_q && m_axi_awready;
 
     assign m_axi_wdata =
-        pool_active_q ? pool_w.data : exec_w.data;
+        add_active_q ? add_w.data :
+        (pool_active_q ? pool_w.data : exec_w.data);
 
     assign m_axi_wstrb =
-        pool_active_q ? pool_w.strb : exec_w.strb;
+        add_active_q ? add_w.strb :
+        (pool_active_q ? pool_w.strb : exec_w.strb);
 
     assign m_axi_wlast =
-        pool_active_q ? pool_w.last : exec_w.last;
+        add_active_q ? add_w.last :
+        (pool_active_q ? pool_w.last : exec_w.last);
 
     assign m_axi_wvalid =
-        pool_active_q ? pool_w.valid : exec_w.valid;
+        add_active_q ? add_w.valid :
+        (pool_active_q ? pool_w.valid : exec_w.valid);
 
     assign exec_wready =
-        !pool_active_q && m_axi_wready;
+        !pool_active_q && !add_active_q && m_axi_wready;
 
     assign pool_wready =
-        pool_active_q && m_axi_wready;
+        pool_active_q && !add_active_q && m_axi_wready;
+    assign add_wready = add_active_q && m_axi_wready;
 
     assign exec_b =
-        pool_active_q ?
+        (pool_active_q || add_active_q) ?
         '0 :
         {m_axi_bid, m_axi_bresp, m_axi_bvalid};
 
     assign pool_b =
-        pool_active_q ?
+        (pool_active_q && !add_active_q) ?
         {m_axi_bid, m_axi_bresp, m_axi_bvalid} :
         '0;
 
+    assign add_b =
+        add_active_q ? {m_axi_bid, m_axi_bresp, m_axi_bvalid} : '0;
     assign m_axi_bready =
-        pool_active_q ? pool_bready : exec_bready;
+        add_active_q ? add_bready :
+        (pool_active_q ? pool_bready : exec_bready);
 
     // ============================================================
     // Top-Level Status
@@ -821,6 +953,8 @@ module npu_top #(
         frontend_busy ||
         executor_busy ||
         pool_busy ||
+        add_busy ||
+        add_active_q ||
         pool_active_q ||
         desc_axi_busy ||
         desc_axi_done ||
@@ -837,6 +971,7 @@ module npu_top #(
             desc_axi_error ||
             executor_error ||
             pool_error ||
+            add_error ||
             unsupported_accept
         )
             error <= 1'b1;
@@ -864,7 +999,8 @@ module npu_top #(
 
     assign perf_layer_start =
         (executor_cmd_valid && executor_cmd_ready) ||
-        (pool_cmd_valid && pool_cmd_ready);
+        (pool_cmd_valid && pool_cmd_ready) ||
+        (add_cmd_valid && add_cmd_ready);
 
     assign perf_layer_done = frontend_exec_done;
 

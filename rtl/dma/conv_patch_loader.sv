@@ -28,6 +28,7 @@ module conv_patch_loader #(
     input  logic [31:0]                  stride_w,
     input  logic [31:0]                  pad_top,
     input  logic [31:0]                  pad_left,
+    input  logic signed [7:0]           pad_zero_point,
     input  logic [31:0]                  output_w,
     input  logic [31:0]                  output_positions,
     input  logic [31:0]                  m_start,
@@ -83,6 +84,7 @@ module conv_patch_loader #(
     logic [31:0] kernel_h_q, kernel_w_q;
     logic [31:0] stride_h_q, stride_w_q;
     logic [31:0] pad_top_q, pad_left_q;
+    logic [7:0] pad_zp_q;
     logic [31:0] output_w_q, output_positions_q;
     logic [31:0] m_start_q, k_start_q;
     logic [K_SIZE_WIDTH-1:0] load_size_q;
@@ -312,7 +314,9 @@ module conv_patch_loader #(
         // Mask trailing physical bytes that are not part of this
         // logical K segment. They must never enter partial_word_q.
         append_data = '0;
-        if (read_event) begin
+        if (pad_event) begin
+            append_data = {24'd0, pad_zp_q};
+        end else if (read_event) begin
             case (append_count)
                 3'd1: append_data = shifted_read_data & 32'h000000ff;
                 3'd2: append_data = shifted_read_data & 32'h0000ffff;
@@ -359,6 +363,7 @@ module conv_patch_loader #(
             stride_w_q <= '0;
             pad_top_q <= '0;
             pad_left_q <= '0;
+            pad_zp_q <= '0;
             output_w_q <= '0;
             output_positions_q <= '0;
             m_start_q <= '0;
@@ -401,6 +406,7 @@ module conv_patch_loader #(
                             stride_w_q <= stride_w;
                             pad_top_q <= pad_top;
                             pad_left_q <= pad_left;
+                            pad_zp_q <= pad_zero_point;
                             output_w_q <= output_w;
                             output_positions_q <= output_positions;
                             m_start_q <= m_start;

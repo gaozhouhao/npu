@@ -57,6 +57,7 @@ module gemm_read_path #(
 
     input logic [31:0] conv_pad_top,
     input logic [31:0] conv_pad_left,
+    input logic signed [7:0] conv_pad_zero_point,
 
     input logic [31:0] conv_output_w,
     input logic [31:0] conv_output_positions,
@@ -271,6 +272,7 @@ module gemm_read_path #(
         .stride_w         (conv_stride_w),
         .pad_top          (conv_pad_top),
         .pad_left         (conv_pad_left),
+        .pad_zero_point   (conv_pad_zero_point),
         .output_w         (conv_output_w),
         .output_positions (conv_output_positions),
         .m_start          (conv_m_start),

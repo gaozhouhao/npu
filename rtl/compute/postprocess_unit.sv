@@ -14,10 +14,12 @@ module postprocess_unit #(
         bias [LANES],
 
     input logic [31:0]
-        multiplier,
+        multiplier [LANES],
 
     input logic [5:0]
-        shift,
+        shift [LANES],
+
+    input logic signed [7:0] output_zero_point,
 
     output logic signed [ACC_WIDTH-1:0]
         data_out_int32 [LANES],
@@ -145,6 +147,10 @@ module postprocess_unit #(
 
             logic signed [63:0]
                 scaled;
+            logic signed [63:0]
+                scaled_zp;
+            logic signed [63:0]
+                zp_ext;
 
 
             always_comb begin
@@ -206,7 +212,7 @@ module postprocess_unit #(
                     $signed(
                         {
                             32'd0,
-                            multiplier
+                            multiplier[lane]
                         }
                     );
 
@@ -219,12 +225,15 @@ module postprocess_unit #(
                 scaled =
                     round_shift_away_from_zero(
                         product,
-                        shift
+                        shift[lane]
                     );
 
 
+                zp_ext = 64'($signed(output_zero_point));
+                scaled_zp = scaled + zp_ext;
+
                 // ------------------------------------------------
-                // INT8 output
+                // INT8 output with asymmetric zero point
                 // ------------------------------------------------
 
                 if (!requant_en) begin
@@ -234,13 +243,13 @@ module postprocess_unit #(
 
                 end else if (relu_en) begin
 
-                    if (scaled <= 0) begin
+                    if (scaled_zp <= zp_ext) begin
 
                         data_out_int8[lane] =
-                            8'sd0;
+                            output_zero_point;
 
                     end else if (
-                        scaled >
+                        scaled_zp >
                         64'sd127
                     ) begin
 
@@ -250,14 +259,14 @@ module postprocess_unit #(
                     end else begin
 
                         data_out_int8[lane] =
-                            scaled[7:0];
+                            scaled_zp[7:0];
 
                     end
 
                 end else begin
 
                     if (
-                        scaled >
+                        scaled_zp >
                         64'sd127
                     ) begin
 
@@ -265,7 +274,7 @@ module postprocess_unit #(
                             8'sd127;
 
                     end else if (
-                        scaled <
+                        scaled_zp <
                         -64'sd128
                     ) begin
 
@@ -275,7 +284,7 @@ module postprocess_unit #(
                     end else begin
 
                         data_out_int8[lane] =
-                            scaled[7:0];
+                            scaled_zp[7:0];
 
                     end
 

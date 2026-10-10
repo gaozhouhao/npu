@@ -75,6 +75,7 @@ module gemm_executor #(
     input logic cmd_bias_en,
     input logic cmd_requant_en,
     input logic cmd_relu_en,
+    input logic cmd_per_channel_en,
     input logic [ADDR_WIDTH-1:0] cmd_param_base,
 
     // ============================================================
@@ -193,6 +194,7 @@ module gemm_executor #(
     logic bias_en_q;
     logic requant_en_q;
     logic relu_en_q;
+    logic per_channel_en_q;
 
     logic [ADDR_WIDTH-1:0] param_base_q;
 
@@ -263,6 +265,7 @@ module gemm_executor #(
         (cmd_n == 32'd0) ||
         (cmd_k == 32'd0) ||
         (cmd_relu_en && !cmd_requant_en) ||
+        (cmd_per_channel_en && !cmd_requant_en) ||
         (
             (cmd_bias_en || cmd_requant_en) &&
             (cmd_param_base[1:0] != 2'b00)
@@ -486,7 +489,26 @@ module gemm_executor #(
 
     logic [31:0] requant_multiplier;
     logic [5:0] requant_shift;
+    logic signed [7:0] input_zero_point;
+    logic signed [7:0] output_zero_point;
     logic signed [ACC_WIDTH-1:0] bias_values [COLS];
+
+    logic [31:0] loaded_multiplier_lane [COLS];
+    logic [5:0] loaded_shift_lane [COLS];
+
+    logic signed [31:0] bank_bias [COLS];
+    logic [31:0] bank_multiplier [COLS];
+    logic [5:0] bank_shift [COLS];
+
+    logic [31:0] pp_multiplier [COLS];
+    logic [5:0] pp_shift [COLS];
+
+    logic [PSUM_SLOT_WIDTH-1:0] param_fill_slot_q;
+    logic [TILE_COUNT_WIDTH-1:0] param_fill_n_tile_q;
+
+    logic param_bank_fill_ready;
+    logic param_bank_read_hit;
+    logic param_bank_retire_hit;
 
     logic [ADDR_WIDTH-1:0] bias_tile_addr_q;
 
@@ -536,12 +558,17 @@ module gemm_executor #(
     // ============================================================
 
     assign cmd_ready = (exec_state == EX_IDLE);
-    assign scheduler_start = (exec_state == EX_LAUNCH);
+    assign scheduler_start = (exec_state == EX_LAUNCH) &&
+        (!per_channel_en_q || global_param_ready_q);
     assign done = (exec_state == EX_DONE);
 
     assign postprocess_ready =
-        (!bias_en_q || bias_ready_q) &&
-        (!requant_en_q || global_param_ready_q);
+        per_channel_en_q
+            ? param_bank_read_hit
+            : (
+                (!bias_en_q || bias_ready_q) &&
+                (!requant_en_q || global_param_ready_q)
+              );
 
     assign busy =
         (
@@ -721,6 +748,7 @@ module gemm_executor #(
         .conv_stride_w         (conv_stride_w_q),
         .conv_pad_top          (conv_pad_top_q),
         .conv_pad_left         (conv_pad_left_q),
+        .conv_pad_zero_point   (input_zero_point),
         .conv_output_w         (conv_output_w_q),
         .conv_output_positions (conv_output_positions_q),
         .conv_m_start          (conv_m_start),
@@ -804,11 +832,16 @@ module gemm_executor #(
         .bias_load_req      (bias_request_pending_q),
         .bias_load_accept   (bias_load_accept),
         .bias_addr          (bias_tile_addr_q),
+        .per_channel_en     (per_channel_en_q),
         .bias_load_done     (bias_load_done),
 
         .multiplier_out     (requant_multiplier),
         .shift_out          (requant_shift),
+        .input_zero_point_out(input_zero_point),
+        .output_zero_point_out(output_zero_point),
         .bias_out           (bias_values),
+        .multiplier_lane_out(loaded_multiplier_lane),
+        .shift_lane_out     (loaded_shift_lane),
 
         .busy               (param_loader_busy),
         .error              (param_loader_error),
@@ -1118,12 +1151,66 @@ module gemm_executor #(
                         pl*ACC_WIDTH +: ACC_WIDTH
                     ]
                   )
-                : bias_values[pl];
+                : (
+                    per_channel_en_q
+                        ? bank_bias[pl]
+                        : bias_values[pl]
+                  );
 
         assign psum_alu_sum[
             pl*ACC_WIDTH +: ACC_WIDTH
         ] = c_lane_int32[pl];
 
+    end
+
+    // ============================================================
+    // C-slot-associated parameter bank
+    // ============================================================
+
+    output_param_slot_bank #(
+        .SLOTS      (PSUM_SLOT_COUNT),
+        .COLS       (COLS),
+        .TAG_WIDTH  (TILE_COUNT_WIDTH)
+    ) u_output_param_slot_bank (
+        .clk             (clk),
+        .reset           (reset),
+        .clear           (cmd_valid && cmd_ready),
+
+        .fill_valid      (per_channel_en_q && bias_load_done),
+        .fill_ready      (param_bank_fill_ready),
+        .fill_slot       (param_fill_slot_q),
+        .fill_n_tile     (param_fill_n_tile_q),
+        .fill_bias       (bias_values),
+        .fill_multiplier (loaded_multiplier_lane),
+        .fill_shift      (loaded_shift_lane),
+
+        .read_valid      (per_channel_en_q && requant_en_q),
+        .read_slot       (psum_target_slot),
+        .read_n_tile     (compute_n_tile_idx),
+        .read_hit        (param_bank_read_hit),
+        .read_bias       (bank_bias),
+        .read_multiplier (bank_multiplier),
+        .read_shift      (bank_shift),
+
+        .retire_valid    (per_channel_en_q && c_write_done),
+        .retire_slot     (psum_target_slot),
+        .retire_n_tile   (compute_n_tile_idx),
+        .retire_hit      (param_bank_retire_hit)
+    );
+
+    // Both modes use the same four parallel arithmetic lanes.
+    // Per-tensor mode broadcasts the original global M/R.
+
+    for (genvar pc = 0; pc < COLS; pc++) begin : gen_pc_select
+        assign pp_multiplier[pc] =
+            per_channel_en_q
+                ? bank_multiplier[pc]
+                : requant_multiplier;
+
+        assign pp_shift[pc] =
+            per_channel_en_q
+                ? bank_shift[pc]
+                : requant_shift;
     end
 
     postprocess_unit #(
@@ -1145,9 +1232,10 @@ module gemm_executor #(
 
         .data_in        (pp_data),
         .bias           (pp_addend),
-        .multiplier     (requant_multiplier),
-        .shift          (requant_shift),
+        .multiplier     (pp_multiplier),
+        .shift          (pp_shift),
 
+        .output_zero_point(output_zero_point),
         .data_out_int32 (c_lane_int32),
         .data_out_int8  (c_lane_int8)
     );
@@ -1245,6 +1333,8 @@ module gemm_executor #(
             bias_request_pending_q <= 1'b0;
             bias_ready_q <= 1'b0;
             bias_tile_addr_q <= '0;
+            param_fill_slot_q <= '0;
+            param_fill_n_tile_q <= '0;
 
             final_result_wait_q <= 1'b0;
             c_tile_pending_q <= 1'b0;
@@ -1270,7 +1360,7 @@ module gemm_executor #(
                         ? scheduler_writeback_en
                         : scheduler_clear_acc
                 ) &&
-                bias_en_q
+                (bias_en_q || per_channel_en_q)
             ) begin
 
                 bias_tile_addr_q <=
@@ -1278,8 +1368,15 @@ module gemm_executor #(
                     ADDR_WIDTH'(PARAM_BIAS_OFFSET) +
                     (
                         ADDR_WIDTH'(compute_n_tile_idx) *
-                        ADDR_WIDTH'(BIAS_TILE_BYTES)
+                        ADDR_WIDTH'(
+                            per_channel_en_q
+                                ? (3 * BIAS_TILE_BYTES)
+                                : BIAS_TILE_BYTES
+                        )
                     );
+
+                param_fill_slot_q <= psum_target_slot;
+                param_fill_n_tile_q <= compute_n_tile_idx;
 
                 bias_request_pending_q <= 1'b1;
                 bias_ready_q <= 1'b0;
@@ -1335,6 +1432,8 @@ module gemm_executor #(
                 bias_request_pending_q <= 1'b0;
                 bias_ready_q <= 1'b0;
                 bias_tile_addr_q <= '0;
+            param_fill_slot_q <= '0;
+            param_fill_n_tile_q <= '0;
 
                 final_result_wait_q <= 1'b0;
                 c_tile_pending_q <= 1'b0;
@@ -1366,6 +1465,7 @@ module gemm_executor #(
             bias_en_q <= 1'b0;
             requant_en_q <= 1'b0;
             relu_en_q <= 1'b0;
+            per_channel_en_q <= 1'b0;
             param_base_q <= '0;
 
             conv_mode_q <= 1'b0;
@@ -1416,6 +1516,7 @@ module gemm_executor #(
                             bias_en_q <= cmd_bias_en;
                             requant_en_q <= cmd_requant_en;
                             relu_en_q <= cmd_relu_en;
+                            per_channel_en_q <= cmd_per_channel_en;
                             param_base_q <= cmd_param_base;
 
                             conv_mode_q <= cmd_conv_mode;
@@ -1446,9 +1547,8 @@ module gemm_executor #(
                 end
 
                 EX_LAUNCH: begin
-
-                    exec_state <= EX_RUN;
-
+                    if (!per_channel_en_q || global_param_ready_q)
+                        exec_state <= EX_RUN;
                 end
 
                 EX_RUN: begin
@@ -1459,7 +1559,17 @@ module gemm_executor #(
                         b_load_error ||
                         param_loader_error ||
                         param_axi_error ||
-                        c_write_error
+                        c_write_error ||
+                        (
+                            per_channel_en_q &&
+                            bias_load_done &&
+                            !param_bank_fill_ready
+                        ) ||
+                        (
+                            per_channel_en_q &&
+                            c_write_done &&
+                            !param_bank_retire_hit
+                        )
                     ) begin
 
                         error <= 1'b1;
