@@ -51,17 +51,41 @@ def tensor_shape(t):
     return [int(t.Shape(i)) for i in range(t.ShapeLength())]
 
 def quant_mr(ratio):
+    """Choose maximum safe fixed-point precision.
+
+    Hardware:
+      signed 33-bit adjusted accumulator
+      positive 31-bit multiplier
+      signed 64-bit product and rounding
+      6-bit right shift
+    """
     if ratio < 0 or not math.isfinite(ratio):
         raise ValueError(f'Invalid scale ratio: {ratio}')
+
     if ratio == 0:
         return 0, 0
-    shift = 30
-    while round(ratio * (2**shift)) > 2147483647 and shift > 0:
-        shift -= 1
-    m = round(ratio * (2**shift))
-    if m > 2147483647:
-        raise ValueError(f'Unsupported scale ratio: {ratio}')
-    return int(m), int(shift)
+
+    max_multiplier = (1 << 31) - 1
+    max_int64 = (1 << 63) - 1
+    max_acc = (1 << 32) - 1
+
+    for shift in range(62, -1, -1):
+        m = round(ratio * (1 << shift))
+
+        if m < 0 or m > max_multiplier:
+            continue
+
+        rounding_offset = (1 << (shift - 1)) if shift else 0
+
+        # Conservative bound including rounding addition.
+        if max_acc * m + rounding_offset > max_int64:
+            continue
+
+        return int(m), int(shift)
+
+    raise ValueError(
+        f'No safe fixed-point representation for ratio={ratio}'
+    )
 
 def options(op, cls):
     tab = op.BuiltinOptions()
@@ -245,12 +269,36 @@ class Compiler:
             raise ValueError('No broadcasting supported for ResidualAdd')
         sa,za=scale_1(ta);sb,zb=scale_1(tb);so,zo=scale_1(to)
         ra,rb=sa/so,sb/so
-        shift=30
-        while max(round(ra*2**shift),round(rb*2**shift))>2147483647 and shift>0:
-            shift-=1
-        ma,mb=round(ra*2**shift),round(rb*2**shift)
-        if max(ma,mb)>2147483647:
-            raise ValueError('ResidualAdd scale ratio out of range')
+
+        if not all(math.isfinite(r) and r >= 0 for r in (ra, rb)):
+            raise ValueError('Invalid ResidualAdd scale ratio')
+
+        max_multiplier = (1 << 31) - 1
+        max_int64 = (1 << 63) - 1
+
+        # Each centered INT8 operand is at most 255 in magnitude.
+        max_centered = 255
+
+        for shift in range(62, -1, -1):
+            ma = round(ra * (1 << shift))
+            mb = round(rb * (1 << shift))
+
+            if not (0 <= ma <= max_multiplier and
+                    0 <= mb <= max_multiplier):
+                continue
+
+            rounding_offset = (1 << (shift - 1)) if shift else 0
+
+            max_product = max_centered * (ma + mb)
+
+            if max_product + rounding_offset > max_int64:
+                continue
+
+            break
+        else:
+            raise ValueError(
+                'No safe ResidualAdd fixed-point representation'
+            )
         parambuf=words(za,zb,zo,ma,mb,shift)
         paddr=self.mem.put(parambuf)
         caddr=self.output_addr(out)
