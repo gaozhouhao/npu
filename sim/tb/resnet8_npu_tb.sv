@@ -36,6 +36,33 @@ module resnet8_npu_tb;
     initial clk = 1'b0;
     always #5 clk = ~clk;
 
+
+`ifdef NPU_PERF_ENABLE
+    logic [63:0] p_total_cycles;
+    logic [63:0] p_executor_cycles;
+    logic [63:0] p_pool_cycles;
+    logic [63:0] p_ar_transactions;
+    logic [63:0] p_r_beats;
+    logic [63:0] p_aw_transactions;
+    logic [63:0] p_w_beats;
+    logic [63:0] p_written_bytes;
+    logic [63:0] p_ar_stall_cycles;
+    logic [63:0] p_r_wait_cycles;
+    logic [63:0] p_aw_stall_cycles;
+    logic [63:0] p_w_stall_cycles;
+    logic [63:0] p_b_wait_cycles;
+    logic  p_layer_done_pulse;
+    logic [31:0] p_completed_layer_index;
+    logic [7:0] p_completed_layer_opcode;
+    logic [63:0] p_completed_layer_cycles;
+    logic [63:0] p_completed_layer_executor_cycles;
+    logic [63:0] p_completed_layer_pool_cycles;
+    logic [63:0] p_completed_layer_ar;
+    logic [63:0] p_completed_layer_r_beats;
+    logic [63:0] p_completed_layer_aw;
+    logic [63:0] p_completed_layer_w_beats;
+`endif
+
     npu_top u_dut (
         .clk(clk), .reset(reset), .start(start),
         .desc_base(desc_base_cfg), .desc_count(desc_count_cfg),
@@ -57,6 +84,32 @@ module resnet8_npu_tb;
         .m_axi_wvalid(wvalid), .m_axi_wready(wready),
         .m_axi_bid(bid), .m_axi_bresp(bresp),
         .m_axi_bvalid(bvalid), .m_axi_bready(bready)
+`ifdef NPU_PERF_ENABLE
+        ,
+        .perf_total_cycles(p_total_cycles),
+        .perf_executor_cycles(p_executor_cycles),
+        .perf_pool_cycles(p_pool_cycles),
+        .perf_ar_transactions(p_ar_transactions),
+        .perf_r_beats(p_r_beats),
+        .perf_aw_transactions(p_aw_transactions),
+        .perf_w_beats(p_w_beats),
+        .perf_written_bytes(p_written_bytes),
+        .perf_ar_stall_cycles(p_ar_stall_cycles),
+        .perf_r_wait_cycles(p_r_wait_cycles),
+        .perf_aw_stall_cycles(p_aw_stall_cycles),
+        .perf_w_stall_cycles(p_w_stall_cycles),
+        .perf_b_wait_cycles(p_b_wait_cycles),
+        .perf_layer_done_pulse(p_layer_done_pulse),
+        .perf_completed_layer_index(p_completed_layer_index),
+        .perf_completed_layer_opcode(p_completed_layer_opcode),
+        .perf_completed_layer_cycles(p_completed_layer_cycles),
+        .perf_completed_layer_executor_cycles(p_completed_layer_executor_cycles),
+        .perf_completed_layer_pool_cycles(p_completed_layer_pool_cycles),
+        .perf_completed_layer_ar(p_completed_layer_ar),
+        .perf_completed_layer_r_beats(p_completed_layer_r_beats),
+        .perf_completed_layer_aw(p_completed_layer_aw),
+        .perf_completed_layer_w_beats(p_completed_layer_w_beats)
+`endif
     );
 
     assign arready = !rd_active_q;
@@ -156,6 +209,448 @@ module resnet8_npu_tb;
         end
     end
 
+
+`ifdef NPU_PERF_ENABLE
+
+    // Completed-layer values are registered by npu_perf_monitor.
+    // Observe at falling edge, after nonblocking assignments.
+    always @(negedge clk) begin
+        if (!reset && p_layer_done_pulse) begin
+            $display(
+                "PERF_LAYER,index=%0d,opcode=%0d,cycles=%0d,executor=%0d,pool=%0d,ar=%0d,read_beats=%0d,aw=%0d,write_beats=%0d",
+                p_completed_layer_index,
+                p_completed_layer_opcode,
+                p_completed_layer_cycles,
+                p_completed_layer_executor_cycles,
+                p_completed_layer_pool_cycles,
+                p_completed_layer_ar,
+                p_completed_layer_r_beats,
+                p_completed_layer_aw,
+                p_completed_layer_w_beats
+            );
+        end
+    end
+
+`endif
+
+
+`ifdef NPU_PERF_ENABLE
+
+    // RESNET8_COMPUTE_PERF_PROBE
+    //
+    // Non-intrusive observation of the actual 4x4 PE array.
+    // Counts MAC operations when both PE operands are valid
+    // and the accumulator is not being cleared.
+    //
+    // Executed MACs are not necessarily useful model MACs:
+    // padded and boundary computations may be included.
+
+    logic [15:0] perf_pe_fire;
+    logic [4:0] perf_mac_fires_now;
+
+    logic perf_compute_running;
+    logic perf_compute_layer_active;
+
+    logic [63:0] perf_mac_total;
+    logic [63:0] perf_mac_layer;
+    logic [63:0] perf_mac_layer_sum;
+
+    logic [63:0] perf_active_cycles_total;
+    logic [63:0] perf_active_cycles_layer;
+
+    logic [63:0] perf_tile_starts_total;
+    logic [63:0] perf_tile_dones_total;
+    logic [63:0] perf_tile_starts_layer;
+    logic [63:0] perf_tile_dones_layer;
+
+    logic [63:0] perf_mac_capacity_total;
+
+    // Observe the same valid operands as the actual PEs.
+    for (genvar r = 0; r < 4; r++) begin : gen_perf_row
+        for (genvar c = 0; c < 4; c++) begin : gen_perf_col
+
+            assign perf_pe_fire[r*4+c] =
+                !reset &&
+                !u_dut.u_gemm_executor.u_gemm_core
+                    .u_matrix_engine.u_array.clear &&
+                u_dut.u_gemm_executor.u_gemm_core
+                    .u_matrix_engine.u_array.a_valid_wire[r][c] &&
+                u_dut.u_gemm_executor.u_gemm_core
+                    .u_matrix_engine.u_array.b_valid_wire[r][c];
+
+        end
+    end
+
+    always_comb begin
+        perf_mac_fires_now = '0;
+
+        for (int j = 0; j < 16; j++) begin
+            perf_mac_fires_now =
+                perf_mac_fires_now + 5'(perf_pe_fire[j]);
+        end
+    end
+
+    // Sample events on the clock edge where MACs execute.
+    always @(posedge clk) begin
+        if (reset) begin
+            perf_compute_running <= 1'b0;
+            perf_compute_layer_active <= 1'b0;
+
+            perf_mac_total <= '0;
+            perf_mac_layer <= '0;
+            perf_mac_layer_sum <= '0;
+
+            perf_active_cycles_total <= '0;
+            perf_active_cycles_layer <= '0;
+
+            perf_tile_starts_total <= '0;
+            perf_tile_dones_total <= '0;
+            perf_tile_starts_layer <= '0;
+            perf_tile_dones_layer <= '0;
+
+            perf_mac_capacity_total <= '0;
+
+        end else if (start && !busy) begin
+            perf_compute_running <= 1'b1;
+            perf_compute_layer_active <= 1'b0;
+
+            perf_mac_total <= '0;
+            perf_mac_layer <= '0;
+            perf_mac_layer_sum <= '0;
+
+            perf_active_cycles_total <= '0;
+            perf_active_cycles_layer <= '0;
+
+            perf_tile_starts_total <= '0;
+            perf_tile_dones_total <= '0;
+            perf_tile_starts_layer <= '0;
+            perf_tile_dones_layer <= '0;
+
+            perf_mac_capacity_total <= '0;
+
+        end else begin
+
+            if (perf_compute_running) begin
+                perf_mac_total <=
+                    perf_mac_total + 64'(perf_mac_fires_now);
+
+                perf_mac_capacity_total <=
+                    perf_mac_capacity_total + 64'd16;
+
+                if (perf_mac_fires_now != 5'd0)
+                    perf_active_cycles_total <=
+                        perf_active_cycles_total + 64'd1;
+
+                if (u_dut.u_gemm_executor.scheduler_matrix_start)
+                    perf_tile_starts_total <=
+                        perf_tile_starts_total + 64'd1;
+
+                if (u_dut.u_gemm_executor.core_done)
+                    perf_tile_dones_total <=
+                        perf_tile_dones_total + 64'd1;
+            end
+
+            if (u_dut.perf_layer_start) begin
+                perf_compute_layer_active <= 1'b1;
+
+                perf_mac_layer <= '0;
+                perf_active_cycles_layer <= '0;
+                perf_tile_starts_layer <= '0;
+                perf_tile_dones_layer <= '0;
+
+            end else if (perf_compute_layer_active) begin
+
+                perf_mac_layer <=
+                    perf_mac_layer + 64'(perf_mac_fires_now);
+
+                if (perf_mac_fires_now != 5'd0)
+                    perf_active_cycles_layer <=
+                        perf_active_cycles_layer + 64'd1;
+
+                if (u_dut.u_gemm_executor.scheduler_matrix_start)
+                    perf_tile_starts_layer <=
+                        perf_tile_starts_layer + 64'd1;
+
+                if (u_dut.u_gemm_executor.core_done)
+                    perf_tile_dones_layer <=
+                        perf_tile_dones_layer + 64'd1;
+
+            end
+
+            if (u_dut.perf_layer_done &&
+                perf_compute_layer_active) begin
+
+                perf_compute_layer_active <= 1'b0;
+
+                perf_mac_layer_sum <=
+                    perf_mac_layer_sum +
+                    perf_mac_layer +
+                    64'(perf_mac_fires_now);
+            end
+
+            if (done)
+                perf_compute_running <= 1'b0;
+
+        end
+    end
+
+    // Existing layer performance monitor publishes this
+    // pulse after the clock edge. Observe it at negedge.
+    always @(negedge clk) begin
+        if (!reset && p_layer_done_pulse) begin
+
+            $display(
+                "PERF_COMPUTE_LAYER,index=%0d,mac=%0d,active_cycles=%0d,tile_starts=%0d,tile_dones=%0d",
+                p_completed_layer_index,
+                perf_mac_layer,
+                perf_active_cycles_layer,
+                perf_tile_starts_layer,
+                perf_tile_dones_layer
+            );
+
+        end
+    end
+
+`endif
+
+
+`ifdef NPU_PERF_ENABLE
+
+    // RESNET8_MEMORY_PERF_PROBE
+    //
+    // Observe resource-level activity.
+    // These counters do not depend on external clock frequency.
+
+    logic mem_running_q;
+    logic mem_layer_active_q;
+
+    logic [63:0] mem_core_cycles;
+    logic [63:0] mem_dma_cycles;
+    logic [63:0] mem_overlap_cycles;
+    logic [63:0] mem_axi_overlap_beats;
+
+    logic [63:0] mem_a_compute_wait;
+    logic [63:0] mem_b_compute_wait;
+    logic [63:0] mem_a_load_wait;
+    logic [63:0] mem_b_load_wait;
+
+    logic [63:0] mem_layer_core;
+    logic [63:0] mem_layer_dma;
+    logic [63:0] mem_layer_overlap;
+    logic [63:0] mem_layer_axi_overlap;
+    logic [63:0] mem_layer_a_compute_wait;
+    logic [63:0] mem_layer_b_compute_wait;
+    logic [63:0] mem_layer_a_load_wait;
+    logic [63:0] mem_layer_b_load_wait;
+
+    logic [63:0] mem_layer_core_sum;
+    logic [63:0] mem_layer_dma_sum;
+    logic [63:0] mem_layer_overlap_sum;
+
+    wire mem_core_event =
+        u_dut.u_gemm_executor.core_busy;
+
+    wire mem_dma_event =
+        u_dut.u_gemm_executor.read_path_busy;
+
+    wire mem_overlap_event =
+        mem_core_event && mem_dma_event;
+
+    wire mem_axi_overlap_event =
+        mem_core_event && rvalid && rready;
+
+    wire mem_a_compute_wait_event =
+        u_dut.u_gemm_executor.scheduler_a_compute_req &&
+        !u_dut.u_gemm_executor.scheduler_a_compute_grant;
+
+    wire mem_b_compute_wait_event =
+        u_dut.u_gemm_executor.scheduler_b_compute_req &&
+        !u_dut.u_gemm_executor.scheduler_b_compute_grant;
+
+    wire mem_a_load_wait_event =
+        u_dut.u_gemm_executor.a_bank_load_req &&
+        !u_dut.u_gemm_executor.a_bank_load_grant;
+
+    wire mem_b_load_wait_event =
+        u_dut.u_gemm_executor.b_bank_load_req &&
+        !u_dut.u_gemm_executor.b_bank_load_grant;
+
+    always @(posedge clk) begin
+        if (reset) begin
+            mem_running_q <= 1'b0;
+            mem_layer_active_q <= 1'b0;
+
+            mem_core_cycles <= '0;
+            mem_dma_cycles <= '0;
+            mem_overlap_cycles <= '0;
+            mem_axi_overlap_beats <= '0;
+
+            mem_a_compute_wait <= '0;
+            mem_b_compute_wait <= '0;
+            mem_a_load_wait <= '0;
+            mem_b_load_wait <= '0;
+
+            mem_layer_core <= '0;
+            mem_layer_dma <= '0;
+            mem_layer_overlap <= '0;
+            mem_layer_axi_overlap <= '0;
+            mem_layer_a_compute_wait <= '0;
+            mem_layer_b_compute_wait <= '0;
+            mem_layer_a_load_wait <= '0;
+            mem_layer_b_load_wait <= '0;
+
+            mem_layer_core_sum <= '0;
+            mem_layer_dma_sum <= '0;
+            mem_layer_overlap_sum <= '0;
+
+        end else if (start && !busy) begin
+            mem_running_q <= 1'b1;
+            mem_layer_active_q <= 1'b0;
+
+            mem_core_cycles <= '0;
+            mem_dma_cycles <= '0;
+            mem_overlap_cycles <= '0;
+            mem_axi_overlap_beats <= '0;
+
+            mem_a_compute_wait <= '0;
+            mem_b_compute_wait <= '0;
+            mem_a_load_wait <= '0;
+            mem_b_load_wait <= '0;
+
+            mem_layer_core <= '0;
+            mem_layer_dma <= '0;
+            mem_layer_overlap <= '0;
+            mem_layer_axi_overlap <= '0;
+            mem_layer_a_compute_wait <= '0;
+            mem_layer_b_compute_wait <= '0;
+            mem_layer_a_load_wait <= '0;
+            mem_layer_b_load_wait <= '0;
+
+            mem_layer_core_sum <= '0;
+            mem_layer_dma_sum <= '0;
+            mem_layer_overlap_sum <= '0;
+
+        end else begin
+
+            if (mem_running_q) begin
+                mem_core_cycles <=
+                    mem_core_cycles + 64'(mem_core_event);
+
+                mem_dma_cycles <=
+                    mem_dma_cycles + 64'(mem_dma_event);
+
+                mem_overlap_cycles <=
+                    mem_overlap_cycles + 64'(mem_overlap_event);
+
+                mem_axi_overlap_beats <=
+                    mem_axi_overlap_beats +
+                    64'(mem_axi_overlap_event);
+
+                mem_a_compute_wait <=
+                    mem_a_compute_wait +
+                    64'(mem_a_compute_wait_event);
+
+                mem_b_compute_wait <=
+                    mem_b_compute_wait +
+                    64'(mem_b_compute_wait_event);
+
+                mem_a_load_wait <=
+                    mem_a_load_wait +
+                    64'(mem_a_load_wait_event);
+
+                mem_b_load_wait <=
+                    mem_b_load_wait +
+                    64'(mem_b_load_wait_event);
+            end
+
+            if (u_dut.perf_layer_start) begin
+                mem_layer_active_q <= 1'b1;
+
+                mem_layer_core <= '0;
+                mem_layer_dma <= '0;
+                mem_layer_overlap <= '0;
+                mem_layer_axi_overlap <= '0;
+
+                mem_layer_a_compute_wait <= '0;
+                mem_layer_b_compute_wait <= '0;
+                mem_layer_a_load_wait <= '0;
+                mem_layer_b_load_wait <= '0;
+
+            end else if (mem_layer_active_q) begin
+
+                mem_layer_core <=
+                    mem_layer_core + 64'(mem_core_event);
+
+                mem_layer_dma <=
+                    mem_layer_dma + 64'(mem_dma_event);
+
+                mem_layer_overlap <=
+                    mem_layer_overlap + 64'(mem_overlap_event);
+
+                mem_layer_axi_overlap <=
+                    mem_layer_axi_overlap +
+                    64'(mem_axi_overlap_event);
+
+                mem_layer_a_compute_wait <=
+                    mem_layer_a_compute_wait +
+                    64'(mem_a_compute_wait_event);
+
+                mem_layer_b_compute_wait <=
+                    mem_layer_b_compute_wait +
+                    64'(mem_b_compute_wait_event);
+
+                mem_layer_a_load_wait <=
+                    mem_layer_a_load_wait +
+                    64'(mem_a_load_wait_event);
+
+                mem_layer_b_load_wait <=
+                    mem_layer_b_load_wait +
+                    64'(mem_b_load_wait_event);
+            end
+
+            if (
+                u_dut.perf_layer_done &&
+                mem_layer_active_q
+            ) begin
+                mem_layer_active_q <= 1'b0;
+
+                mem_layer_core_sum <=
+                    mem_layer_core_sum + mem_layer_core +
+                    64'(mem_core_event);
+
+                mem_layer_dma_sum <=
+                    mem_layer_dma_sum + mem_layer_dma +
+                    64'(mem_dma_event);
+
+                mem_layer_overlap_sum <=
+                    mem_layer_overlap_sum + mem_layer_overlap +
+                    64'(mem_overlap_event);
+            end
+
+            if (done)
+                mem_running_q <= 1'b0;
+        end
+    end
+
+    always @(negedge clk) begin
+        if (!reset && p_layer_done_pulse) begin
+            $display(
+                "PERF_MEMORY_LAYER,index=%0d,core=%0d,dma=%0d,overlap=%0d,axi_overlap=%0d,a_compute_wait=%0d,b_compute_wait=%0d,a_load_wait=%0d,b_load_wait=%0d",
+                p_completed_layer_index,
+                mem_layer_core,
+                mem_layer_dma,
+                mem_layer_overlap,
+                mem_layer_axi_overlap,
+                mem_layer_a_compute_wait,
+                mem_layer_b_compute_wait,
+                mem_layer_a_load_wait,
+                mem_layer_b_load_wait
+            );
+        end
+    end
+
+`endif
+
     initial begin : run
         int unsigned cycles;
         int signed q, best, prediction;
@@ -214,6 +709,118 @@ module resnet8_npu_tb;
         if (error)
             $fatal(1, "ResNet inference ERROR after %0d cycles",
                    cycles);
+
+
+`ifdef NPU_PERF_ENABLE
+
+        $display(
+            "PERF_TOTAL,cycles=%0d,executor=%0d,pool=%0d,ar=%0d,read_beats=%0d,aw=%0d,write_beats=%0d,written_bytes=%0d",
+            p_total_cycles,
+            p_executor_cycles,
+            p_pool_cycles,
+            p_ar_transactions,
+            p_r_beats,
+            p_aw_transactions,
+            p_w_beats,
+            p_written_bytes
+        );
+
+        $display(
+            "PERF_WAIT,ar_stall=%0d,r_wait=%0d,aw_stall=%0d,w_stall=%0d,b_wait=%0d",
+            p_ar_stall_cycles,
+            p_r_wait_cycles,
+            p_aw_stall_cycles,
+            p_w_stall_cycles,
+            p_b_wait_cycles
+        );
+
+        if (p_r_beats != 64'(reads_q))
+            $fatal(
+                1,
+                "Read counter mismatch: monitor=%0d TB=%0d",
+                p_r_beats, reads_q
+            );
+
+        if (p_w_beats != 64'(writes_q))
+            $fatal(
+                1,
+                "Write counter mismatch: monitor=%0d TB=%0d",
+                p_w_beats, writes_q
+            );
+
+        $display("PERF_COUNTER_CHECK,PASS");
+
+`endif
+
+
+`ifdef NPU_PERF_ENABLE
+        $display(
+            "PERF_COMPUTE_TOTAL,mac=%0d,active_cycles=%0d,tile_starts=%0d,tile_dones=%0d,capacity=%0d,layer_mac_sum=%0d",
+            perf_mac_total,
+            perf_active_cycles_total,
+            perf_tile_starts_total,
+            perf_tile_dones_total,
+            perf_mac_capacity_total,
+            perf_mac_layer_sum
+        );
+
+        if (perf_mac_total != perf_mac_layer_sum)
+            $fatal(
+                1,
+                "Compute MAC layer sum mismatch: total=%0d layers=%0d",
+                perf_mac_total, perf_mac_layer_sum
+            );
+
+        if (perf_tile_starts_total != perf_tile_dones_total)
+            $fatal(
+                1,
+                "Matrix tile start/done mismatch: %0d/%0d",
+                perf_tile_starts_total,
+                perf_tile_dones_total
+            );
+
+        if (perf_mac_total > perf_mac_capacity_total)
+            $fatal(
+                1,
+                "PE MAC count exceeds array capacity"
+            );
+
+        $display("PERF_COMPUTE_CHECK,PASS");
+`endif
+
+
+`ifdef NPU_PERF_ENABLE
+
+        $display(
+            "PERF_MEMORY_TOTAL,core=%0d,dma=%0d,overlap=%0d,axi_overlap=%0d,a_compute_wait=%0d,b_compute_wait=%0d,a_load_wait=%0d,b_load_wait=%0d",
+            mem_core_cycles,
+            mem_dma_cycles,
+            mem_overlap_cycles,
+            mem_axi_overlap_beats,
+            mem_a_compute_wait,
+            mem_b_compute_wait,
+            mem_a_load_wait,
+            mem_b_load_wait
+        );
+
+        if (mem_overlap_cycles > mem_core_cycles ||
+            mem_overlap_cycles > mem_dma_cycles)
+            $fatal(1, "Invalid DMA/compute overlap count");
+
+        if (mem_axi_overlap_beats > p_r_beats)
+            $fatal(1, "Invalid AXI overlap beats");
+
+        if (mem_layer_core_sum != mem_core_cycles ||
+            mem_layer_dma_sum != mem_dma_cycles ||
+            mem_layer_overlap_sum != mem_overlap_cycles)
+            $fatal(
+                1,
+                "Memory layer/global counter mismatch"
+            );
+
+        $display("PERF_MEMORY_CHECK,PASS");
+
+`endif
 
         best = -129;
         prediction = -1;

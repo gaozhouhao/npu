@@ -130,9 +130,10 @@ def compare_layer(index, layer, golden, rtl):
 
         result["first_mismatches"].append({
             "flat_index": p,
-            "coords": list(
+            "coords": [
+                int(x) for x in
                 np.unravel_index(p, golden.shape)
-            ),
+            ],
             "golden": int(golden64.flat[p]),
             "rtl": int(rtl64.flat[p]),
             "diff": int(diff.flat[p]),
