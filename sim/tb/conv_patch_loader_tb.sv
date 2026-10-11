@@ -60,6 +60,7 @@ module conv_patch_loader_tb;
     logic read_pending_q;
     logic read_done_q;
     logic [63:0] read_addr_q;
+    logic [31:0] read_beats_left_q;
 
     logic scoreboard_clear;
     logic [31:0] write_count_q;
@@ -90,6 +91,7 @@ module conv_patch_loader_tb;
         .stride_w         (stride_w),
         .pad_top          (pad_top),
         .pad_left         (pad_left),
+        .pad_zero_point   (8'sd0),
         .output_w         (output_w),
         .output_positions (output_positions),
         .m_start          (m_start),
@@ -154,7 +156,8 @@ module conv_patch_loader_tb;
         !read_pending_q && !read_done_q;
 
     assign rd_data_valid = read_pending_q;
-    assign rd_data_last = read_pending_q;
+    assign rd_data_last =
+        read_pending_q && (read_beats_left_q == 32'd1);
 
     assign rd_data =
         memory[int'(read_addr_q >> 2)];
@@ -167,14 +170,15 @@ module conv_patch_loader_tb;
             read_pending_q <= 1'b0;
             read_done_q <= 1'b0;
             read_addr_q <= '0;
+            read_beats_left_q <= '0;
         end else begin
 
             read_done_q <= 1'b0;
 
             if (rd_req_valid && rd_req_ready) begin
 
-                if (rd_req_beats != 32'd1)
-                    $fatal(1, "Invalid beat count");
+                if (rd_req_beats == 32'd0)
+                    $fatal(1, "Zero-length read request");
 
                 if (rd_req_addr >= 64'(MEMORY_WORDS * 4))
                     $fatal(1, "Read address out of range");
@@ -182,7 +186,15 @@ module conv_patch_loader_tb;
                 if (rd_req_addr[1:0] != 2'b00)
                     $fatal(1, "Unaligned read");
 
+                if (
+                    rd_req_addr + 64'(rd_req_beats) * 64'd4 >
+                    64'(MEMORY_WORDS * 4)
+                ) begin
+                    $fatal(1, "Read burst out of range");
+                end
+
                 read_addr_q <= rd_req_addr;
+                read_beats_left_q <= rd_req_beats;
                 read_pending_q <= 1'b1;
 
             end
@@ -192,8 +204,14 @@ module conv_patch_loader_tb;
                 if (read_addr_q >= 64'(MEMORY_WORDS * 4))
                     $fatal(1, "Invalid response address");
 
-                read_pending_q <= 1'b0;
-                read_done_q <= 1'b1;
+                if (read_beats_left_q == 32'd1) begin
+                    read_pending_q <= 1'b0;
+                    read_beats_left_q <= '0;
+                    read_done_q <= 1'b1;
+                end else begin
+                    read_addr_q <= read_addr_q + 64'd4;
+                    read_beats_left_q <= read_beats_left_q - 32'd1;
+                end
 
             end
 

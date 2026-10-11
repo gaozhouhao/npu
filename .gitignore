@@ -12,6 +12,8 @@ reports/
 # Python
 __pycache__/
 *.pyc
+.pytest_cache/
+.coverage
 
 # Editor / OS
 .vscode/
@@ -23,3 +25,12 @@ __pycache__/
 *.swp
 *~
 .venv/
+
+# Local model inputs and datasets (source code under models/ is not ignored)
+/datasets/
+/models/**/*.h5
+/models/**/*.tflite
+
+# One-time integration packages and source snapshots
+/resnet8_hw_v*.zip
+*.sv.before_*

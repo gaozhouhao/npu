@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-MODEL="${1:-models/pretrainedResnet_quant.tflite}"
+MODEL="${1:-models/resnet8/pretrainedResnet_quant.tflite}"
 python3 scripts/compile_resnet8_tflite.py "$MODEL" --output build/resnet8_model
 python3 - <<'PY' >build/resnet8_model/runtime.env
 import json

@@ -1,66 +1,102 @@
-# ResNet-8 / MLPerf Tiny NPU V1 integration (experimental)
+# INT8 NPU
 
-Goal: map the official quantized `pretrainedResnet_quant.tflite` graph to the existing 4x4 INT8 NPU. Keep the GEMM array, C partial-sum SRAM and Parameter Slot Bank unchanged.
+SystemVerilog 4x4 INT8 systolic-array NPU with Verilator simulation. The
+current execution path supports tiled GEMM/Conv2D, bias and per-channel
+requantization, pooling/global average pooling, residual ADD, and fully
+connected layers. The repository also retains the PSUM and multi-K A-reuse
+experiments and their focused regressions.
 
-**Status: NOT COMPILED OR SIMULATED IN THE USER'S CURRENT LOCAL REPO.** Python scripts pass syntax compilation. The package contains source modifications and a first functional mapping; it does **not** claim bit-exact TFLite or confirmed classification accuracy. This is not a final verified ResNet solution.
+## Repository layout
 
-## Files
+```text
+rtl/compute/   PE array, matrix engine, postprocess and pooling
+rtl/core/      command, scheduling, GEMM execution and performance monitor
+rtl/dma/       AXI masters and operand/parameter/writeback data paths
+rtl/memory/    scratchpads, operand buffers and PSUM SRAM
+sim/tb/        module, integration, experiment and end-to-end testbenches
+sim/golden/    small software golden models
+compiler/      MNIST model compiler and artifact verification
+scripts/       ResNet-8 compilation, verification and regression entrypoints
+artifacts/     checked-in MNIST deployment images and golden tensors
+models/        local pretrained model inputs (binary models are ignored)
+build/         generated Verilator outputs, logs, dumps and waveforms
+```
 
-- `scripts/integrate_resnet8_quant.py`: fail-closed retrofit of asymmetric Conv/FC: zero point in 4-word per-channel global header, nonzero padding, output zero point, SAME flag.
-- `rtl/core/residual_add_engine.sv`: serialized DDR elementwise INT8 Residual Add; reads two input tensors and writes one output tensor through AXI.
-- `scripts/integrate_residual_add.py`: guarded integration of opcode `0x05` and its AXI path into existing `npu_top.sv`.
-- `scripts/compile_resnet8_tflite.py`: compile graph, weights, parameters, descriptors into DDR image using Python `numpy`, `tflite`.
-- `sim/tb/resnet8_npu_tb.sv`: DDR-backed full-graph NPU testbench; prints first 10 output logits and argmax.
-- `scripts/run_resnet8.sh`: model compilation plus Verilator build with `-Wall` and `-j 4`.
+Generated build products, logs, waveforms, local datasets, Python virtual
+environments and pretrained binary models are intentionally excluded from
+Git. Do not use `make clean` when experiment logs or waveforms under `build/`
+must be retained.
 
-## Install
+## Main regressions
 
-From NPU repository root (`~/npu`):
+The default regression compiles with Verilator `-Wall` and runs the top-level,
+Conv patch, Conv2D and Conv+Pool tests:
 
 ```bash
-# Unpack the ZIP at repo root, preserving directory paths.
-unzip resnet8_hw_v1.zip
-python3 scripts/integrate_resnet8_quant.py
-python3 scripts/integrate_residual_add.py
-python3 -m pip install numpy tflite
-mkdir -p models
-# Save the official model to models/pretrainedResnet_quant.tflite:
-# https://github.com/mlcommons/tiny/blob/master/benchmark/training/image_classification/trained_models/pretrainedResnet_quant.tflite
-bash scripts/run_resnet8.sh models/pretrainedResnet_quant.tflite
+make regression
 ```
 
-Both integration scripts check **all matching source patterns before writing** and write `.before_resnet8` / `.before_residual_add` backups. They do not overwrite unrelated local source code on purpose. If your unpublished local top-level changes differ, a pattern check may fail: do not bypass the check; adapt the script to the actual local code.
+The parameter-slot/PSUM/A-reuse stress test runs all three configurations:
 
-`run_resnet8.sh` defaults to a zero-valued real-domain image. To use a CIFAR-10 image, supply `--input-npy` to `scripts/compile_resnet8_tflite.py` (uint8 `[32,32,3]`), then run the Verilator binary with `+DDR_HEX` and descriptor/logit addresses from the JSON manifest.
-
-## Descriptor ABI
-
-- `0x01`: GEMM/FC with flags bits `0=Bias`, `1=Requant`, `2=ReLU`, `3=Per-channel`.
-- `0x02`: Conv with the above flags, plus bit `4=SAME` (supports asymmetric trailing padding).
-- `0x04`: Global Average Pool (must already exist in local NPU).
-- `0x05`: Residual Add, flags bit0=Fused ReLU, `cfg_m=element count`, `cfg_a_base`, `cfg_b_base`, `cfg_c_base`, `cfg_param0/1=parameter address`.
-
-Per-channel Conv/FC parameter format:
-
-```
-+00 multiplier_legacy_unused = 0 (u32)
-+04 shift_legacy_unused = 0      (u32)
-+08 input_zero_point            (signed i32)
-+12 output_zero_point           (signed i32)
-+16 channel0_bias               (signed i32; includes -Zin*sum(weights))
-+20 channel0_multiplier         (u32)
-+24 channel0_shift              (u32)
-+28 channel1_bias ...
+```bash
+bash scripts/run_param_slot_stress.sh
 ```
 
-Residual Add parameter format: `[ZA, ZB, ZOUT, MULT_A, MULT_B, COMMON_SHIFT]`, 6 signed/unsigned 32-bit words. Arithmetic approximates `(A-ZA)*SA/SOUT + (B-ZB)*SB/SOUT + ZOUT`, using a common right shift. Model compiler chooses multiplier integers.
+Additional focused testbenches under `sim/tb/` cover the PE, matrix engine,
+GEMM core/executor, DMA path, scheduler, postprocess, pooling, per-channel
+parameters and experimental dataflows. They are independent verification
+entrypoints even when they are not part of the default Make target.
 
-## Limitations and verification to complete
+## ResNet-8 end-to-end flow
 
-1. The current NPU round-to-nearest-ties-away arithmetic can differ by +/-1 from TFLite exact reference rounding. No bit-exact TFLite validation is claimed.
-2. `ResidualAdd` uses serialized AXI transactions, not an optimized streaming or burst DMA. This is intentional for first full-graph functional execution.
-3. `Softmax` is skipped for classification `argmax` only, not for producing numerical probability outputs.
-4. Initial memory image uses a placeholder input unless supplied a `uint8` CIFAR image. Passing `top1` output alone does not prove model accuracy.
-5. The scripts assume the successful local **per-channel Parameter Slot integration** from the prior tests. GlobalAvg opcode `0x04` must be integrated locally.
-6. The `run_resnet8.sh` simulation should be treated as an integration diagnostic. If it fails to compile, preserve the *first* `-Wall` diagnostic and the source; no warnings should be disabled.
-7. Confirm all TFLite operator options are in the supported subset (actual official model observed Conv `SAME`, activation `NONE/RELU`, ADD fused `RELU`).
+Place the quantized model at
+`models/resnet8/pretrainedResnet_quant.tflite`, then run:
+
+```bash
+bash scripts/run_resnet8.sh
+```
+
+The compiler emits the DDR image and descriptor manifest below `build/`, and
+the testbench executes the complete quantized graph: Conv, residual ADD,
+global average pooling and FC. It can also dump final DDR for layer-by-layer
+comparison with TFLite.
+
+For the performance regression:
+
+```bash
+bash scripts/run_resnet8_perf.sh
+python3 scripts/report_resnet8_perf.py
+```
+
+`NPU_PERF_ENABLE` connects the synthesizable total/layer and AXI counters and
+enables testbench-only PE utilization and core/DMA overlap probes. Performance
+reports are generated from `build/resnet8_perf/perf.log`; the reporting script
+does not alter RTL behavior.
+
+The current reference input produces:
+
+| Metric | Baseline |
+|---|---:|
+| Top-1 | 0 |
+| Total cycles | 1,828,229 |
+| Matrix tiles | 6,659 |
+| Executed MACs | 12,504,064 |
+| AXI read beats | 1,279,718 |
+| AXI write beats | 28,700 |
+
+These values are regression guards for accidental behavior changes, not a
+constraint on deliberate future optimization.
+
+## Model and quantization tools
+
+- `scripts/compile_resnet8_tflite.py` compiles the supported quantized TFLite
+  graph into descriptors, weights, parameters and a DDR image.
+- `scripts/verify_resnet8.py`, `verify_resnet8_layers.py` and
+  `verify_resnet8_cifar10.py` compare RTL results with the TFLite reference.
+- `scripts/audit_resnet8_quant.py`, `check_tflite_kernel.py` and
+  `experiment_requant_precision.py` are standalone quantization/debug tools.
+- `compiler/` contains the earlier MNIST compiler, contract checks and Python
+  regression suite; see `compiler/README.md` for its artifact ABI.
+
+The ResNet-8 flow requires Python packages `numpy` and `tflite`; scripts that
+compare against a live TFLite interpreter additionally require TensorFlow.

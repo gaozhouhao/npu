@@ -6,6 +6,8 @@ if [[ ! -f rtl/core/gemm_executor.sv || ! -f sim/tb/param_slot_stress_npu_tb.sv 
     exit 1
 fi
 
+BUILD_DIR="${BUILD_DIR:-build}"
+
 mapfile -t rtl_files < <(find rtl -type f -name '*.sv' | sort)
 
 for mode in baseline psum a_reuse; do
@@ -23,11 +25,11 @@ for mode in baseline psum a_reuse; do
         -Wall -Wno-TIMESCALEMOD -j 4 \
         "${defines[@]}" \
         --top-module param_slot_stress_npu_tb \
-        --Mdir "build/param_slot_stress_${mode}" \
+        --Mdir "${BUILD_DIR}/param_slot_stress_${mode}" \
         "${rtl_files[@]}" \
         sim/tb/param_slot_stress_npu_tb.sv
 
-    "./build/param_slot_stress_${mode}/Vparam_slot_stress_npu_tb"
+    "${BUILD_DIR}/param_slot_stress_${mode}/Vparam_slot_stress_npu_tb"
 done
 
 echo
