@@ -1243,9 +1243,6 @@ module resnet8_npu_tb;
         if (pipe_total[6] != perf_tile_starts_total)
             $fatal(1, "Pipeline matrix start mismatch");
 
-        if (pipe_total[4] != perf_tile_starts_total)
-            $fatal(1, "Unexpected B loads per tile");
-
         $display("PERF_PIPELINE_CHECK,PASS");
 `endif
 

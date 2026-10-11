@@ -92,10 +92,6 @@ module npu_top #(
     localparam logic [7:0] OP_MAXPOOL = 8'h03;
     localparam logic [7:0] OP_GLOBAL_AVGPOOL = 8'h04;
 
-    // ============================================================
-    // Internal AXI Bundles
-    // ============================================================
-
     typedef struct packed {
         logic [ID_WIDTH-1:0] id;
         logic [ADDR_WIDTH-1:0] addr;
@@ -229,6 +225,7 @@ module npu_top #(
     logic frontend_same_en;
     logic frontend_per_channel_en;
     logic frontend_multi_k_a_reuse;
+    logic frontend_b_stationary;
 
     logic [31:0] conv_input_h;
     logic [31:0] conv_input_w;
@@ -261,6 +258,7 @@ module npu_top #(
     assign frontend_same_en = frontend_cmd_flags[4];
     assign frontend_per_channel_en = frontend_cmd_flags[3];
     assign frontend_multi_k_a_reuse = frontend_cmd_flags[5];
+    assign frontend_b_stationary = frontend_cmd_flags[6];
 
     assign conv_mode = (frontend_cmd_opcode == OP_CONV);
 
@@ -286,7 +284,15 @@ module npu_top #(
         {24'd0, frontend_cfg_c_stride[31:24]};
 
     assign common_flags_valid =
-        frontend_cmd_flags[23:6] == 18'd0 &&
+        (frontend_cmd_flags[23:7] == 17'd0) &&
+        !(frontend_multi_k_a_reuse && frontend_b_stationary) &&
+        (
+            !frontend_b_stationary ||
+            (
+                frontend_cfg_k != 32'd0 &&
+                frontend_cfg_k <= 32'(K_TILE_SIZE)
+            )
+        ) &&
         (!frontend_same_en || conv_mode) &&
         !(frontend_per_channel_en && !frontend_requant_en) &&
         !(frontend_relu_en && !frontend_requant_en) &&
@@ -334,9 +340,6 @@ module npu_top #(
                     + 64'd1;
         end
 
-        // TFLite SAME may have odd total padding. In that case
-        // pad_top/pad_left encode only the leading edge and the
-        // trailing edge is implicit from the requested output count.
         if (conv_mode && frontend_same_en &&
             conv_stride_h != 32'd0 && conv_stride_w != 32'd0) begin
             conv_hout_calc =
@@ -662,6 +665,7 @@ module npu_top #(
         .cmd_relu_en(frontend_relu_en),
         .cmd_per_channel_en(frontend_per_channel_en),
         .cmd_multi_k_a_reuse(frontend_multi_k_a_reuse),
+        .cmd_b_stationary(frontend_b_stationary),
         .cmd_param_base(
             ADDR_WIDTH'({
                 frontend_cfg_param1,
@@ -766,8 +770,9 @@ module npu_top #(
     );
 
     // ============================================================
-    // ResNet Residual Add (serialized AXI baseline)
+    // ResNet Residual Add
     // ============================================================
+
     residual_add_engine #(
         .ADDR_WIDTH(ADDR_WIDTH), .ID_WIDTH(ID_WIDTH)
     ) u_residual_add (
@@ -776,7 +781,9 @@ module npu_top #(
         .cmd_a_base(ADDR_WIDTH'(frontend_cfg_a_base)),
         .cmd_b_base(ADDR_WIDTH'(frontend_cfg_b_base)),
         .cmd_c_base(ADDR_WIDTH'(frontend_cfg_c_base)),
-        .cmd_param_base(ADDR_WIDTH'({frontend_cfg_param1, frontend_cfg_param0})),
+        .cmd_param_base(
+            ADDR_WIDTH'({frontend_cfg_param1, frontend_cfg_param0})
+        ),
         .cmd_elements(frontend_cfg_m),
         .cmd_relu(frontend_cmd_flags[0]),
         .busy(add_busy), .done(add_done), .error(add_error),
@@ -944,6 +951,7 @@ module npu_top #(
 
     assign add_b =
         add_active_q ? {m_axi_bid, m_axi_bresp, m_axi_bvalid} : '0;
+
     assign m_axi_bready =
         add_active_q ? add_bready :
         (pool_active_q ? pool_bready : exec_bready);
@@ -979,18 +987,6 @@ module npu_top #(
         )
             error <= 1'b1;
     end
-
-    // ============================================================
-    // Performance Monitor
-    //
-    // With NPU_PERF_ENABLE:
-    //   - Outputs are exposed as real module ports.
-    //   - The testbench connects every output explicitly.
-    //   - No unused internal performance wires remain.
-    //
-    // Without NPU_PERF_ENABLE:
-    //   - Original npu_top interface is unchanged.
-    // ============================================================
 
 `ifdef NPU_PERF_ENABLE
 
