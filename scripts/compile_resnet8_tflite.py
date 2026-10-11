@@ -166,6 +166,27 @@ class Compiler:
         desc[10:13] = [int(sa),int(sb),int(sc)]
         desc[13:15] = [param & 0xffffffff, param >> 32]
         self.desc.append(desc)
+
+    @staticmethod
+    def select_dataflow(m, n, k):
+        """Select the execution mode for one GEMM/Conv layer.
+
+        Return (mode_name, descriptor_flag).
+        """
+        pe_cols = 4
+        k_tile_size = 256
+
+        n_tiles = (n + pe_cols - 1) // pe_cols
+        k_tiles = (k + k_tile_size - 1) // k_tile_size
+
+        if n_tiles <= 1:
+            return "OUTPUT_STATIONARY", 0
+
+        if k_tiles <= 1:
+            return "OUTPUT_STATIONARY_A_REUSE", 0
+
+        return "N_BLOCKED_A_REUSE_PSUM", (1 << 5)
+
     def compile_conv_or_fc(self, op, kind):
         ids = [int(op.Inputs(i)) for i in range(op.InputsLength())]
         output_id = int(op.Outputs(0))
@@ -256,10 +277,16 @@ class Compiler:
             parambuf+=words(biasc,mul,shift)
         paddr=self.mem.put(parambuf)
         caddr=self.output_addr(output_id)
+
+        dataflow, dataflow_flag = self.select_dataflow(
+            m, padded_n, k
+        )
+        flags |= dataflow_flag
+
         self.encode(opcode,flags,m,padded_n,k,self.address[src],baddr,caddr,sa,sb,sc,paddr)
         self.layers.append({'opcode':kind.upper(),'input':src,'output':output_id,
                             'shape':tensor_shape(ty),'a':self.address[src],
-                            'b':baddr,'c':caddr,'params':paddr,'flags':flags,
+                            'b':baddr,'c':caddr,'params':paddr,'flags':flags,'dataflow':dataflow,
                             'input_zp':input_zp,'output_zp':out_zp})
     def compile_add(self,op):
         a,b=int(op.Inputs(0)),int(op.Inputs(1))
