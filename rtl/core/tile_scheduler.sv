@@ -9,57 +9,49 @@ module tile_scheduler #(
     input logic clk,
     input logic reset,
 
-    // Command
     input logic start,
     input logic enable_multi_k_a_reuse,
     input logic enable_b_stationary,
+
     input logic [TILE_COUNT_WIDTH-1:0] m_tile_count,
     input logic [TILE_COUNT_WIDTH-1:0] n_tile_count,
     input logic [TILE_COUNT_WIDTH-1:0] k_tile_count,
     input logic [K_SIZE_WIDTH-1:0] last_k_size,
 
-    // A loading
     output logic a_load_req,
-    input  logic a_load_accept,
-    input  logic a_load_done,
+    input logic a_load_accept,
+    input logic a_load_done,
 
-    // B loading
     output logic b_load_req,
-    input  logic b_load_accept,
-    input  logic b_load_done,
+    input logic b_load_accept,
+    input logic b_load_done,
 
-    // Load coordinates
     output logic [TILE_COUNT_WIDTH-1:0] load_m_tile_idx,
     output logic [TILE_COUNT_WIDTH-1:0] load_n_tile_idx,
     output logic [TILE_COUNT_WIDTH-1:0] load_k_tile_idx,
     output logic [K_SIZE_WIDTH-1:0] load_k_size,
 
-    // A compute bank
     output logic a_compute_req,
-    input  logic a_compute_grant,
+    input logic a_compute_grant,
     output logic a_compute_done,
     output logic a_release_bank,
 
-    // B compute bank
     output logic b_compute_req,
-    input  logic b_compute_grant,
+    input logic b_compute_grant,
     output logic b_compute_done,
     output logic b_release_bank,
 
-    // Matrix engine
     output logic matrix_start,
-    input  logic matrix_done,
-    input  logic writeback_done,
+    input logic matrix_done,
+    input logic writeback_done,
 
     output logic clear_acc,
     output logic writeback_en,
     output logic [K_SIZE_WIDTH-1:0] compute_k_size,
 
-    // Compute coordinates
     output logic [TILE_COUNT_WIDTH-1:0] compute_m_tile_idx,
     output logic [TILE_COUNT_WIDTH-1:0] compute_n_tile_idx,
 
-    // Status
     output logic busy,
     output logic done
 );
@@ -85,19 +77,13 @@ module tile_scheduler #(
     load_state_t load_state;
     compute_state_t compute_state;
 
-    // ============================================================
-    // Locked command
-    // ============================================================
-
     logic [TILE_COUNT_WIDTH-1:0] m_tile_count_q;
     logic [TILE_COUNT_WIDTH-1:0] n_tile_count_q;
     logic [TILE_COUNT_WIDTH-1:0] k_tile_count_q;
-
     k_size_t last_k_size_q;
 
     logic active_q;
     logic done_q;
-
     logic b_stationary_q;
     logic multi_k_a_reuse_q;
 
@@ -122,7 +108,7 @@ module tile_scheduler #(
     logic policy_a_reuse_enabled;
 
     // ============================================================
-    // A residency tag: A(M,K)
+    // A residency: A(M,K)
     // ============================================================
 
     logic resident_a_valid_q;
@@ -130,10 +116,11 @@ module tile_scheduler #(
     logic [TILE_COUNT_WIDTH-1:0] resident_a_k_q;
 
     // ============================================================
-    // B residency tag: B(K=0,N)
+    // B residency: B(N), K_tiles=1
     //
-    // B-stationary is enabled only when K tile count = 1.
-    // Hence N is sufficient to identify a resident B tile.
+    // The tag identifies the newest accepted B tile.
+    // During prefetch the old B may still be COMPUTING,
+    // while the new B is LOADING in the other bank.
     // ============================================================
 
     logic resident_b_valid_q;
@@ -152,7 +139,6 @@ module tile_scheduler #(
 
     logic a_load_issued_q;
     logic b_load_issued_q;
-
     logic a_load_finished_q;
     logic b_load_finished_q;
 
@@ -162,7 +148,7 @@ module tile_scheduler #(
     logic b_load_done_effective;
 
     // ============================================================
-    // One-entry ready queue
+    // Ready queue
     // ============================================================
 
     logic ready_valid_q;
@@ -221,7 +207,7 @@ module tile_scheduler #(
     );
 
     // ============================================================
-    // Tile coordinates
+    // Coordinates
     // ============================================================
 
     assign load_m_tile_idx = load_m_q;
@@ -234,7 +220,10 @@ module tile_scheduler #(
     assign load_k_size =
         (
             (k_tile_count_q != '0) &&
-            (load_k_q == (k_tile_count_q - TILE_COUNT_WIDTH'(1)))
+            (
+                load_k_q ==
+                (k_tile_count_q - TILE_COUNT_WIDTH'(1))
+            )
         )
             ? last_k_size_q
             : FULL_K_SIZE;
@@ -242,25 +231,25 @@ module tile_scheduler #(
     assign compute_k_size =
         (
             (k_tile_count_q != '0) &&
-            (compute_k_q == (k_tile_count_q - TILE_COUNT_WIDTH'(1)))
+            (
+                compute_k_q ==
+                (k_tile_count_q - TILE_COUNT_WIDTH'(1))
+            )
         )
             ? last_k_size_q
             : FULL_K_SIZE;
-
-    // ============================================================
-    // Accumulator control
-    //
-    // Multi-K PSUM behavior remains owned by gemm_executor.
-    // ============================================================
 
     assign clear_acc = (compute_k_q == '0);
 
     assign writeback_en =
         (k_tile_count_q != '0) &&
-        (compute_k_q == (k_tile_count_q - TILE_COUNT_WIDTH'(1)));
+        (
+            compute_k_q ==
+            (k_tile_count_q - TILE_COUNT_WIDTH'(1))
+        );
 
     // ============================================================
-    // A load and reuse
+    // A load
     // ============================================================
 
     assign a_load_req =
@@ -276,23 +265,20 @@ module tile_scheduler #(
         a_reuse_q || a_load_done;
 
     // ============================================================
-    // B load and reuse
+    // B load with double-buffer prefetch
     //
-    // On a hit, the existing physical B bank is retained.
-    // No B DMA request is issued.
+    // Unlike the previous version, a valid resident B tag
+    // does not block a miss for the next N tile.
     //
-    // If changing N, wait until the previous resident B
-    // has been released before loading another B.
+    // buffer_manager selects an EMPTY physical bank.
+    // When the current B is COMPUTING, the other bank
+    // can be used for the next B DMA load.
     // ============================================================
 
     assign b_load_req =
         (load_state == LD_REQ) &&
         !b_load_issued_q &&
-        !b_reuse_q &&
-        (
-            !b_stationary_q ||
-            !resident_b_valid_q
-        );
+        !b_reuse_q;
 
     assign b_load_accept_effective =
         b_reuse_q || b_load_accept;
@@ -301,16 +287,23 @@ module tile_scheduler #(
         b_reuse_q || b_load_done;
 
     // ============================================================
-    // Compute bank acquisition
+    // Compute acquisition
     // ============================================================
 
+    // Fast path: issue bank requests as soon as a ready tile
+    // is visible, without spending a cycle only entering
+    // CP_ACQUIRE. The fallback state handles partial grants.
     assign a_compute_req =
-        (compute_state == CP_ACQUIRE) &&
-        !a_acquired_q;
+        (
+            ((compute_state == CP_IDLE) && ready_valid_q) ||
+            (compute_state == CP_ACQUIRE)
+        ) && !a_acquired_q;
 
     assign b_compute_req =
-        (compute_state == CP_ACQUIRE) &&
-        !b_acquired_q;
+        (
+            ((compute_state == CP_IDLE) && ready_valid_q) ||
+            (compute_state == CP_ACQUIRE)
+        ) && !b_acquired_q;
 
     assign matrix_start =
         (compute_state == CP_LAUNCH);
@@ -323,18 +316,10 @@ module tile_scheduler #(
         (compute_state == CP_RUN) &&
         matrix_done;
 
-    // ============================================================
-    // Bank release
-    //
-    // A: use existing tile_policy decision.
-    //
-    // B-stationary:
-    //   intermediate M -> COMPUTING to READY
-    //   last M         -> COMPUTING to EMPTY
-    // ============================================================
-
     assign a_release_bank = policy_release_a;
 
+    // B stays resident across M tiles.
+    // Release only on the last M tile of an N group.
     assign b_release_bank =
         !b_stationary_q ||
         (
@@ -349,11 +334,10 @@ module tile_scheduler #(
     assign done = done_q;
 
     // ============================================================
-    // Main scheduler
+    // Scheduler state
     // ============================================================
 
     always_ff @(posedge clk) begin
-
         if (reset) begin
 
             m_tile_count_q <= '0;
@@ -389,7 +373,6 @@ module tile_scheduler #(
 
             a_load_issued_q <= 1'b0;
             b_load_issued_q <= 1'b0;
-
             a_load_finished_q <= 1'b0;
             b_load_finished_q <= 1'b0;
 
@@ -410,10 +393,6 @@ module tile_scheduler #(
 
             done_q <= 1'b0;
 
-            // ====================================================
-            // Start a new command
-            // ====================================================
-
             if (start && !active_q) begin
 
                 m_tile_count_q <= m_tile_count;
@@ -423,7 +402,6 @@ module tile_scheduler #(
 
                 active_q <= 1'b1;
 
-                // First version: B reuse only for K_tiles=1.
                 b_stationary_q <=
                     enable_b_stationary &&
                     (k_tile_count == TILE_COUNT_WIDTH'(1));
@@ -449,12 +427,10 @@ module tile_scheduler #(
 
                 a_load_issued_q <= 1'b0;
                 b_load_issued_q <= 1'b0;
-
                 a_load_finished_q <= 1'b0;
                 b_load_finished_q <= 1'b0;
 
                 ready_valid_q <= 1'b0;
-
                 compute_state <= CP_IDLE;
 
                 a_acquired_q <= 1'b0;
@@ -462,28 +438,23 @@ module tile_scheduler #(
 
             end else if (active_q) begin
 
-                // =================================================
-                // LOAD PIPELINE
-                // =================================================
+                // ================================================
+                // LOAD FSM
+                // ================================================
 
                 case (load_state)
 
                     LD_IDLE: begin
-
                         if (
                             next_valid_q &&
                             !ready_valid_q
                         ) begin
-
                             load_m_q <= next_m_q;
                             load_n_q <= next_n_q;
                             load_k_q <= next_k_q;
 
-                            // Capture A reuse decision.
                             a_reuse_q <= policy_reuse_a;
 
-                            // B identity depends only on N when
-                            // K_tiles=1.
                             b_reuse_q <=
                                 b_stationary_q &&
                                 resident_b_valid_q &&
@@ -491,7 +462,6 @@ module tile_scheduler #(
 
                             a_load_issued_q <= 1'b0;
                             b_load_issued_q <= 1'b0;
-
                             a_load_finished_q <= 1'b0;
                             b_load_finished_q <= 1'b0;
 
@@ -501,17 +471,10 @@ module tile_scheduler #(
                             next_valid_q <= policy_next_valid;
 
                             load_state <= LD_REQ;
-
                         end
-
                     end
 
                     LD_REQ: begin
-
-                        // -----------------------------------------
-                        // Capture completion pulses even if
-                        // requests were accepted this cycle.
-                        // -----------------------------------------
 
                         if (a_load_done_effective)
                             a_load_finished_q <= 1'b1;
@@ -519,12 +482,7 @@ module tile_scheduler #(
                         if (b_load_done_effective)
                             b_load_finished_q <= 1'b1;
 
-                        // -----------------------------------------
-                        // A load acceptance and resident tag
-                        // -----------------------------------------
-
                         if (a_load_accept_effective) begin
-
                             a_load_issued_q <= 1'b1;
 
                             if (
@@ -532,21 +490,13 @@ module tile_scheduler #(
                                 !a_reuse_q &&
                                 a_load_accept
                             ) begin
-
                                 resident_a_valid_q <= 1'b1;
                                 resident_a_m_q <= load_m_q;
                                 resident_a_k_q <= load_k_q;
-
                             end
-
                         end
 
-                        // -----------------------------------------
-                        // B load acceptance and resident tag
-                        // -----------------------------------------
-
                         if (b_load_accept_effective) begin
-
                             b_load_issued_q <= 1'b1;
 
                             if (
@@ -554,12 +504,9 @@ module tile_scheduler #(
                                 !b_reuse_q &&
                                 b_load_accept
                             ) begin
-
                                 resident_b_valid_q <= 1'b1;
                                 resident_b_n_q <= load_n_q;
-
                             end
-
                         end
 
                         if (
@@ -572,11 +519,8 @@ module tile_scheduler #(
                                 b_load_accept_effective
                             )
                         ) begin
-
                             load_state <= LD_WAIT;
-
                         end
-
                     end
 
                     LD_WAIT: begin
@@ -597,7 +541,6 @@ module tile_scheduler #(
                                 b_load_done_effective
                             )
                         ) begin
-
                             ready_valid_q <= 1'b1;
 
                             ready_m_q <= load_m_q;
@@ -606,14 +549,11 @@ module tile_scheduler #(
 
                             a_load_issued_q <= 1'b0;
                             b_load_issued_q <= 1'b0;
-
                             a_load_finished_q <= 1'b0;
                             b_load_finished_q <= 1'b0;
 
                             load_state <= LD_IDLE;
-
                         end
-
                     end
 
                     default: begin
@@ -622,23 +562,33 @@ module tile_scheduler #(
 
                 endcase
 
-                // =================================================
-                // COMPUTE PIPELINE
-                // =================================================
+                // ================================================
+                // COMPUTE FSM
+                // ================================================
 
                 case (compute_state)
 
                     CP_IDLE: begin
-
                         if (ready_valid_q) begin
-
-                            a_acquired_q <= 1'b0;
-                            b_acquired_q <= 1'b0;
-
-                            compute_state <= CP_ACQUIRE;
-
+                            // The bank managers see compute_req in
+                            // this cycle. If both banks grant, latch
+                            // the tile and skip CP_ACQUIRE entirely.
+                            if (a_compute_grant && b_compute_grant) begin
+                                compute_m_q <= ready_m_q;
+                                compute_n_q <= ready_n_q;
+                                compute_k_q <= ready_k_q;
+                                ready_valid_q <= 1'b0;
+                                a_acquired_q <= 1'b0;
+                                b_acquired_q <= 1'b0;
+                                compute_state <= CP_LAUNCH;
+                            end else begin
+                                // Record either partial grant: a bank
+                                // manager consumes it on this edge.
+                                a_acquired_q <= a_compute_grant;
+                                b_acquired_q <= b_compute_grant;
+                                compute_state <= CP_ACQUIRE;
+                            end
                         end
-
                     end
 
                     CP_ACQUIRE: begin
@@ -659,7 +609,6 @@ module tile_scheduler #(
                                 b_compute_grant
                             )
                         ) begin
-
                             compute_m_q <= ready_m_q;
                             compute_n_q <= ready_n_q;
                             compute_k_q <= ready_k_q;
@@ -670,55 +619,37 @@ module tile_scheduler #(
                             b_acquired_q <= 1'b0;
 
                             compute_state <= CP_LAUNCH;
-
                         end
-
                     end
 
                     CP_LAUNCH: begin
-
                         compute_state <= CP_RUN;
-
                     end
 
                     CP_RUN: begin
-
                         if (matrix_done) begin
-
-                            // -------------------------------------
-                            // A residency release
-                            // -------------------------------------
 
                             if (
                                 policy_a_reuse_enabled &&
                                 policy_release_a
                             ) begin
-
                                 resident_a_valid_q <= 1'b0;
-
                             end
 
-                            // -------------------------------------
-                            // B residency release
+                            // Only invalidate the B tag when the
+                            // completed computation corresponds
+                            // to the tagged B tile.
                             //
-                            // After the final M of current N,
-                            // the physical B bank becomes EMPTY.
-                            // -------------------------------------
-
+                            // If the next B was prefetched,
+                            // its tag must remain valid.
                             if (
                                 b_stationary_q &&
-                                b_release_bank
+                                b_release_bank &&
+                                resident_b_valid_q &&
+                                (resident_b_n_q == compute_n_q)
                             ) begin
-
                                 resident_b_valid_q <= 1'b0;
-
                             end
-
-                            // -------------------------------------
-                            // Preserve the existing ordering
-                            // between matrix completion and
-                            // final C writeback.
-                            // -------------------------------------
 
                             if (
                                 (k_tile_count_q != '0) &&
@@ -730,25 +661,16 @@ module tile_scheduler #(
                                     )
                                 )
                             ) begin
-
-                                compute_state <=
-                                    CP_WAIT_WRITEBACK;
-
+                                compute_state <= CP_WAIT_WRITEBACK;
                             end else begin
-
                                 compute_state <= CP_IDLE;
-
                             end
-
                         end
-
                     end
 
                     CP_WAIT_WRITEBACK: begin
-
                         if (writeback_done)
                             compute_state <= CP_IDLE;
-
                     end
 
                     default: begin
@@ -757,9 +679,9 @@ module tile_scheduler #(
 
                 endcase
 
-                // =================================================
-                // Entire GEMM completion
-                // =================================================
+                // ================================================
+                // Command completion
+                // ================================================
 
                 if (
                     !next_valid_q &&
@@ -767,30 +689,20 @@ module tile_scheduler #(
                     !ready_valid_q &&
                     (compute_state == CP_IDLE)
                 ) begin
-
                     active_q <= 1'b0;
                     done_q <= 1'b1;
-
                 end
 
             end
-
         end
-
     end
 
-    // ============================================================
-    // Parameter checks
-    // ============================================================
-
     initial begin
-
         if (K_TILE_SIZE < 1)
             $fatal(1, "K_TILE_SIZE must be >= 1");
 
         if (TILE_COUNT_WIDTH < 2)
             $fatal(1, "TILE_COUNT_WIDTH must be >= 2");
-
     end
 
 endmodule
