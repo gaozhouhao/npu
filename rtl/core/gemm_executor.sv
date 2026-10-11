@@ -196,6 +196,8 @@ module gemm_executor #(
         (cmd_m == 32'd0) ||
         (cmd_n == 32'd0) ||
         (cmd_k == 32'd0) ||
+        (cmd_conv_mode && (cmd_conv_stride_h == 32'd0)) ||
+        (cmd_conv_mode && (cmd_conv_stride_w == 32'd0)) ||
         (cmd_relu_en && !cmd_requant_en) ||
         (cmd_per_channel_en && !cmd_requant_en) ||
         (cmd_multi_k_a_reuse && cmd_b_stationary) ||
@@ -456,6 +458,83 @@ module gemm_executor #(
     logic c_write_error;
     logic postprocess_ready;
 
+    // Non-PSUM result snapshot and decoupled writeback.
+    typedef enum logic [2:0] {
+        SNAP_IDLE, SNAP_WAIT_PARAMS, SNAP_BEGIN,
+        SNAP_READ_REQ, SNAP_READ_CAPTURE
+    } snap_state_t;
+    snap_state_t snap_state_q;
+    logic [PSUM_ROW_WIDTH-1:0] snap_row_q;
+    logic snapshot_start;
+    logic snapshot_read_en;
+    logic snapshot_row_valid;
+    logic snapshot_row_ready;
+    logic snapshot_done;
+    logic snapshot_capture_ready;
+    logic snapshot_valid;
+    logic snapshot_busy;
+    logic [ADDR_WIDTH-1:0] snapshot_addr;
+    logic [31:0] snapshot_stride;
+    logic snapshot_int8;
+    logic [COLS*ACC_WIDTH-1:0] snapshot_dma_data;
+    logic c_dma_ren;
+    logic [CORE_ADDR_WIDTH-1:0] c_dma_raddr;
+    logic [31:0] perf_overlap_cycles_q;
+    logic [31:0] perf_writeback_cycles_q;
+    logic [31:0] perf_snapshot_wait_cycles_q;
+    logic [31:0] perf_buffer_full_cycles_q;
+    logic [31:0] perf_snapshot_dma_overlap_q;
+    logic [31:0] perf_snapshot_tiles_q;
+    logic [31:0] perf_dma_tiles_q;
+
+    // Operand/compute pipeline instrumentation.
+    logic [31:0] perf_exec_cycles_q;
+    logic [31:0] perf_core_active_q;
+    logic [31:0] perf_operand_busy_q;
+    logic [31:0] perf_operand_compute_overlap_q;
+    logic [31:0] perf_operand_only_q;
+    logic [31:0] perf_compute_only_q;
+    logic [31:0] perf_neither_active_q;
+    logic [31:0] perf_a_load_req_wait_q;
+    logic [31:0] perf_b_load_req_wait_q;
+    logic [31:0] perf_a_acquire_wait_q;
+    logic [31:0] perf_b_acquire_wait_q;
+    logic [31:0] perf_a_load_accept_q;
+    logic [31:0] perf_b_load_accept_q;
+    logic [31:0] perf_a_load_done_q;
+    logic [31:0] perf_b_load_done_q;
+    logic [31:0] perf_matrix_start_q;
+    logic [31:0] perf_operand_no_compute_q;
+
+    // Measurement only: accepts/dones are pulses from the operand read path.
+    // These metrics deliberately do not alter any data or scheduler handshake.
+    logic [31:0] perf_a_latency_sum_q;
+    logic [31:0] perf_b_latency_sum_q;
+    logic [31:0] perf_a_latency_max_q;
+    logic [31:0] perf_b_latency_max_q;
+    logic [31:0] perf_a_inflight_age_q;
+    logic [31:0] perf_b_inflight_age_q;
+    logic perf_a_inflight_q;
+    logic perf_b_inflight_q;
+    logic [31:0] perf_a_pending_idle_q;
+    logic [31:0] perf_b_pending_idle_q;
+    logic [31:0] perf_b_pending_compute_q;
+
+    // Gap is counted between consecutive core_done and matrix_start events.
+    // This includes scheduler, snapshot, PSUM, and operand waits; it is not
+    // solely a memory stall. No final trailing gap is counted.
+    logic perf_gap_active_q;
+    logic [31:0] perf_gap_age_q;
+    logic [31:0] perf_gap_sum_q;
+    logic [31:0] perf_gap_max_q;
+    logic [31:0] perf_gap_count_q;
+    logic [31:0] perf_gap_a_pending_q;
+    logic [31:0] perf_gap_b_pending_q;
+    logic [31:0] perf_gap_operand_busy_q;
+    logic [31:0] perf_gap_writeback_busy_q;
+
+    logic scheduler_finished_q;
+
     // ============================================================
     // Executor status
     // ============================================================
@@ -491,7 +570,9 @@ module gemm_executor #(
         param_axi_done ||
         global_param_request_pending_q ||
         bias_request_pending_q ||
-        final_result_wait_q;
+        final_result_wait_q ||
+        snapshot_busy ||
+        (snap_state_q != SNAP_IDLE);
 
     // ============================================================
     // Tile Scheduler
@@ -540,7 +621,9 @@ module gemm_executor #(
 
         .matrix_start(scheduler_matrix_start),
         .matrix_done(matrix_done_effective),
-        .writeback_done(c_write_done),
+        .writeback_done(
+            use_psum_path ? c_write_done : snapshot_done
+        ),
         .clear_acc(scheduler_clear_acc),
         .writeback_en(scheduler_writeback_en),
 
@@ -1058,7 +1141,8 @@ module gemm_executor #(
         .read_multiplier(bank_multiplier),
         .read_shift(bank_shift),
 
-        .retire_valid(per_channel_en_q && c_write_done),
+        .retire_valid(per_channel_en_q &&
+            (use_psum_path ? c_write_done : snapshot_done)),
         .retire_slot(psum_target_slot),
         .retire_n_tile(compute_n_tile_idx),
         .retire_hit(param_bank_retire_hit)
@@ -1107,6 +1191,369 @@ module gemm_executor #(
     end
 
     // ============================================================
+    // Snapshot final non-PSUM tile after all parameters are ready.
+    // The postprocessed value is stored, eliminating parameter-tag
+    // lifetime dependence during the subsequent AXI writeback.
+    // ============================================================
+
+    assign snapshot_start =
+        (snap_state_q == SNAP_BEGIN) && snapshot_capture_ready;
+    assign snapshot_read_en = (snap_state_q == SNAP_READ_REQ);
+    assign snapshot_row_valid = (snap_state_q == SNAP_READ_CAPTURE);
+
+    // The original core C SRAM has a one-cycle synchronous read.
+    // Read data requested in SNAP_READ_REQ is sampled during
+    // SNAP_READ_CAPTURE, exactly like the original C DMA.
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            snap_state_q <= SNAP_IDLE;
+            snap_row_q <= '0;
+        end else if (cmd_valid && cmd_ready) begin
+            snap_state_q <= SNAP_IDLE;
+            snap_row_q <= '0;
+        end else begin
+            case (snap_state_q)
+                SNAP_IDLE: begin
+                    if (!use_psum_path &&
+                        matrix_done_effective && scheduler_writeback_en)
+                        snap_state_q <= SNAP_WAIT_PARAMS;
+                end
+                SNAP_WAIT_PARAMS: begin
+                    if (postprocess_ready && snapshot_capture_ready)
+                        snap_state_q <= SNAP_BEGIN;
+                end
+                SNAP_BEGIN: begin
+                    if (snapshot_start) begin
+                        snap_row_q <= '0;
+                        snap_state_q <= SNAP_READ_REQ;
+                    end
+                end
+                SNAP_READ_REQ: begin
+                    snap_state_q <= SNAP_READ_CAPTURE;
+                end
+                SNAP_READ_CAPTURE: begin
+                    if (snapshot_row_ready) begin
+                        if (snap_row_q == PSUM_ROW_WIDTH'(ROWS-1))
+                            snap_state_q <= SNAP_IDLE;
+                        else begin
+                            snap_row_q <= snap_row_q + 1'b1;
+                            snap_state_q <= SNAP_READ_REQ;
+                        end
+                    end
+                end
+                default: snap_state_q <= SNAP_IDLE;
+            endcase
+        end
+    end
+
+    c_result_buffer #(
+        .ROWS(ROWS),
+        .COLS(COLS),
+        .ACC_WIDTH(ACC_WIDTH),
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .C_ADDR_WIDTH(CORE_ADDR_WIDTH)
+    ) u_c_result_buffer (
+        .clk(clk),
+        .reset(reset),
+        .clear(cmd_valid && cmd_ready),
+        .capture_start(snapshot_start),
+        .capture_ready(snapshot_capture_ready),
+        .capture_addr(c_tile_addr),
+        .capture_stride_bytes(c_stride_q),
+        .capture_int8_mode(requant_en_q),
+        .capture_row_valid(snapshot_row_valid),
+        .capture_row_ready(snapshot_row_ready),
+        .capture_row_index(snap_row_q),
+        .capture_row_data(c_rdata_write),
+        .capture_done(snapshot_done),
+        .result_valid(snapshot_valid),
+        .result_accept(!use_psum_path && c_write_tile_accept),
+        .result_done(!use_psum_path && c_write_done),
+        .result_addr(snapshot_addr),
+        .result_stride_bytes(snapshot_stride),
+        .result_int8_mode(snapshot_int8),
+        .dma_ren(c_dma_ren && !use_psum_path),
+        .dma_raddr(c_dma_raddr),
+        .dma_rdata(snapshot_dma_data),
+        .busy(snapshot_busy)
+    );
+
+    assign c_ren = use_psum_path ? c_dma_ren : snapshot_read_en;
+    assign c_raddr = use_psum_path
+        ? c_dma_raddr : CORE_ADDR_WIDTH'(snap_row_q);
+
+    // Decoupled completion: computation may finish while the final
+    // result is still waiting for AXI B responses.
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            scheduler_finished_q <= 1'b0;
+            perf_overlap_cycles_q <= '0;
+            perf_writeback_cycles_q <= '0;
+            perf_snapshot_wait_cycles_q <= '0;
+            perf_buffer_full_cycles_q <= '0;
+            perf_snapshot_dma_overlap_q <= '0;
+            perf_snapshot_tiles_q <= '0;
+            perf_dma_tiles_q <= '0;
+            perf_exec_cycles_q <= '0;
+            perf_core_active_q <= '0;
+            perf_operand_busy_q <= '0;
+            perf_operand_compute_overlap_q <= '0;
+            perf_operand_only_q <= '0;
+            perf_compute_only_q <= '0;
+            perf_neither_active_q <= '0;
+            perf_a_load_req_wait_q <= '0;
+            perf_b_load_req_wait_q <= '0;
+            perf_a_acquire_wait_q <= '0;
+            perf_b_acquire_wait_q <= '0;
+            perf_a_load_accept_q <= '0;
+            perf_b_load_accept_q <= '0;
+            perf_a_load_done_q <= '0;
+            perf_b_load_done_q <= '0;
+            perf_matrix_start_q <= '0;
+            perf_operand_no_compute_q <= '0;
+            perf_a_latency_sum_q <= '0;
+            perf_b_latency_sum_q <= '0;
+            perf_a_latency_max_q <= '0;
+            perf_b_latency_max_q <= '0;
+            perf_a_inflight_age_q <= '0;
+            perf_b_inflight_age_q <= '0;
+            perf_a_inflight_q <= 1'b0;
+            perf_b_inflight_q <= 1'b0;
+            perf_a_pending_idle_q <= '0;
+            perf_b_pending_idle_q <= '0;
+            perf_b_pending_compute_q <= '0;
+            perf_gap_active_q <= 1'b0;
+            perf_gap_age_q <= '0;
+            perf_gap_sum_q <= '0;
+            perf_gap_max_q <= '0;
+            perf_gap_count_q <= '0;
+            perf_gap_a_pending_q <= '0;
+            perf_gap_b_pending_q <= '0;
+            perf_gap_operand_busy_q <= '0;
+            perf_gap_writeback_busy_q <= '0;
+        end else begin
+            if (cmd_valid && cmd_ready) begin
+                scheduler_finished_q <= 1'b0;
+                perf_overlap_cycles_q <= '0;
+                perf_writeback_cycles_q <= '0;
+                perf_snapshot_wait_cycles_q <= '0;
+                perf_buffer_full_cycles_q <= '0;
+            perf_snapshot_dma_overlap_q <= '0;
+            perf_snapshot_tiles_q <= '0;
+                perf_dma_tiles_q <= '0;
+                perf_exec_cycles_q <= '0;
+                perf_core_active_q <= '0;
+                perf_operand_busy_q <= '0;
+                perf_operand_compute_overlap_q <= '0;
+                perf_operand_only_q <= '0;
+                perf_compute_only_q <= '0;
+                perf_neither_active_q <= '0;
+                perf_a_load_req_wait_q <= '0;
+                perf_b_load_req_wait_q <= '0;
+                perf_a_acquire_wait_q <= '0;
+                perf_b_acquire_wait_q <= '0;
+                perf_a_load_accept_q <= '0;
+                perf_b_load_accept_q <= '0;
+                perf_a_load_done_q <= '0;
+                perf_b_load_done_q <= '0;
+                perf_matrix_start_q <= '0;
+                perf_operand_no_compute_q <= '0;
+            perf_a_latency_sum_q <= '0;
+            perf_b_latency_sum_q <= '0;
+            perf_a_latency_max_q <= '0;
+            perf_b_latency_max_q <= '0;
+            perf_a_inflight_age_q <= '0;
+            perf_b_inflight_age_q <= '0;
+            perf_a_inflight_q <= 1'b0;
+            perf_b_inflight_q <= 1'b0;
+            perf_a_pending_idle_q <= '0;
+            perf_b_pending_idle_q <= '0;
+            perf_b_pending_compute_q <= '0;
+            perf_gap_active_q <= 1'b0;
+            perf_gap_age_q <= '0;
+            perf_gap_sum_q <= '0;
+            perf_gap_max_q <= '0;
+            perf_gap_count_q <= '0;
+            perf_gap_a_pending_q <= '0;
+            perf_gap_b_pending_q <= '0;
+            perf_gap_operand_busy_q <= '0;
+            perf_gap_writeback_busy_q <= '0;
+            end else if (exec_state == EX_RUN) begin
+                perf_exec_cycles_q <= perf_exec_cycles_q + 1'b1;
+                // Accept -> Done service latency (one in-flight request per
+                // operand stream). Timestamp starts at zero on accept; a
+                // following-cycle done therefore reports one cycle.
+                if (scheduler_a_load_accept) begin
+                    perf_a_inflight_q <= 1'b1;
+                    perf_a_inflight_age_q <= '0;
+                end else if (perf_a_inflight_q) begin
+                    perf_a_inflight_age_q <= perf_a_inflight_age_q + 1'b1;
+                end
+                if (scheduler_a_load_done &&
+                    (perf_a_inflight_q || scheduler_a_load_accept)) begin
+                    perf_a_inflight_q <= 1'b0;
+                    perf_a_latency_sum_q <= perf_a_latency_sum_q +
+                        (scheduler_a_load_accept ? 32'd0 : perf_a_inflight_age_q + 32'd1);
+                    if ((scheduler_a_load_accept ? 32'd0 : perf_a_inflight_age_q + 32'd1)
+                        > perf_a_latency_max_q)
+                        perf_a_latency_max_q <= scheduler_a_load_accept ?
+                            32'd0 : perf_a_inflight_age_q + 32'd1;
+                end
+
+                if (scheduler_b_load_accept) begin
+                    perf_b_inflight_q <= 1'b1;
+                    perf_b_inflight_age_q <= '0;
+                end else if (perf_b_inflight_q) begin
+                    perf_b_inflight_age_q <= perf_b_inflight_age_q + 1'b1;
+                end
+                if (scheduler_b_load_done &&
+                    (perf_b_inflight_q || scheduler_b_load_accept)) begin
+                    perf_b_inflight_q <= 1'b0;
+                    perf_b_latency_sum_q <= perf_b_latency_sum_q +
+                        (scheduler_b_load_accept ? 32'd0 : perf_b_inflight_age_q + 32'd1);
+                    if ((scheduler_b_load_accept ? 32'd0 : perf_b_inflight_age_q + 32'd1)
+                        > perf_b_latency_max_q)
+                        perf_b_latency_max_q <= scheduler_b_load_accept ?
+                            32'd0 : perf_b_inflight_age_q + 32'd1;
+                end
+
+                // Pending-load correlations, not causal proof of stalls.
+                if (!core_busy && perf_a_inflight_q)
+                    perf_a_pending_idle_q <= perf_a_pending_idle_q + 1'b1;
+                if (!core_busy && perf_b_inflight_q)
+                    perf_b_pending_idle_q <= perf_b_pending_idle_q + 1'b1;
+                if (core_busy && perf_b_inflight_q)
+                    perf_b_pending_compute_q <= perf_b_pending_compute_q + 1'b1;
+
+                if (core_done) begin
+                    perf_gap_active_q <= 1'b1;
+                    perf_gap_age_q <= '0;
+                end else if (scheduler_matrix_start && perf_gap_active_q) begin
+                    perf_gap_active_q <= 1'b0;
+                    perf_gap_sum_q <= perf_gap_sum_q + perf_gap_age_q;
+                    perf_gap_count_q <= perf_gap_count_q + 1'b1;
+                    if (perf_gap_age_q > perf_gap_max_q)
+                        perf_gap_max_q <= perf_gap_age_q;
+                end else if (perf_gap_active_q) begin
+                    perf_gap_age_q <= perf_gap_age_q + 1'b1;
+                    if (perf_a_inflight_q)
+                        perf_gap_a_pending_q <= perf_gap_a_pending_q + 1'b1;
+                    if (perf_b_inflight_q)
+                        perf_gap_b_pending_q <= perf_gap_b_pending_q + 1'b1;
+                    if (read_path_busy)
+                        perf_gap_operand_busy_q <= perf_gap_operand_busy_q + 1'b1;
+                    if (c_write_busy)
+                        perf_gap_writeback_busy_q <= perf_gap_writeback_busy_q + 1'b1;
+                end
+
+
+                if (core_busy)
+                    perf_core_active_q <= perf_core_active_q + 1'b1;
+                if (read_path_busy)
+                    perf_operand_busy_q <= perf_operand_busy_q + 1'b1;
+                if (core_busy && read_path_busy)
+                    perf_operand_compute_overlap_q <=
+                        perf_operand_compute_overlap_q + 1'b1;
+                if (read_path_busy && !core_busy)
+                    perf_operand_only_q <= perf_operand_only_q + 1'b1;
+                if (core_busy && !read_path_busy)
+                    perf_compute_only_q <= perf_compute_only_q + 1'b1;
+                if (!core_busy && !read_path_busy)
+                    perf_neither_active_q <= perf_neither_active_q + 1'b1;
+                if (scheduler_a_load_req && !scheduler_a_load_accept)
+                    perf_a_load_req_wait_q <= perf_a_load_req_wait_q + 1'b1;
+                if (scheduler_b_load_req && !scheduler_b_load_accept)
+                    perf_b_load_req_wait_q <= perf_b_load_req_wait_q + 1'b1;
+                if (scheduler_a_compute_req && !scheduler_a_compute_grant)
+                    perf_a_acquire_wait_q <= perf_a_acquire_wait_q + 1'b1;
+                if (scheduler_b_compute_req && !scheduler_b_compute_grant)
+                    perf_b_acquire_wait_q <= perf_b_acquire_wait_q + 1'b1;
+                if (scheduler_a_load_accept)
+                    perf_a_load_accept_q <= perf_a_load_accept_q + 1'b1;
+                if (scheduler_b_load_accept)
+                    perf_b_load_accept_q <= perf_b_load_accept_q + 1'b1;
+                if (scheduler_a_load_done)
+                    perf_a_load_done_q <= perf_a_load_done_q + 1'b1;
+                if (scheduler_b_load_done)
+                    perf_b_load_done_q <= perf_b_load_done_q + 1'b1;
+                if (scheduler_matrix_start)
+                    perf_matrix_start_q <= perf_matrix_start_q + 1'b1;
+                if (scheduler_busy && read_path_busy && !core_busy)
+                    perf_operand_no_compute_q <=
+                        perf_operand_no_compute_q + 1'b1;
+                if (scheduler_done)
+                    scheduler_finished_q <= 1'b1;
+                if (!use_psum_path && snapshot_row_valid && c_write_busy)
+                    perf_snapshot_dma_overlap_q <= perf_snapshot_dma_overlap_q + 1'b1;
+                if (!use_psum_path && snapshot_done)
+                    perf_snapshot_tiles_q <= perf_snapshot_tiles_q + 1'b1;
+                if (!use_psum_path && c_write_tile_accept)
+                    perf_dma_tiles_q <= perf_dma_tiles_q + 1'b1;
+                if (core_busy && c_write_busy)
+                    perf_overlap_cycles_q <= perf_overlap_cycles_q + 1'b1;
+                if (c_write_busy)
+                    perf_writeback_cycles_q <= perf_writeback_cycles_q + 1'b1;
+                if (snap_state_q == SNAP_WAIT_PARAMS ||
+                    snap_state_q == SNAP_BEGIN)
+                    perf_snapshot_wait_cycles_q <= perf_snapshot_wait_cycles_q + 1'b1;
+                if (snap_state_q == SNAP_WAIT_PARAMS &&
+                    !snapshot_capture_ready)
+                    perf_buffer_full_cycles_q <= perf_buffer_full_cycles_q + 1'b1;
+            end
+        end
+    end
+
+`ifdef NPU_PERF_ENABLE
+    // Print exactly once per command, after all writebacks drain.
+    always_ff @(posedge clk) begin
+        if (!reset && (exec_state == EX_DONE) && !error) begin
+            $display(
+                "NPU_DECOUPLED_PERF compute_dma_overlap=%0d writeback=%0d snapshot_wait=%0d buffer_full=%0d snapshot_dma_overlap=%0d snapshots=%0d dma_tiles=%0d",
+                perf_overlap_cycles_q,
+                perf_writeback_cycles_q,
+                perf_snapshot_wait_cycles_q,
+                perf_buffer_full_cycles_q,
+                perf_snapshot_dma_overlap_q,
+                perf_snapshot_tiles_q,
+                perf_dma_tiles_q
+            );
+            $display(
+                "NPU_OPERAND_PERF run=%0d core=%0d operand=%0d overlap=%0d operand_only=%0d compute_only=%0d neither=%0d",
+                perf_exec_cycles_q, perf_core_active_q,
+                perf_operand_busy_q, perf_operand_compute_overlap_q,
+                perf_operand_only_q, perf_compute_only_q,
+                perf_neither_active_q
+            );
+            $display(
+                "NPU_OPERAND_STALL a_load_wait=%0d b_load_wait=%0d a_acquire_wait=%0d b_acquire_wait=%0d operand_no_compute=%0d",
+                perf_a_load_req_wait_q, perf_b_load_req_wait_q,
+                perf_a_acquire_wait_q, perf_b_acquire_wait_q,
+                perf_operand_no_compute_q
+            );
+            $display(
+                "NPU_OPERAND_EVENTS a_accept=%0d b_accept=%0d a_done=%0d b_done=%0d matrix_start=%0d",
+                perf_a_load_accept_q, perf_b_load_accept_q,
+                perf_a_load_done_q, perf_b_load_done_q,
+                perf_matrix_start_q
+            );
+            $display(
+                "NPU_LOAD_LATENCY a_sum=%0d a_max=%0d b_sum=%0d b_max=%0d a_idle_pending=%0d b_idle_pending=%0d b_compute_pending=%0d",
+                perf_a_latency_sum_q, perf_a_latency_max_q,
+                perf_b_latency_sum_q, perf_b_latency_max_q,
+                perf_a_pending_idle_q, perf_b_pending_idle_q,
+                perf_b_pending_compute_q
+            );
+            $display(
+                "NPU_MATRIX_GAP count=%0d sum=%0d max=%0d a_pending=%0d b_pending=%0d operand_busy=%0d writeback_busy=%0d",
+                perf_gap_count_q, perf_gap_sum_q, perf_gap_max_q,
+                perf_gap_a_pending_q, perf_gap_b_pending_q,
+                perf_gap_operand_busy_q, perf_gap_writeback_busy_q
+            );
+        end
+    end
+`endif
+
+    // ============================================================
     // C writeback
     // ============================================================
 
@@ -1122,15 +1569,15 @@ module gemm_executor #(
         .clk(clk),
         .reset(reset),
 
-        .tile_valid(c_tile_pending_q),
+        .tile_valid(use_psum_path ? c_tile_pending_q : snapshot_valid),
         .tile_accept(c_write_tile_accept),
-        .tile_addr(c_tile_addr),
-        .tile_stride_bytes(c_stride_q),
-        .int8_mode(requant_en_q),
+        .tile_addr(use_psum_path ? c_tile_addr : snapshot_addr),
+        .tile_stride_bytes(use_psum_path ? c_stride_q : snapshot_stride),
+        .int8_mode(use_psum_path ? requant_en_q : snapshot_int8),
 
-        .c_ren(c_ren),
-        .c_raddr(c_raddr),
-        .c_rdata(c_rdata_write),
+        .c_ren(c_dma_ren),
+        .c_raddr(c_dma_raddr),
+        .c_rdata(use_psum_path ? c_rdata_write : snapshot_dma_data),
 
         .busy(c_write_busy),
         .done(c_write_done),
@@ -1220,7 +1667,7 @@ module gemm_executor #(
             if (bias_load_done)
                 bias_ready_q <= 1'b1;
 
-            if (matrix_done_effective && scheduler_writeback_en) begin
+            if (use_psum_path && matrix_done_effective && scheduler_writeback_en) begin
                 if (postprocess_ready) begin
                     c_tile_pending_q <= 1'b1;
                     final_result_wait_q <= 1'b0;
@@ -1230,6 +1677,7 @@ module gemm_executor #(
             end
 
             if (
+                use_psum_path &&
                 final_result_wait_q &&
                 postprocess_ready &&
                 !c_tile_pending_q
@@ -1374,13 +1822,20 @@ module gemm_executor #(
                         ) ||
                         (
                             per_channel_en_q &&
-                            c_write_done &&
+                            (use_psum_path ? c_write_done : snapshot_done) &&
                             !param_bank_retire_hit
                         )
                     )
                         error <= 1'b1;
 
-                    if (scheduler_done)
+                    if (
+                        (scheduler_finished_q || scheduler_done) &&
+                        !snapshot_busy &&
+                        (snap_state_q == SNAP_IDLE) &&
+                        !c_write_busy &&
+                        !c_tile_pending_q &&
+                        !final_result_wait_q
+                    )
                         exec_state <= EX_DONE;
                 end
 
