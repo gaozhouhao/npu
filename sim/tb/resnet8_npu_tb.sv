@@ -651,6 +651,360 @@ module resnet8_npu_tb;
 
 `endif
 
+`ifdef NPU_PERF_ENABLE
+
+    // NPU_PERF_DETAIL_V1
+    localparam int V2_EVENTS = 22;
+
+    logic v2_running;
+    logic v2_layer_active;
+    logic v2_read_first_pending;
+    logic [V2_EVENTS-1:0] v2_event;
+    logic [63:0] v2_total [V2_EVENTS];
+    logic [63:0] v2_layer [V2_EVENTS];
+    logic [63:0] v2_completed [V2_EVENTS];
+
+    // 0: axi_ar
+    assign v2_event[0] = arvalid && arready;
+    // 1: axi_r
+    assign v2_event[1] = rvalid && rready;
+    // 2: axi_aw
+    assign v2_event[2] = awvalid && awready;
+    // 3: axi_w
+    assign v2_event[3] = wvalid && wready;
+    // 4: axi_b
+    assign v2_event[4] = bvalid && bready;
+    // 5: axi_r_no_fire
+    assign v2_event[5] = rd_active_q && !(rvalid && rready);
+    // 6: axi_first_wait
+    assign v2_event[6] = v2_read_first_pending && !(rvalid && rready);
+    // 7: core_only
+    assign v2_event[7] = u_dut.u_gemm_executor.core_busy && !u_dut.u_gemm_executor.read_path_busy;
+    // 8: dma_only
+    assign v2_event[8] = u_dut.u_gemm_executor.read_path_busy && !u_dut.u_gemm_executor.core_busy;
+    // 9: core_dma
+    assign v2_event[9] = u_dut.u_gemm_executor.core_busy && u_dut.u_gemm_executor.read_path_busy;
+    // 10: a_load_accept
+    assign v2_event[10] = u_dut.u_gemm_executor.scheduler_a_load_accept;
+    // 11: b_load_accept
+    assign v2_event[11] = u_dut.u_gemm_executor.scheduler_b_load_accept;
+    // 12: a_sram_write
+    assign v2_event[12] = u_dut.u_gemm_executor.a_wen;
+    // 13: b_sram_write
+    assign v2_event[13] = u_dut.u_gemm_executor.b_wen;
+    // 14: c_sram_read
+    assign v2_event[14] = u_dut.u_gemm_executor.c_ren;
+    // 15: psum_busy
+    assign v2_event[15] = u_dut.u_gemm_executor.psum_busy;
+    // 16: writeback_busy
+    assign v2_event[16] = u_dut.u_gemm_executor.c_write_busy;
+    // 17: param_busy
+    assign v2_event[17] = u_dut.u_gemm_executor.param_loader_busy;
+    // 18: a_compute_wait
+    assign v2_event[18] = u_dut.u_gemm_executor.scheduler_a_compute_req && !u_dut.u_gemm_executor.scheduler_a_compute_grant;
+    // 19: b_compute_wait
+    assign v2_event[19] = u_dut.u_gemm_executor.scheduler_b_compute_req && !u_dut.u_gemm_executor.scheduler_b_compute_grant;
+    // 20: a_load_wait
+    assign v2_event[20] = u_dut.u_gemm_executor.a_bank_load_req && !u_dut.u_gemm_executor.a_bank_load_grant;
+    // 21: b_load_wait
+    assign v2_event[21] = u_dut.u_gemm_executor.b_bank_load_req && !u_dut.u_gemm_executor.b_bank_load_grant;
+
+    always @(posedge clk) begin
+        if (reset) begin
+            v2_running <= 1'b0;
+            v2_layer_active <= 1'b0;
+            v2_read_first_pending <= 1'b0;
+            for (int i=0; i<V2_EVENTS; i++) begin
+                v2_total[i] <= '0;
+                v2_layer[i] <= '0;
+                v2_completed[i] <= '0;
+            end
+        end else if (start && !busy) begin
+            v2_running <= 1'b1;
+            v2_layer_active <= 1'b0;
+            v2_read_first_pending <= 1'b0;
+            for (int i=0; i<V2_EVENTS; i++) begin
+                v2_total[i] <= '0;
+                v2_layer[i] <= '0;
+                v2_completed[i] <= '0;
+            end
+        end else begin
+
+            // The current AXI testbench permits
+            // one outstanding read transaction.
+            if (arvalid && arready)
+                v2_read_first_pending <= 1'b1;
+            if (rvalid && rready)
+                v2_read_first_pending <= 1'b0;
+
+            if (v2_running) begin
+                for (int i=0; i<V2_EVENTS; i++) begin
+                    v2_total[i] <= v2_total[i] +
+                        64'(v2_event[i]);
+                end
+            end
+
+            if (u_dut.perf_layer_start) begin
+                v2_layer_active <= 1'b1;
+                for (int i=0; i<V2_EVENTS; i++)
+                    v2_layer[i] <= '0;
+            end else if (v2_layer_active) begin
+                for (int i=0; i<V2_EVENTS; i++)
+                    v2_layer[i] <= v2_layer[i] +
+                        64'(v2_event[i]);
+            end
+
+            if (u_dut.perf_layer_done &&
+                v2_layer_active) begin
+                v2_layer_active <= 1'b0;
+                for (int i=0; i<V2_EVENTS; i++)
+                    v2_completed[i] <= v2_layer[i] +
+                        64'(v2_event[i]);
+            end
+
+            if (done)
+                v2_running <= 1'b0;
+        end
+    end
+
+    always @(negedge clk) begin
+        if (!reset && p_layer_done_pulse) begin
+        $display(
+            "PERF_DETAIL_LAYER,index=%0d,axi_ar=%0d,axi_r=%0d,axi_aw=%0d,axi_w=%0d,axi_b=%0d,axi_r_no_fire=%0d,axi_first_wait=%0d,core_only=%0d,dma_only=%0d,core_dma=%0d,a_load_accept=%0d,b_load_accept=%0d,a_sram_write=%0d,b_sram_write=%0d,c_sram_read=%0d,psum_busy=%0d,writeback_busy=%0d,param_busy=%0d,a_compute_wait=%0d,b_compute_wait=%0d,a_load_wait=%0d,b_load_wait=%0d",
+            p_completed_layer_index,
+            v2_completed[0],
+            v2_completed[1],
+            v2_completed[2],
+            v2_completed[3],
+            v2_completed[4],
+            v2_completed[5],
+            v2_completed[6],
+            v2_completed[7],
+            v2_completed[8],
+            v2_completed[9],
+            v2_completed[10],
+            v2_completed[11],
+            v2_completed[12],
+            v2_completed[13],
+            v2_completed[14],
+            v2_completed[15],
+            v2_completed[16],
+            v2_completed[17],
+            v2_completed[18],
+            v2_completed[19],
+            v2_completed[20],
+            v2_completed[21]
+        );
+        end
+    end
+
+`endif
+
+`ifdef NPU_PERF_ENABLE
+
+    // TILE_PIPELINE_PROBE_V1
+    localparam int PIPE_EVENTS = 12;
+    logic [PIPE_EVENTS-1:0] pipe_event;
+    logic [63:0] pipe_total [PIPE_EVENTS];
+    logic [63:0] pipe_layer [PIPE_EVENTS];
+    logic [63:0] pipe_completed [PIPE_EVENTS];
+    logic pipe_running;
+    logic pipe_layer_active;
+
+    assign pipe_event[0] = u_dut.u_gemm_executor.scheduler_a_load_req;
+    assign pipe_event[1] = u_dut.u_gemm_executor.scheduler_a_load_accept;
+    assign pipe_event[2] = u_dut.u_gemm_executor.scheduler_a_load_done;
+    assign pipe_event[3] = u_dut.u_gemm_executor.scheduler_b_load_req;
+    assign pipe_event[4] = u_dut.u_gemm_executor.scheduler_b_load_accept;
+    assign pipe_event[5] = u_dut.u_gemm_executor.scheduler_b_load_done;
+    assign pipe_event[6] = u_dut.u_gemm_executor.scheduler_matrix_start;
+    assign pipe_event[7] = u_dut.u_gemm_executor.matrix_done_effective;
+    assign pipe_event[8] = u_dut.u_gemm_executor.scheduler_a_load_req && !u_dut.u_gemm_executor.scheduler_a_load_accept;
+    assign pipe_event[9] = u_dut.u_gemm_executor.scheduler_b_load_req && !u_dut.u_gemm_executor.scheduler_b_load_accept;
+    assign pipe_event[10] = u_dut.u_gemm_executor.read_path_busy && !u_dut.u_gemm_executor.core_busy;
+    assign pipe_event[11] = u_dut.u_gemm_executor.read_path_busy && u_dut.u_gemm_executor.core_busy;
+
+    always @(posedge clk) begin
+        if (reset) begin
+            pipe_running <= 1'b0;
+            pipe_layer_active <= 1'b0;
+            for (int i=0; i<PIPE_EVENTS; i++) begin
+                pipe_total[i] <= '0;
+                pipe_layer[i] <= '0;
+                pipe_completed[i] <= '0;
+            end
+        end else if (start && !busy) begin
+            pipe_running <= 1'b1;
+            pipe_layer_active <= 1'b0;
+            for (int i=0; i<PIPE_EVENTS; i++) begin
+                pipe_total[i] <= '0;
+                pipe_layer[i] <= '0;
+                pipe_completed[i] <= '0;
+            end
+        end else begin
+            if (pipe_running) begin
+                for (int i=0; i<PIPE_EVENTS; i++)
+                    pipe_total[i] <= pipe_total[i] +
+                        64'(pipe_event[i]);
+            end
+
+            if (u_dut.perf_layer_start) begin
+                pipe_layer_active <= 1'b1;
+                for (int i=0; i<PIPE_EVENTS; i++)
+                    pipe_layer[i] <= '0;
+            end else if (pipe_layer_active) begin
+                for (int i=0; i<PIPE_EVENTS; i++)
+                    pipe_layer[i] <= pipe_layer[i] +
+                        64'(pipe_event[i]);
+            end
+
+            if (u_dut.perf_layer_done &&
+                pipe_layer_active) begin
+                pipe_layer_active <= 1'b0;
+                for (int i=0; i<PIPE_EVENTS; i++)
+                    pipe_completed[i] <= pipe_layer[i] +
+                        64'(pipe_event[i]);
+            end
+
+            if (done)
+                pipe_running <= 1'b0;
+        end
+    end
+
+    always @(negedge clk) begin
+        if (!reset && p_layer_done_pulse) begin
+        $display(
+            "PERF_PIPELINE_LAYER,index=%0d,a_req=%0d,a_accept=%0d,a_done=%0d,b_req=%0d,b_accept=%0d,b_done=%0d,matrix_start=%0d,matrix_done=%0d,a_req_wait=%0d,b_req_wait=%0d,load_only=%0d,load_compute_overlap=%0d",
+            p_completed_layer_index,
+            pipe_completed[0],
+            pipe_completed[1],
+            pipe_completed[2],
+            pipe_completed[3],
+            pipe_completed[4],
+            pipe_completed[5],
+            pipe_completed[6],
+            pipe_completed[7],
+            pipe_completed[8],
+            pipe_completed[9],
+            pipe_completed[10],
+            pipe_completed[11]
+        );
+        end
+    end
+`endif
+
+
+`ifdef NPU_PERF_ENABLE
+
+    // RESNET8_WINDOWED_WAVEFORM_V2
+    //
+    // Enable with:
+    //   +TRACE_WAVE
+    //   +TRACE_LAYER=5
+    //   +TRACE_CYCLES=12000
+
+    initial begin : waveform_capture
+        int unsigned target_layer;
+        int unsigned window_cycles;
+        int unsigned layer_number;
+        int unsigned recorded_cycles;
+        bit recording;
+
+        target_layer = 5;
+        window_cycles = 12000;
+        layer_number = 0;
+        recorded_cycles = 0;
+        recording = 1'b0;
+
+        if ($test$plusargs("TRACE_WAVE")) begin
+
+            if ($value$plusargs(
+                "TRACE_LAYER=%d", target_layer
+            ))
+                $display(
+                    "TRACE_CONFIG_LAYER=%0d",
+                    target_layer
+                );
+
+            if ($value$plusargs(
+                "TRACE_CYCLES=%d", window_cycles
+            ))
+                $display(
+                    "TRACE_CONFIG_CYCLES=%0d",
+                    window_cycles
+                );
+
+            if (window_cycles == 0)
+                $fatal(1, "TRACE_CYCLES cannot be zero");
+
+            $dumpfile(
+                "build/resnet8_perf/resnet8_window.vcd"
+            );
+
+            $dumpvars(
+                0,
+                u_dut.u_gemm_executor.u_tile_scheduler
+            );
+
+            $dumpvars(
+                0,
+                u_dut.u_gemm_executor.u_read_path
+            );
+
+            $dumpvars(
+                1,
+                u_dut.u_gemm_executor
+            );
+
+            $dumpoff;
+
+            $display(
+                "TRACE_INITIALIZED,target_layer=%0d,cycles=%0d",
+                target_layer,
+                window_cycles
+            );
+
+            wait (!reset);
+
+            forever begin
+                @(negedge clk);
+
+                if (u_dut.perf_layer_start) begin
+                    if (layer_number == target_layer) begin
+                        recording = 1'b1;
+                        recorded_cycles = 0;
+                        $dumpon;
+
+                        $display(
+                            "WAVE_START,layer=%0d,time=%0t",
+                            layer_number,
+                            $time
+                        );
+                    end
+
+                    layer_number++;
+                end
+
+                if (recording) begin
+                    recorded_cycles++;
+
+                    if (recorded_cycles >= window_cycles) begin
+                        recording = 1'b0;
+                        $dumpoff;
+
+                        $display(
+                            "WAVE_STOP,cycles=%0d,time=%0t",
+                            recorded_cycles,
+                            $time
+                        );
+                    end
+                end
+            end
+        end
+    end
+
+`endif
+
     initial begin : run
         int unsigned cycles;
         int signed q, best, prediction;
@@ -820,6 +1174,79 @@ module resnet8_npu_tb;
 
         $display("PERF_MEMORY_CHECK,PASS");
 
+`endif
+
+
+`ifdef NPU_PERF_ENABLE
+        $display(
+            "PERF_DETAIL_TOTAL,axi_ar=%0d,axi_r=%0d,axi_aw=%0d,axi_w=%0d,axi_b=%0d,axi_r_no_fire=%0d,axi_first_wait=%0d,core_only=%0d,dma_only=%0d,core_dma=%0d,a_load_accept=%0d,b_load_accept=%0d,a_sram_write=%0d,b_sram_write=%0d,c_sram_read=%0d,psum_busy=%0d,writeback_busy=%0d,param_busy=%0d,a_compute_wait=%0d,b_compute_wait=%0d,a_load_wait=%0d,b_load_wait=%0d",
+            v2_total[0],
+            v2_total[1],
+            v2_total[2],
+            v2_total[3],
+            v2_total[4],
+            v2_total[5],
+            v2_total[6],
+            v2_total[7],
+            v2_total[8],
+            v2_total[9],
+            v2_total[10],
+            v2_total[11],
+            v2_total[12],
+            v2_total[13],
+            v2_total[14],
+            v2_total[15],
+            v2_total[16],
+            v2_total[17],
+            v2_total[18],
+            v2_total[19],
+            v2_total[20],
+            v2_total[21]
+        );
+
+        if (v2_total[1] != p_r_beats ||
+            v2_total[3] != p_w_beats)
+            $fatal(1, "Detailed AXI beat count mismatch");
+
+        if (v2_total[7] + v2_total[9] !=
+            mem_core_cycles)
+            $fatal(1, "Core activity partition mismatch");
+
+        if (v2_total[8] + v2_total[9] !=
+            mem_dma_cycles)
+            $fatal(1, "DMA activity partition mismatch");
+
+        if (v2_total[9] != mem_overlap_cycles)
+            $fatal(1, "Core/DMA overlap mismatch");
+
+        $display("PERF_DETAIL_CHECK,PASS");
+`endif
+
+
+`ifdef NPU_PERF_ENABLE
+        $display(
+            "PERF_PIPELINE_TOTAL,a_req=%0d,a_accept=%0d,a_done=%0d,b_req=%0d,b_accept=%0d,b_done=%0d,matrix_start=%0d,matrix_done=%0d,a_req_wait=%0d,b_req_wait=%0d,load_only=%0d,load_compute_overlap=%0d",
+            pipe_total[0],
+            pipe_total[1],
+            pipe_total[2],
+            pipe_total[3],
+            pipe_total[4],
+            pipe_total[5],
+            pipe_total[6],
+            pipe_total[7],
+            pipe_total[8],
+            pipe_total[9],
+            pipe_total[10],
+            pipe_total[11]
+        );
+
+        if (pipe_total[6] != perf_tile_starts_total)
+            $fatal(1, "Pipeline matrix start mismatch");
+
+        if (pipe_total[4] != perf_tile_starts_total)
+            $fatal(1, "Unexpected B loads per tile");
+
+        $display("PERF_PIPELINE_CHECK,PASS");
 `endif
 
         best = -129;

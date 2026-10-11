@@ -43,12 +43,26 @@ verilator \
     $(find rtl -type f -name '*.sv' | sort) \
     sim/tb/resnet8_npu_tb.sv
 
+
+# Waveform tracing is disabled by default.
+TRACE_ARGS=()
+
+if [[ "${TRACE_WAVE:-0}" == "1" ]]; then
+    TRACE_ARGS=(
+        "+TRACE_WAVE"
+        "+TRACE_LAYER=${TRACE_LAYER:-5}"
+        "+TRACE_CYCLES=${TRACE_CYCLES:-12000}"
+    )
+fi
+
 "$OUTDIR/obj_dir/Vresnet8_npu_tb" \
     "+DDR_HEX=$OUTDIR/model/ddr.hex" \
     "+DESC_BASE=$DESC_BASE" \
     "+DESC_COUNT=$DESC_COUNT" \
     "+LOGITS_BASE=$LOGITS_BASE" \
+    "${TRACE_ARGS[@]}" \
     | tee "$OUTDIR/perf.log"
+
 
 echo
 echo "Performance log: $OUTDIR/perf.log"
