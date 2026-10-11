@@ -15,7 +15,8 @@ module resnet8_npu_tb;
     logic [1:0] arburst,awburst,rresp,bresp;
     logic arvalid,arready,rlast,rvalid,rready;
     logic awvalid,awready,wlast,wvalid,wready,bvalid,bready;
-    logic [31:0] rdata,wdata;
+    logic [63:0] rdata;
+    logic [31:0] wdata;
     logic [3:0] wstrb;
 
     logic [31:0] init_mem [0:MEM_WORDS-1];
@@ -115,7 +116,10 @@ module resnet8_npu_tb;
     assign arready = !rd_active_q;
     assign rid = rd_id_q;
     assign rvalid = rd_active_q;
-    assign rdata = mem[int'(rd_addr_q >> 2)];
+    assign rdata = {
+        mem[int'(rd_addr_q >> 2) + 1],
+        mem[int'(rd_addr_q >> 2)]
+    };
     assign rresp = 2'b00;
     assign rlast = rd_left_q == 9'd1;
 
@@ -128,8 +132,8 @@ module resnet8_npu_tb;
             reads_q <= '0;
         end else begin
             if (arvalid && arready) begin
-                if (arsize != 3'd2 || arburst != 2'b01 ||
-                    araddr[1:0] != 2'b00 ||
+                if (arsize != 3'd3 || arburst != 2'b01 ||
+                    araddr[2:0] != 3'b000 ||
                     araddr >= 64'(MEM_WORDS * 4))
                     $fatal(1, "Bad AXI AR addr=%h size=%d",
                            araddr, arsize);
@@ -144,7 +148,7 @@ module resnet8_npu_tb;
                 if (rlast)
                     rd_active_q <= 1'b0;
                 else begin
-                    rd_addr_q <= rd_addr_q + 64'd4;
+                    rd_addr_q <= rd_addr_q + 64'd8;
                     rd_left_q <= rd_left_q - 9'd1;
                 end
             end

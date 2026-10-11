@@ -33,7 +33,7 @@ module npu_top #(
     input  logic m_axi_arready,
 
     input  logic [ID_WIDTH-1:0] m_axi_rid,
-    input  logic [MEM_WORD_WIDTH-1:0] m_axi_rdata,
+    input  logic [63:0] m_axi_rdata,
     input  logic [1:0] m_axi_rresp,
     input  logic m_axi_rlast,
     input  logic m_axi_rvalid,
@@ -806,6 +806,61 @@ module npu_top #(
     );
 
     // ============================================================
+
+    // Internal AXI32 side of the external AXI64 adapter.
+    logic [ID_WIDTH-1:0] axi32_arid;
+    logic [ADDR_WIDTH-1:0] axi32_araddr;
+    logic [7:0] axi32_arlen;
+    logic [2:0] axi32_arsize;
+    logic [1:0] axi32_arburst;
+    logic axi32_arvalid;
+    logic axi32_arready;
+
+    logic [ID_WIDTH-1:0] axi32_rid;
+    logic [31:0] axi32_rdata;
+    logic [1:0] axi32_rresp;
+    logic axi32_rlast;
+    logic axi32_rvalid;
+    logic axi32_rready;
+
+    axi_read_32to64 #(
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .ID_WIDTH(ID_WIDTH)
+    ) u_axi_read_32to64 (
+        .clk(clk),
+        .reset(reset),
+
+        .s_arid(axi32_arid),
+        .s_araddr(axi32_araddr),
+        .s_arlen(axi32_arlen),
+        .s_arsize(axi32_arsize),
+        .s_arburst(axi32_arburst),
+        .s_arvalid(axi32_arvalid),
+        .s_arready(axi32_arready),
+
+        .s_rid(axi32_rid),
+        .s_rdata(axi32_rdata),
+        .s_rresp(axi32_rresp),
+        .s_rlast(axi32_rlast),
+        .s_rvalid(axi32_rvalid),
+        .s_rready(axi32_rready),
+
+        .m_arid(m_axi_arid),
+        .m_araddr(m_axi_araddr),
+        .m_arlen(m_axi_arlen),
+        .m_arsize(m_axi_arsize),
+        .m_arburst(m_axi_arburst),
+        .m_arvalid(m_axi_arvalid),
+        .m_arready(m_axi_arready),
+
+        .m_rid(m_axi_rid),
+        .m_rdata(m_axi_rdata),
+        .m_rresp(m_axi_rresp),
+        .m_rlast(m_axi_rlast),
+        .m_rvalid(m_axi_rvalid),
+        .m_rready(m_axi_rready)
+    );
+
     // Shared AXI Read Mux
     // ============================================================
 
@@ -866,19 +921,19 @@ module npu_top #(
         .gemm_rvalid(selected_r.valid),
         .gemm_rready(selected_rready),
 
-        .m_axi_arid(m_axi_arid),
-        .m_axi_araddr(m_axi_araddr),
-        .m_axi_arlen(m_axi_arlen),
-        .m_axi_arsize(m_axi_arsize),
-        .m_axi_arburst(m_axi_arburst),
-        .m_axi_arvalid(m_axi_arvalid),
-        .m_axi_arready(m_axi_arready),
-        .m_axi_rid(m_axi_rid),
-        .m_axi_rdata(m_axi_rdata),
-        .m_axi_rresp(m_axi_rresp),
-        .m_axi_rlast(m_axi_rlast),
-        .m_axi_rvalid(m_axi_rvalid),
-        .m_axi_rready(m_axi_rready)
+        .m_axi_arid(axi32_arid),
+        .m_axi_araddr(axi32_araddr),
+        .m_axi_arlen(axi32_arlen),
+        .m_axi_arsize(axi32_arsize),
+        .m_axi_arburst(axi32_arburst),
+        .m_axi_arvalid(axi32_arvalid),
+        .m_axi_arready(axi32_arready),
+        .m_axi_rid(axi32_rid),
+        .m_axi_rdata(axi32_rdata),
+        .m_axi_rresp(axi32_rresp),
+        .m_axi_rlast(axi32_rlast),
+        .m_axi_rvalid(axi32_rvalid),
+        .m_axi_rready(axi32_rready)
     );
 
     // ============================================================
