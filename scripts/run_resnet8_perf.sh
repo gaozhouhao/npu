@@ -89,6 +89,7 @@ fi
     "+DESC_BASE=$DESC_BASE" \
     "+DESC_COUNT=$DESC_COUNT" \
     "+LOGITS_BASE=$LOGITS_BASE" \
+    "+DDR_RD_LATENCY=${DDR_RD_LATENCY:-20}" \
     "${TRACE_ARGS[@]}" \
     | tee "$OUTDIR/perf.log"
 

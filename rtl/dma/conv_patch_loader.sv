@@ -2,10 +2,12 @@ module conv_patch_loader #(
     parameter int unsigned ADDR_WIDTH = 64,
     parameter int unsigned ROWS = 4,
     parameter int unsigned K_DEPTH = 256,
+    parameter int unsigned MEM_WORD_WIDTH = 32,
     parameter int unsigned BUFFER_COUNT = 2,
     parameter int unsigned MAX_REQUEST_BEATS = 64,
     parameter int unsigned K_SIZE_WIDTH = $clog2(K_DEPTH + 1),
-    parameter int unsigned WORD_DEPTH = (K_DEPTH + 3) / 4,
+    parameter int unsigned WORD_DEPTH =
+        (K_DEPTH + MEM_WORD_WIDTH/8 - 1) / (MEM_WORD_WIDTH/8),
     parameter int unsigned WORD_ADDR_WIDTH =
         (WORD_DEPTH <= 1) ? 1 : $clog2(WORD_DEPTH),
     parameter int unsigned LANE_WIDTH =
@@ -50,7 +52,7 @@ module conv_patch_loader #(
     output logic [31:0]                  rd_req_beats,
     input  logic                         rd_data_valid,
     output logic                         rd_data_ready,
-    input  logic [31:0]                  rd_data,
+    input  logic [MEM_WORD_WIDTH-1:0]    rd_data,
     input  logic                         rd_data_last,
     input  logic                         rd_done,
     input  logic                         rd_error,
@@ -59,7 +61,7 @@ module conv_patch_loader #(
     output logic [BANK_WIDTH-1:0]       buffer_wbank,
     output logic [LANE_WIDTH-1:0]       buffer_wlane,
     output logic [WORD_ADDR_WIDTH-1:0]  buffer_waddr,
-    output logic [31:0]                  buffer_wdata
+    output logic [MEM_WORD_WIDTH-1:0]    buffer_wdata
 );
 
     // The read bus and destination SRAM word are both 32 bits.
@@ -94,20 +96,20 @@ module conv_patch_loader #(
 
     // At most three uncommitted bytes, left-aligned in the sense
     // that the earliest byte occupies the least significant lane.
-    logic [31:0] partial_word_q;
-    logic [1:0]  fill_q;
+    logic [MEM_WORD_WIDTH-1:0] partial_word_q;
+    logic [2:0]  fill_q;
 
     logic [ADDR_WIDTH-1:0] request_addr_q;
     logic [31:0] request_beats_q;
     logic [31:0] stream_beats_left_q;
     logic [31:0] stream_bytes_left_q;
-    logic [1:0] stream_offset_q;
+    logic [2:0] stream_offset_q;
 
     logic loader_req, loader_accept, loader_done;
     logic loader_busy, loader_data_ready;
     logic loader_done_seen_q;
     logic loader_data_valid;
-    logic [31:0] loader_data;
+    logic [MEM_WORD_WIDTH-1:0] loader_data;
 
     logic invalid_command;
     assign invalid_command =
@@ -135,7 +137,7 @@ module conv_patch_loader #(
     operand_loader #(
         .ELEM_WIDTH     (8),
         .LANE_COUNT     (ROWS),
-        .MEM_WORD_WIDTH (32),
+        .MEM_WORD_WIDTH (MEM_WORD_WIDTH),
         .K_DEPTH        (K_DEPTH),
         .BUFFER_COUNT   (BUFFER_COUNT)
     ) u_operand_loader (
@@ -216,7 +218,7 @@ module conv_patch_loader #(
                 (64'(input_y) * 64'(input_w_q) +
                  64'(input_x)) * 64'(input_c_q) + channel
             );
-        word_addr = {byte_addr[ADDR_WIDTH-1:2], 2'b00};
+        word_addr = {byte_addr[ADDR_WIDTH-1:3], 3'b000};
     end
 
     // ============================================================
@@ -250,13 +252,13 @@ module conv_patch_loader #(
             segment_bytes = input_row_remaining;
 
         max_segment_bytes =
-            64'(MAX_REQUEST_BEATS) * 64'd4 - 64'(byte_addr[1:0]);
+            64'(MAX_REQUEST_BEATS) * 64'd8 - 64'(byte_addr[2:0]);
         if (max_segment_bytes < segment_bytes)
             segment_bytes = max_segment_bytes;
 
         planned_bytes = 32'(segment_bytes);
         planned_beats = 32'(
-            (segment_bytes + 64'(byte_addr[1:0]) + 64'd3) >> 2
+            (segment_bytes + 64'(byte_addr[2:0]) + 64'd7) >> 3
         );
     end
 
@@ -279,73 +281,55 @@ module conv_patch_loader #(
     // obeys data_valid/data_ready, so no write is lost on stalls.
     // ============================================================
     logic pad_event, read_event, append_valid;
-    logic [2:0] bytes_available;
-    logic [2:0] append_count;
-    logic [31:0] append_data;
-    logic [31:0] shifted_read_data;
-    logic [4:0] append_shift;
-    logic [63:0] merged_bytes;
+    logic [3:0] bytes_available, append_count;
+    logic [63:0] append_data, shifted_read_data;
+    logic [5:0] append_shift;
+    logic [127:0] merged_bytes;
     logic [3:0] merged_count;
-    logic emits_word;
-    logic event_ready;
-    logic event_fire;
+    logic emits_word, event_ready, event_fire;
+    logic [63:0] valid_byte_mask;
 
     assign pad_event =
         (state == ST_PREP) && (index_q < load_size_q) && is_padding;
     assign read_event = (state == ST_RD_DATA) && rd_data_valid;
     assign append_valid = pad_event || read_event;
-
-    assign bytes_available = 3'd4 - {1'b0, stream_offset_q};
-
-    assign shifted_read_data =
-        rd_data >> {stream_offset_q, 3'b000};
+    assign bytes_available = 4'd8 - {1'b0, stream_offset_q};
+    assign shifted_read_data = rd_data >> {stream_offset_q, 3'b000};
 
     always_comb begin
-        append_count = 3'd0;
-        if (pad_event) begin
-            append_count = 3'd1;
-        end else if (read_event) begin
+        append_count = 4'd0;
+        if (pad_event)
+            append_count = 4'd1;
+        else if (read_event) begin
             if (stream_bytes_left_q < 32'(bytes_available))
-                append_count = 3'(stream_bytes_left_q);
+                append_count = 4'(stream_bytes_left_q);
             else
                 append_count = bytes_available;
         end
-
-        // Mask trailing physical bytes that are not part of this
-        // logical K segment. They must never enter partial_word_q.
-        append_data = '0;
-        if (pad_event) begin
-            append_data = {24'd0, pad_zp_q};
-        end else if (read_event) begin
-            case (append_count)
-                3'd1: append_data = shifted_read_data & 32'h000000ff;
-                3'd2: append_data = shifted_read_data & 32'h0000ffff;
-                3'd3: append_data = shifted_read_data & 32'h00ffffff;
-                3'd4: append_data = shifted_read_data;
-                default: append_data = '0;
-            endcase
-        end
+        valid_byte_mask =
+            (append_count == 4'd0) ? 64'd0 :
+            (64'hffff_ffff_ffff_ffff >> ((8 - append_count) * 8));
+        append_data = 64'd0;
+        if (pad_event)
+            append_data = {56'd0, pad_zp_q};
+        else if (read_event)
+            append_data = shifted_read_data & valid_byte_mask;
     end
 
     assign append_shift = {fill_q, 3'b000};
     assign merged_bytes =
-        {32'd0, partial_word_q} |
-        ({32'd0, append_data} << append_shift);
-    assign merged_count = {2'b00, fill_q} + {1'b0, append_count};
-    assign emits_word = (merged_count >= 4'd4);
+        {64'd0, partial_word_q} |
+        ({64'd0, append_data} << append_shift);
+    assign merged_count = {1'b0, fill_q} + append_count;
+    assign emits_word = (merged_count >= 4'd8);
     assign event_ready = !emits_word || loader_data_ready;
     assign event_fire = append_valid && event_ready;
-
     assign loader_data_valid =
-        ((state == ST_FLUSH) && (fill_q != 2'd0)) ||
+        ((state == ST_FLUSH) && (fill_q != 3'd0)) ||
         (append_valid && emits_word);
-
     assign loader_data =
-        (state == ST_FLUSH) ? partial_word_q : merged_bytes[31:0];
-
-    // Backpressure is applied directly to the shared read master.
-    assign rd_data_ready =
-        (state == ST_RD_DATA) && event_ready;
+        (state == ST_FLUSH) ? partial_word_q : merged_bytes[63:0];
+    assign rd_data_ready = (state == ST_RD_DATA) && event_ready;
 
     // ============================================================
     // State and count updates
@@ -432,7 +416,7 @@ module conv_patch_loader #(
                     // Reaching the end of a lane either flushes an
                     // incomplete 32-bit word or starts the next lane.
                     if (index_q == load_size_q) begin
-                        if (fill_q != 2'd0) begin
+                        if (fill_q != 3'd0) begin
                             state <= ST_FLUSH;
                         end else if (32'(lane_q) == ROWS - 1) begin
                             state <= ST_FINISH;
@@ -446,17 +430,17 @@ module conv_patch_loader #(
                         // assembler as bytes coming from AXI.
                         if (event_fire) begin
                             index_q <= index_q + K_SIZE_WIDTH'(1);
-                            fill_q <= merged_count[1:0];
+                            fill_q <= merged_count[2:0];
                             if (emits_word)
-                                partial_word_q <= merged_bytes[63:32];
+                                partial_word_q <= merged_bytes[127:64];
                             else
-                                partial_word_q <= merged_bytes[31:0];
+                                partial_word_q <= merged_bytes[63:0];
                         end
                     end else begin
                         request_addr_q <= word_addr;
                         request_beats_q <= planned_beats;
                         stream_bytes_left_q <= planned_bytes;
-                        stream_offset_q <= byte_addr[1:0];
+                        stream_offset_q <= byte_addr[2:0];
                         state <= ST_RD_REQ;
                     end
                 end
@@ -471,11 +455,11 @@ module conv_patch_loader #(
                 ST_RD_DATA: begin
                     if (event_fire) begin
                         index_q <= index_q + K_SIZE_WIDTH'(append_count);
-                        fill_q <= merged_count[1:0];
+                        fill_q <= merged_count[2:0];
                         if (emits_word)
-                            partial_word_q <= merged_bytes[63:32];
+                            partial_word_q <= merged_bytes[127:64];
                         else
-                            partial_word_q <= merged_bytes[31:0];
+                            partial_word_q <= merged_bytes[63:0];
 
                         stream_bytes_left_q <=
                             stream_bytes_left_q - 32'(append_count);
@@ -498,7 +482,24 @@ module conv_patch_loader #(
                     if (rd_done) begin
                         if (rd_error)
                             error <= 1'b1;
-                        state <= ST_PREP;
+
+                        // Prepare next segment during completion
+                        // of the current read request.
+                        if (!rd_error &&
+                            (index_q < load_size_q) &&
+                            !is_padding) begin
+
+                            request_addr_q <= word_addr;
+                            request_beats_q <= planned_beats;
+                            stream_bytes_left_q <= planned_bytes;
+
+                            // AXI64: 8 bytes per beat
+                            stream_offset_q <= byte_addr[2:0];
+
+                            state <= ST_RD_REQ;
+                        end else begin
+                            state <= ST_PREP;
+                        end
                     end
                 end
 
@@ -536,6 +537,8 @@ module conv_patch_loader #(
     initial begin
         if (ADDR_WIDTH != 64)
             $fatal(1, "ADDR_WIDTH must be 64");
+        if (MEM_WORD_WIDTH != 64)
+            $fatal(1, "Native Conv requires 64-bit words");
         if (ROWS < 1)
             $fatal(1, "ROWS must be >= 1");
         if (K_DEPTH < 1)

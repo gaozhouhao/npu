@@ -132,6 +132,10 @@ module strided_read_engine #(
 
     logic [31:0] beats_per_row_q;
 
+    // Merge consecutive physical rows into one DMA request.
+    // The AXI master still handles 256-beat and 4KiB splitting.
+    logic coalesce_rows_q;
+
 
     // ============================================================
     // Current row tracking
@@ -181,6 +185,8 @@ module strided_read_engine #(
         current_row_addr_q;
 
     assign rd_req_beats =
+        coalesce_rows_q ?
+        (row_count_q * beats_per_row_q) :
         beats_per_row_q;
 
 
@@ -228,6 +234,7 @@ module strided_read_engine #(
             row_count_q <= '0;
             stride_bytes_q <= '0;
             beats_per_row_q <= '0;
+            coalesce_rows_q <= 1'b0;
 
             row_idx_q <= '0;
             current_row_addr_q <= '0;
@@ -254,6 +261,14 @@ module strided_read_engine #(
 
                         beats_per_row_q <=
                             beats_per_row_calc;
+
+                        coalesce_rows_q <=
+                            (row_count > 32'd1) &&
+                            (stride_bytes ==
+                                (beats_per_row_calc << BYTE_SHIFT)) &&
+                            ((64'(row_count) *
+                              64'(beats_per_row_calc)) <=
+                                64'hffff_ffff);
 
                         row_idx_q <= '0;
 
@@ -378,8 +393,9 @@ module strided_read_engine #(
                             state <= ST_DONE;
 
                         end else if (
-                            row_idx_q ==
-                            (row_count_q - 32'd1)
+                            coalesce_rows_q ||
+                            (row_idx_q ==
+                             (row_count_q - 32'd1))
                         ) begin
 
                             // -------------------------------------

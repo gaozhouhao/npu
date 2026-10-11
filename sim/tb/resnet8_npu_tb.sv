@@ -37,6 +37,20 @@ module resnet8_npu_tb;
     initial clk = 1'b0;
     always #5 clk = ~clk;
 
+    // Configurable initial AXI read latency.
+    // Each burst waits this many cycles before the first R beat.
+    int unsigned ddr_rd_latency_cfg;
+    logic [31:0] rd_wait_q;
+
+    initial begin
+        ddr_rd_latency_cfg = 20;
+        void'($value$plusargs(
+            "DDR_RD_LATENCY=%d", ddr_rd_latency_cfg
+        ));
+        $display("DDR_READ_LATENCY_CYCLES,%0d",
+                 ddr_rd_latency_cfg);
+    end
+
 
 `ifdef NPU_PERF_ENABLE
     logic [63:0] p_total_cycles;
@@ -115,7 +129,8 @@ module resnet8_npu_tb;
 
     assign arready = !rd_active_q;
     assign rid = rd_id_q;
-    assign rvalid = rd_active_q;
+    assign rvalid =
+        rd_active_q && (rd_wait_q == 32'd0);
     assign rdata = {
         mem[int'(rd_addr_q >> 2) + 1],
         mem[int'(rd_addr_q >> 2)]
@@ -126,6 +141,7 @@ module resnet8_npu_tb;
     always_ff @(posedge clk) begin
         if (reset) begin
             rd_active_q <= 1'b0;
+            rd_wait_q <= '0;
             rd_addr_q <= '0;
             rd_left_q <= '0;
             rd_id_q <= '0;
@@ -139,9 +155,14 @@ module resnet8_npu_tb;
                            araddr, arsize);
 
                 rd_active_q <= 1'b1;
+                rd_wait_q <= ddr_rd_latency_cfg;
                 rd_addr_q <= araddr;
                 rd_left_q <= {1'b0,arlen} + 9'd1;
                 rd_id_q <= arid;
+            end else if (
+                rd_active_q && (rd_wait_q != 32'd0)
+            ) begin
+                rd_wait_q <= rd_wait_q - 32'd1;
             end else if (rvalid && rready) begin
                 reads_q <= reads_q + 32'd1;
 

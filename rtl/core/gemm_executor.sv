@@ -7,6 +7,7 @@ module gemm_executor #(
     parameter int unsigned DATA_WIDTH = 8,
     parameter int unsigned ACC_WIDTH = 32,
     parameter int unsigned MEM_WORD_WIDTH = 32,
+    parameter int unsigned OPERAND_WORD_WIDTH = 64,
     parameter int unsigned ID_WIDTH = 1,
     parameter int unsigned K_TILE_SIZE = 256,
     parameter int unsigned A_BUFFER_COUNT = 2,
@@ -15,7 +16,7 @@ module gemm_executor #(
     parameter int unsigned CORE_ADDR_WIDTH =
         (K_TILE_SIZE <= 1) ? 1 : $clog2(K_TILE_SIZE),
     parameter int unsigned ELEMS_PER_WORD =
-        MEM_WORD_WIDTH / DATA_WIDTH,
+        OPERAND_WORD_WIDTH / DATA_WIDTH,
     parameter int unsigned WORD_DEPTH =
         (K_TILE_SIZE + ELEMS_PER_WORD - 1) / ELEMS_PER_WORD,
     parameter int unsigned WORD_ADDR_WIDTH =
@@ -65,6 +66,20 @@ module gemm_executor #(
     output logic done,
     output logic error,
     output logic signed [ACC_WIDTH-1:0] acc_out [ROWS][COLS],
+
+    output logic [ID_WIDTH-1:0] operand64_arid,
+    output logic [ADDR_WIDTH-1:0] operand64_araddr,
+    output logic [7:0] operand64_arlen,
+    output logic [2:0] operand64_arsize,
+    output logic [1:0] operand64_arburst,
+    output logic operand64_arvalid,
+    input logic operand64_arready,
+    input logic [ID_WIDTH-1:0] operand64_rid,
+    input logic [63:0] operand64_rdata,
+    input logic [1:0] operand64_rresp,
+    input logic operand64_rlast,
+    input logic operand64_rvalid,
+    output logic operand64_rready,
 
     output logic [ID_WIDTH-1:0] m_axi_arid,
     output logic [ADDR_WIDTH-1:0] m_axi_araddr,
@@ -285,13 +300,13 @@ module gemm_executor #(
     logic a_wbank;
     logic [A_LANE_WIDTH-1:0] a_wlane;
     logic [WORD_ADDR_WIDTH-1:0] a_waddr;
-    logic [MEM_WORD_WIDTH-1:0] a_wdata;
+    logic [OPERAND_WORD_WIDTH-1:0] a_wdata;
 
     logic b_wen;
     logic b_wbank;
     logic [B_LANE_WIDTH-1:0] b_wlane;
     logic [WORD_ADDR_WIDTH-1:0] b_waddr;
-    logic [MEM_WORD_WIDTH-1:0] b_wdata;
+    logic [OPERAND_WORD_WIDTH-1:0] b_wdata;
 
     logic read_path_busy;
     logic read_path_error;
@@ -311,7 +326,7 @@ module gemm_executor #(
     logic operand_axi_arready;
 
     logic [ID_WIDTH-1:0] operand_axi_rid;
-    logic [MEM_WORD_WIDTH-1:0] operand_axi_rdata;
+    logic [OPERAND_WORD_WIDTH-1:0] operand_axi_rdata;
     logic [1:0] operand_axi_rresp;
     logic operand_axi_rlast;
     logic operand_axi_rvalid;
@@ -708,7 +723,7 @@ module gemm_executor #(
     gemm_read_path #(
         .ADDR_WIDTH(ADDR_WIDTH),
         .ELEM_WIDTH(DATA_WIDTH),
-        .MEM_WORD_WIDTH(MEM_WORD_WIDTH),
+        .MEM_WORD_WIDTH(OPERAND_WORD_WIDTH),
         .ID_WIDTH(ID_WIDTH),
         .A_LANE_COUNT(ROWS),
         .B_LANE_COUNT(COLS),
@@ -881,59 +896,35 @@ module gemm_executor #(
     // Executor read mux
     // ============================================================
 
-    axi_read_mux #(
-        .ADDR_WIDTH(ADDR_WIDTH),
-        .DATA_WIDTH(MEM_WORD_WIDTH),
-        .ID_WIDTH(ID_WIDTH)
-    ) u_executor_read_mux (
-        .clk(clk),
-        .reset(reset),
+    // Narrow 32-bit parameter read directly owns the legacy AXI port.
+    assign m_axi_arid = param_axi_arid;
+    assign m_axi_araddr = param_axi_araddr;
+    assign m_axi_arlen = param_axi_arlen;
+    assign m_axi_arsize = param_axi_arsize;
+    assign m_axi_arburst = param_axi_arburst;
+    assign m_axi_arvalid = param_axi_arvalid;
+    assign param_axi_arready = m_axi_arready;
+    assign param_axi_rid = m_axi_rid;
+    assign param_axi_rdata = m_axi_rdata;
+    assign param_axi_rresp = m_axi_rresp;
+    assign param_axi_rlast = m_axi_rlast;
+    assign param_axi_rvalid = m_axi_rvalid;
+    assign m_axi_rready = param_axi_rready;
 
-        .desc_arid(param_axi_arid),
-        .desc_araddr(param_axi_araddr),
-        .desc_arlen(param_axi_arlen),
-        .desc_arsize(param_axi_arsize),
-        .desc_arburst(param_axi_arburst),
-        .desc_arvalid(param_axi_arvalid),
-        .desc_arready(param_axi_arready),
-
-        .desc_rid(param_axi_rid),
-        .desc_rdata(param_axi_rdata),
-        .desc_rresp(param_axi_rresp),
-        .desc_rlast(param_axi_rlast),
-        .desc_rvalid(param_axi_rvalid),
-        .desc_rready(param_axi_rready),
-
-        .gemm_arid(operand_axi_arid),
-        .gemm_araddr(operand_axi_araddr),
-        .gemm_arlen(operand_axi_arlen),
-        .gemm_arsize(operand_axi_arsize),
-        .gemm_arburst(operand_axi_arburst),
-        .gemm_arvalid(operand_axi_arvalid),
-        .gemm_arready(operand_axi_arready),
-
-        .gemm_rid(operand_axi_rid),
-        .gemm_rdata(operand_axi_rdata),
-        .gemm_rresp(operand_axi_rresp),
-        .gemm_rlast(operand_axi_rlast),
-        .gemm_rvalid(operand_axi_rvalid),
-        .gemm_rready(operand_axi_rready),
-
-        .m_axi_arid(m_axi_arid),
-        .m_axi_araddr(m_axi_araddr),
-        .m_axi_arlen(m_axi_arlen),
-        .m_axi_arsize(m_axi_arsize),
-        .m_axi_arburst(m_axi_arburst),
-        .m_axi_arvalid(m_axi_arvalid),
-        .m_axi_arready(m_axi_arready),
-
-        .m_axi_rid(m_axi_rid),
-        .m_axi_rdata(m_axi_rdata),
-        .m_axi_rresp(m_axi_rresp),
-        .m_axi_rlast(m_axi_rlast),
-        .m_axi_rvalid(m_axi_rvalid),
-        .m_axi_rready(m_axi_rready)
-    );
+    // Native AXI64 operand read port; no AXI64->32 conversion.
+    assign operand64_arid = operand_axi_arid;
+    assign operand64_araddr = operand_axi_araddr;
+    assign operand64_arlen = operand_axi_arlen;
+    assign operand64_arsize = operand_axi_arsize;
+    assign operand64_arburst = operand_axi_arburst;
+    assign operand64_arvalid = operand_axi_arvalid;
+    assign operand_axi_arready = operand64_arready;
+    assign operand_axi_rid = operand64_rid;
+    assign operand_axi_rdata = operand64_rdata;
+    assign operand_axi_rresp = operand64_rresp;
+    assign operand_axi_rlast = operand64_rlast;
+    assign operand_axi_rvalid = operand64_rvalid;
+    assign operand64_rready = operand_axi_rready;
 
     // ============================================================
     // Matrix engine
@@ -947,7 +938,7 @@ module gemm_executor #(
         .A_BUFFER_COUNT(A_BUFFER_COUNT),
         .B_BUFFER_COUNT(B_BUFFER_COUNT),
         .DEPTH(K_TILE_SIZE),
-        .MEM_WORD_WIDTH(MEM_WORD_WIDTH)
+        .MEM_WORD_WIDTH(OPERAND_WORD_WIDTH)
     ) u_gemm_core (
         .clk(clk),
         .reset(reset),

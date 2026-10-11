@@ -2,7 +2,7 @@
 module gemm_read_path #(
     parameter int unsigned ADDR_WIDTH     = 64,
     parameter int unsigned ELEM_WIDTH     = 8,
-    parameter int unsigned MEM_WORD_WIDTH = 32,
+    parameter int unsigned MEM_WORD_WIDTH = 64,
     parameter int unsigned ID_WIDTH       = 1,
     parameter int unsigned A_LANE_COUNT   = 4,
     parameter int unsigned B_LANE_COUNT   = 4,
@@ -252,6 +252,7 @@ module gemm_read_path #(
 
     conv_patch_loader #(
         .ADDR_WIDTH   (ADDR_WIDTH),
+        .MEM_WORD_WIDTH(MEM_WORD_WIDTH),
         .ROWS         (A_LANE_COUNT),
         .K_DEPTH      (K_DEPTH),
         .BUFFER_COUNT (A_BUFFER_COUNT)
@@ -403,6 +404,53 @@ module gemm_read_path #(
     );
 
     // ============================================================
+    // Conv-only 64-bit read cache. FC and B bypass this cache.
+    // ============================================================
+    logic cache_m_req_valid, cache_m_req_ready;
+    logic [ADDR_WIDTH-1:0] cache_m_req_addr;
+    logic [31:0] cache_m_req_beats;
+    logic cache_m_data_valid, cache_m_data_ready;
+    logic [MEM_WORD_WIDTH-1:0] cache_m_data;
+    logic cache_m_data_last, cache_m_done, cache_m_error;
+    logic conv_cache_invalidate;
+
+    // Every Conv layer starts with M=0,K=0. Repeated invalidation
+    // for different N tiles is conservative and preserves correctness.
+    assign conv_cache_invalidate =
+        conv_a_load_accept &&
+        (conv_m_start == 32'd0) &&
+        (conv_k_start == 32'd0);
+
+    conv_read_cache #(
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .DATA_WIDTH(MEM_WORD_WIDTH)
+    ) u_conv_read_cache (
+        .clk         (clk),
+        .reset       (reset),
+        .invalidate  (conv_cache_invalidate),
+        .s_req_valid (conv_a_rd_req_valid),
+        .s_req_ready (conv_a_rd_req_ready),
+        .s_req_addr  (conv_a_rd_req_addr),
+        .s_req_beats (conv_a_rd_req_beats),
+        .s_data_valid(conv_a_rd_data_valid),
+        .s_data_ready(conv_a_rd_data_ready),
+        .s_data      (conv_a_rd_data),
+        .s_data_last (conv_a_rd_data_last),
+        .s_done      (conv_a_rd_done),
+        .s_error     (conv_a_rd_error),
+        .m_req_valid (cache_m_req_valid),
+        .m_req_ready (cache_m_req_ready),
+        .m_req_addr  (cache_m_req_addr),
+        .m_req_beats (cache_m_req_beats),
+        .m_data_valid(cache_m_data_valid),
+        .m_data_ready(cache_m_data_ready),
+        .m_data      (cache_m_data),
+        .m_data_last (cache_m_data_last),
+        .m_done      (cache_m_done),
+        .m_error     (cache_m_error)
+    );
+
+    // ============================================================
     // Selected A read interface
     // ============================================================
 
@@ -419,46 +467,27 @@ module gemm_read_path #(
     logic a_rd_error;
 
     assign a_rd_req_valid =
-        conv_mode ? conv_a_rd_req_valid : gemm_a_rd_req_valid;
-
+        conv_mode ? cache_m_req_valid : gemm_a_rd_req_valid;
     assign a_rd_req_addr =
-        conv_mode ? conv_a_rd_req_addr : gemm_a_rd_req_addr;
-
+        conv_mode ? cache_m_req_addr : gemm_a_rd_req_addr;
     assign a_rd_req_beats =
-        conv_mode ? conv_a_rd_req_beats : gemm_a_rd_req_beats;
-
+        conv_mode ? cache_m_req_beats : gemm_a_rd_req_beats;
     assign a_rd_data_ready =
-        conv_mode ? conv_a_rd_data_ready : gemm_a_rd_data_ready;
+        conv_mode ? cache_m_data_ready : gemm_a_rd_data_ready;
 
-    assign conv_a_rd_req_ready =
-        conv_mode && a_rd_req_ready;
+    assign cache_m_req_ready = conv_mode && a_rd_req_ready;
+    assign gemm_a_rd_req_ready = !conv_mode && a_rd_req_ready;
 
-    assign gemm_a_rd_req_ready =
-        !conv_mode && a_rd_req_ready;
-
-    assign conv_a_rd_data_valid =
-        conv_mode && a_rd_data_valid;
-
-    assign gemm_a_rd_data_valid =
-        !conv_mode && a_rd_data_valid;
-
-    assign conv_a_rd_data = a_rd_data;
+    assign cache_m_data_valid = conv_mode && a_rd_data_valid;
+    assign gemm_a_rd_data_valid = !conv_mode && a_rd_data_valid;
+    assign cache_m_data = a_rd_data;
     assign gemm_a_rd_data = a_rd_data;
-
-    assign conv_a_rd_data_last = a_rd_data_last;
+    assign cache_m_data_last = a_rd_data_last;
     assign gemm_a_rd_data_last = a_rd_data_last;
-
-    assign conv_a_rd_done =
-        conv_mode && a_rd_done;
-
-    assign gemm_a_rd_done =
-        !conv_mode && a_rd_done;
-
-    assign conv_a_rd_error =
-        conv_mode && a_rd_error;
-
-    assign gemm_a_rd_error =
-        !conv_mode && a_rd_error;
+    assign cache_m_done = conv_mode && a_rd_done;
+    assign gemm_a_rd_done = !conv_mode && a_rd_done;
+    assign cache_m_error = conv_mode && a_rd_error;
+    assign gemm_a_rd_error = !conv_mode && a_rd_error;
 
     // ============================================================
     // Existing A/B read arbiter
@@ -587,7 +616,7 @@ module gemm_read_path #(
         if (ELEM_WIDTH != 8)
             $fatal(1, "ELEM_WIDTH must be 8");
 
-        if (MEM_WORD_WIDTH != 32)
+        if (MEM_WORD_WIDTH != 64)
             $fatal(1, "MEM_WORD_WIDTH must be 32");
 
         if (A_LANE_COUNT < 1 || B_LANE_COUNT < 1)

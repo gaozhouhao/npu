@@ -556,8 +556,8 @@ class Compiler:
             ):
                 flags |= 4
 
-            sa = align(k, 4)
-            sb = align(k, 4)
+            sa = align(k, 8)
+            sb = align(k, 8)
             sc = align(n, 4)
 
             opcode = OP_GEMM
@@ -613,7 +613,7 @@ class Compiler:
             )
 
         padded_n = align(n, 4)
-        row_stride = align(k, 4)
+        row_stride = align(k, 8)
 
         weightbuf = bytearray(
             padded_n * row_stride

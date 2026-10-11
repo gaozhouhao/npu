@@ -357,8 +357,8 @@ module npu_top #(
             64'(conv_input_c);
 
         conv_b_stride_calc =
-            (64'(frontend_cfg_k) + 64'd3) &
-            64'hffff_ffff_ffff_fffc;
+            (64'(frontend_cfg_k) + 64'd7) &
+            64'hffff_ffff_ffff_fff8;
 
         conv_c_stride_calc =
             64'(frontend_cfg_n) *
@@ -630,11 +630,25 @@ module npu_top #(
         .DATA_WIDTH(DATA_WIDTH),
         .ACC_WIDTH(ACC_WIDTH),
         .MEM_WORD_WIDTH(MEM_WORD_WIDTH),
+        .OPERAND_WORD_WIDTH(64),
         .ID_WIDTH(ID_WIDTH),
         .K_TILE_SIZE(K_TILE_SIZE),
         .A_BUFFER_COUNT(A_BUFFER_COUNT),
         .B_BUFFER_COUNT(B_BUFFER_COUNT)
     ) u_gemm_executor (
+        .operand64_arid(operand64_arid),
+        .operand64_araddr(operand64_araddr),
+        .operand64_arlen(operand64_arlen),
+        .operand64_arsize(operand64_arsize),
+        .operand64_arburst(operand64_arburst),
+        .operand64_arvalid(operand64_arvalid),
+        .operand64_arready(operand64_arready),
+        .operand64_rid(operand64_rid),
+        .operand64_rdata(operand64_rdata),
+        .operand64_rresp(operand64_rresp),
+        .operand64_rlast(operand64_rlast),
+        .operand64_rvalid(operand64_rvalid),
+        .operand64_rready(operand64_rready),
         .clk(clk),
         .reset(reset),
         .cmd_valid(executor_cmd_valid),
@@ -807,6 +821,21 @@ module npu_top #(
 
     // ============================================================
 
+
+    logic [ID_WIDTH-1:0] operand64_arid;
+    logic [ADDR_WIDTH-1:0] operand64_araddr;
+    logic [7:0] operand64_arlen;
+    logic [2:0] operand64_arsize;
+    logic [1:0] operand64_arburst;
+    logic operand64_arvalid;
+    logic operand64_arready;
+    logic [ID_WIDTH-1:0] operand64_rid;
+    logic [63:0] operand64_rdata;
+    logic [1:0] operand64_rresp;
+    logic operand64_rlast;
+    logic operand64_rvalid;
+    logic operand64_rready;
+
     // Internal AXI32 side of the external AXI64 adapter.
     logic [ID_WIDTH-1:0] axi32_arid;
     logic [ADDR_WIDTH-1:0] axi32_araddr;
@@ -822,6 +851,18 @@ module npu_top #(
     logic axi32_rlast;
     logic axi32_rvalid;
     logic axi32_rready;
+
+
+    logic [ID_WIDTH-1:0] compat_arid;
+    logic [ADDR_WIDTH-1:0] compat_araddr;
+    logic [7:0] compat_arlen;
+    logic [2:0] compat_arsize;
+    logic [1:0] compat_arburst;
+    logic compat_arvalid, compat_arready;
+    logic [ID_WIDTH-1:0] compat_rid;
+    logic [63:0] compat_rdata;
+    logic [1:0] compat_rresp;
+    logic compat_rlast, compat_rvalid, compat_rready;
 
     axi_read_32to64 #(
         .ADDR_WIDTH(ADDR_WIDTH),
@@ -845,20 +886,53 @@ module npu_top #(
         .s_rvalid(axi32_rvalid),
         .s_rready(axi32_rready),
 
-        .m_arid(m_axi_arid),
-        .m_araddr(m_axi_araddr),
-        .m_arlen(m_axi_arlen),
-        .m_arsize(m_axi_arsize),
-        .m_arburst(m_axi_arburst),
-        .m_arvalid(m_axi_arvalid),
-        .m_arready(m_axi_arready),
+        .m_arid(compat_arid),
+        .m_araddr(compat_araddr),
+        .m_arlen(compat_arlen),
+        .m_arsize(compat_arsize),
+        .m_arburst(compat_arburst),
+        .m_arvalid(compat_arvalid),
+        .m_arready(compat_arready),
 
-        .m_rid(m_axi_rid),
-        .m_rdata(m_axi_rdata),
-        .m_rresp(m_axi_rresp),
-        .m_rlast(m_axi_rlast),
-        .m_rvalid(m_axi_rvalid),
-        .m_rready(m_axi_rready)
+        .m_rid(compat_rid),
+        .m_rdata(compat_rdata),
+        .m_rresp(compat_rresp),
+        .m_rlast(compat_rlast),
+        .m_rvalid(compat_rvalid),
+        .m_rready(compat_rready)
+    );
+
+
+    // Final AXI64 arbitration: native Operand reads versus AXI32 clients.
+    axi_read_mux #(
+        .ADDR_WIDTH(ADDR_WIDTH),
+        .DATA_WIDTH(64),
+        .ID_WIDTH(ID_WIDTH)
+    ) u_axi64_arbiter (
+        .clk(clk), .reset(reset),
+        .desc_arid(compat_arid), .desc_araddr(compat_araddr),
+        .desc_arlen(compat_arlen), .desc_arsize(compat_arsize),
+        .desc_arburst(compat_arburst), .desc_arvalid(compat_arvalid),
+        .desc_arready(compat_arready),
+        .desc_rid(compat_rid), .desc_rdata(compat_rdata),
+        .desc_rresp(compat_rresp), .desc_rlast(compat_rlast),
+        .desc_rvalid(compat_rvalid), .desc_rready(compat_rready),
+        .gemm_arid(operand64_arid), .gemm_araddr(operand64_araddr),
+        .gemm_arlen(operand64_arlen), .gemm_arsize(operand64_arsize),
+        .gemm_arburst(operand64_arburst),
+        .gemm_arvalid(operand64_arvalid),
+        .gemm_arready(operand64_arready),
+        .gemm_rid(operand64_rid), .gemm_rdata(operand64_rdata),
+        .gemm_rresp(operand64_rresp), .gemm_rlast(operand64_rlast),
+        .gemm_rvalid(operand64_rvalid),
+        .gemm_rready(operand64_rready),
+        .m_axi_arid(m_axi_arid), .m_axi_araddr(m_axi_araddr),
+        .m_axi_arlen(m_axi_arlen), .m_axi_arsize(m_axi_arsize),
+        .m_axi_arburst(m_axi_arburst),
+        .m_axi_arvalid(m_axi_arvalid), .m_axi_arready(m_axi_arready),
+        .m_axi_rid(m_axi_rid), .m_axi_rdata(m_axi_rdata),
+        .m_axi_rresp(m_axi_rresp), .m_axi_rlast(m_axi_rlast),
+        .m_axi_rvalid(m_axi_rvalid), .m_axi_rready(m_axi_rready)
     );
 
     // Shared AXI Read Mux

@@ -98,7 +98,7 @@ module scratchpad #(
     operand_buffer #(
         .ELEM_WIDTH     (DATA_WIDTH),
         .LANE_COUNT     (COLS),
-        .MEM_WORD_WIDTH (32),
+        .MEM_WORD_WIDTH (MEM_WORD_WIDTH),
         .K_DEPTH        (DEPTH),
         .BUFFER_COUNT   (B_BUFFER_COUNT)
     ) u_a_buffer (
@@ -125,7 +125,7 @@ module scratchpad #(
     operand_buffer #(
         .ELEM_WIDTH     (DATA_WIDTH),
         .LANE_COUNT     (ROWS),
-        .MEM_WORD_WIDTH (32),
+        .MEM_WORD_WIDTH (MEM_WORD_WIDTH),
         .K_DEPTH        (DEPTH),
         .BUFFER_COUNT   (A_BUFFER_COUNT)
     ) u_b_buffer (
