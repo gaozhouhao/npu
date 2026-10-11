@@ -228,6 +228,7 @@ module npu_top #(
     logic frontend_relu_en;
     logic frontend_same_en;
     logic frontend_per_channel_en;
+    logic frontend_multi_k_a_reuse;
 
     logic [31:0] conv_input_h;
     logic [31:0] conv_input_w;
@@ -259,6 +260,7 @@ module npu_top #(
     assign frontend_relu_en = frontend_cmd_flags[2];
     assign frontend_same_en = frontend_cmd_flags[4];
     assign frontend_per_channel_en = frontend_cmd_flags[3];
+    assign frontend_multi_k_a_reuse = frontend_cmd_flags[5];
 
     assign conv_mode = (frontend_cmd_opcode == OP_CONV);
 
@@ -284,7 +286,7 @@ module npu_top #(
         {24'd0, frontend_cfg_c_stride[31:24]};
 
     assign common_flags_valid =
-        frontend_cmd_flags[23:5] == 19'd0 &&
+        frontend_cmd_flags[23:6] == 18'd0 &&
         (!frontend_same_en || conv_mode) &&
         !(frontend_per_channel_en && !frontend_requant_en) &&
         !(frontend_relu_en && !frontend_requant_en) &&
@@ -659,6 +661,7 @@ module npu_top #(
         .cmd_requant_en(frontend_requant_en),
         .cmd_relu_en(frontend_relu_en),
         .cmd_per_channel_en(frontend_per_channel_en),
+        .cmd_multi_k_a_reuse(frontend_multi_k_a_reuse),
         .cmd_param_base(
             ADDR_WIDTH'({
                 frontend_cfg_param1,

@@ -45,6 +45,7 @@ module tile_policy_multik_tb #(
         .ENABLE_MULTI_K_A_REUSE(1'b1),
         .A_REUSE_BLOCK_SIZE    (BLOCK_SIZE)
     ) dut (
+        .enable_multi_k_a_reuse(1'b1),
         .m_tile_count   (W'(M_COUNT)),
         .n_tile_count   (W'(N_COUNT)),
         .k_tile_count   (W'(K_COUNT)),

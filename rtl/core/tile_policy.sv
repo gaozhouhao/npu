@@ -5,6 +5,7 @@ module tile_policy #(
     parameter bit ENABLE_MULTI_K_A_REUSE = 1'b0,
     parameter int unsigned A_REUSE_BLOCK_SIZE = 4
 ) (
+    input logic enable_multi_k_a_reuse,
     input logic [TILE_COUNT_WIDTH-1:0] m_tile_count,
     input logic [TILE_COUNT_WIDTH-1:0] n_tile_count,
     input logic [TILE_COUNT_WIDTH-1:0] k_tile_count,
@@ -54,6 +55,7 @@ module tile_policy #(
     assign multi_k_a_reuse =
         ENABLE_A_REUSE &&
         ENABLE_MULTI_K_A_REUSE &&
+        enable_multi_k_a_reuse &&
         (A_REUSE_BLOCK_SIZE > 1) &&
         (k_tile_count > TILE_COUNT_WIDTH'(1)) &&
         (n_tile_count > TILE_COUNT_WIDTH'(1));

@@ -10,6 +10,7 @@ module tile_scheduler #(
 
     // GEMM command
     input logic start,
+    input logic enable_multi_k_a_reuse,
     input logic [TILE_COUNT_WIDTH-1:0] m_tile_count,
     input logic [TILE_COUNT_WIDTH-1:0] n_tile_count,
     input logic [TILE_COUNT_WIDTH-1:0] k_tile_count,
@@ -197,6 +198,7 @@ module tile_scheduler #(
         .ENABLE_MULTI_K_A_REUSE (ENABLE_MULTI_K_A_REUSE),
         .A_REUSE_BLOCK_SIZE    (A_REUSE_BLOCK_SIZE)
     ) u_tile_policy (
+        .enable_multi_k_a_reuse(enable_multi_k_a_reuse),
         .m_tile_count       (m_tile_count_q),
         .n_tile_count       (n_tile_count_q),
         .k_tile_count       (k_tile_count_q),

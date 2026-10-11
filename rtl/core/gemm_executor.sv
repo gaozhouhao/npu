@@ -76,6 +76,7 @@ module gemm_executor #(
     input logic cmd_requant_en,
     input logic cmd_relu_en,
     input logic cmd_per_channel_en,
+    input logic cmd_multi_k_a_reuse,
     input logic [ADDR_WIDTH-1:0] cmd_param_base,
 
     // ============================================================
@@ -140,31 +141,9 @@ module gemm_executor #(
     localparam int unsigned PSUM_SLOT_WIDTH =
         $clog2(PSUM_SLOT_COUNT);
 
-    // Select 1, 2, 3 or 4 outputs per N block.
-`ifdef NPU_PSUM_BLOCK_SIZE
-    localparam int unsigned PSUM_BLOCK_SIZE =
-        `NPU_PSUM_BLOCK_SIZE;
-`else
+    // Physical hardware capacity, not a computation mode.
     localparam int unsigned PSUM_BLOCK_SIZE = 4;
-`endif
-
-    // A-reuse requires the C SRAM partial-sum path.
-`ifdef NPU_PSUM_EXPERIMENT
-`ifdef NPU_AS_REUSE_EXPERIMENT
     localparam bit ENABLE_MULTI_K_A_REUSE = 1'b1;
-`else
-    localparam bit ENABLE_MULTI_K_A_REUSE = 1'b0;
-`endif
-`else
-    localparam bit ENABLE_MULTI_K_A_REUSE = 1'b0;
-`endif
-
-    // Enable only for experimental multi-K validation.
-`ifdef NPU_PSUM_EXPERIMENT
-    localparam bit ENABLE_PSUM_EXPERIMENT = 1'b1;
-`else
-    localparam bit ENABLE_PSUM_EXPERIMENT = 1'b0;
-`endif
 
     // ============================================================
     // Executor state
@@ -195,6 +174,7 @@ module gemm_executor #(
     logic requant_en_q;
     logic relu_en_q;
     logic per_channel_en_q;
+    logic multi_k_a_reuse_q;
 
     logic [ADDR_WIDTH-1:0] param_base_q;
 
@@ -453,15 +433,15 @@ module gemm_executor #(
     logic signed [ACC_WIDTH-1:0] pp_data [COLS];
     logic signed [ACC_WIDTH-1:0] pp_addend [COLS];
 
-    assign use_psum_path =
-        ENABLE_PSUM_EXPERIMENT &&
-        (k_tile_count_q > TILE_COUNT_WIDTH'(1));
-
+    // Descriptor-selected runtime dataflow.
+    // The PSUM path and A reuse traversal must agree.
     assign use_multi_k_a_reuse =
-        ENABLE_MULTI_K_A_REUSE &&
+        multi_k_a_reuse_q &&
         (PSUM_BLOCK_SIZE > 1) &&
         (k_tile_count_q > TILE_COUNT_WIDTH'(1)) &&
         (n_tile_count_q > TILE_COUNT_WIDTH'(1));
+
+    assign use_psum_path = use_multi_k_a_reuse;
 
     assign psum_start =
         use_psum_path && core_done;
@@ -601,6 +581,7 @@ module gemm_executor #(
         .clk                (clk),
         .reset              (reset),
         .start              (scheduler_start),
+        .enable_multi_k_a_reuse(use_multi_k_a_reuse),
 
         .m_tile_count       (m_tile_count_q),
         .n_tile_count       (n_tile_count_q),
@@ -1466,6 +1447,7 @@ module gemm_executor #(
             requant_en_q <= 1'b0;
             relu_en_q <= 1'b0;
             per_channel_en_q <= 1'b0;
+            multi_k_a_reuse_q <= 1'b0;
             param_base_q <= '0;
 
             conv_mode_q <= 1'b0;
@@ -1517,6 +1499,7 @@ module gemm_executor #(
                             requant_en_q <= cmd_requant_en;
                             relu_en_q <= cmd_relu_en;
                             per_channel_en_q <= cmd_per_channel_en;
+                            multi_k_a_reuse_q <= cmd_multi_k_a_reuse;
                             param_base_q <= cmd_param_base;
 
                             conv_mode_q <= cmd_conv_mode;

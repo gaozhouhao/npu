@@ -58,6 +58,7 @@ module tile_scheduler_early_done_tb;
         .K_TILE_SIZE      (K_TILE_SIZE),
         .K_SIZE_WIDTH     (KW)
     ) dut (
+        .enable_multi_k_a_reuse(1'b0),
         .clk (clk),
         .reset (reset),
         .start (start),

@@ -105,6 +105,7 @@ module tile_scheduler_tb;
         .K_TILE_SIZE      (K_TILE_SIZE),
         .K_SIZE_WIDTH     (K_SIZE_WIDTH)
     ) dut (
+        .enable_multi_k_a_reuse(1'b0),
         .clk             (clk),
         .reset           (reset),
 
