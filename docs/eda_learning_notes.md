@@ -1282,3 +1282,14 @@ SRAM 处理：只对 `TS5N28HPCPSVTA32X64M2F` 使用 `set_build -black_box`。�
 MBIST 初步盘点：未找到独立 STAR Memory System / Tessent 安装，但 DC 附带 `libraries/syn/dft_mbist.sldb`，以及 `dw/dw04/lib/dw04/` 中的 `DW_MBIST_CTRL`、`DW_MBIST_APG`、`DW_MBIST_WRAPPER` 等组件及 `libraries/syn/dftc/mbist_t2_*.ctl`。这些是 MBIST 相关构建组件的存在证据，尚不是当前 NPU 已集成且验证的控制器 IP，亦未验证是否有可直接调用的完整生成流程。当前 SRAM 由 MC2 以 NonBIST 生成，没有额外 BIST 端口；这不妨碍后续通过正常读写端口加测试复用器，但需另行设计和验证。StarRC 属于寄生参数提取，不属于 MBIST。
 
 此条记录创建时扫描插入仍在运行；覆盖率需等待实际 ATPG 完成，不能用 75137 个寄存器的扫描资格比例替代故障覆盖率。
+
+
+### 扫描插入实际结果
+
+`build/dft/npu_scan_20261018/run.log` 正常退出，保存 `npu_scan.v`（36 MB）、`npu_scan.ddc`（20 MB）、`npu_scan.spf`（68 KB）。`reports/scan_chains.rpt` 的 Existing DFT / AS BUILT 表显示：chain_0 长 4697，chain_1～15 各 4696，共 75137 个扫描触发器；所有链均使用 clk、scan_enable 及各自 scan_in/scan_out。
+
+`reports/dft_drc_post.rpt`：0 / 75137 sequential cells have violations；总共 16 条 TEST-451，实例仍严格对应 16 个硬 SRAM。没有新增扫描链违规。标准单元 Verilog 包覆盖插入后网表全部标准单元型号，网表中保留 16 个硬 SRAM。
+
+面积从插入前 488830.015022 增至 543531.280428（约增加 11.19%），组合单元数 248924、时序单元数 75137、宏数 16 均保持；增加主要来自扫描触发器替换。这里是库单元面积，不是布局后的芯片面积。报告 Number of ports 是层次统计，不是本轮新增的顶层引脚数；本轮新增仍为 33 个信号位。
+
+保留了 TIM-134 高扇出、UCN-1 多端口别名、VO-4 网表 assign/tran 等工具消息；这些不能与扫描链功能错误混为一谈，也没有被全局屏蔽。此次未执行插入后的功能/shift STA 或门级向量仿真，不能据此声称扫描后时序已收敛。下一步实际运行 ATPG 的建模与 DRC 检查。
