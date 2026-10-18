@@ -1567,3 +1567,20 @@ LC_ALL=C setsid nohup /home/synopsys/txs/O-2018.06-SP1/bin/tmax -shell -tcl ../.
 本轮复用原恢复与生成脚本：先恢复原模型、2747638 个故障的分类和 104 条图样，再继续 stuck-at ATPG；每 300 CPU 秒保存一次，本轮预算仍为 900 CPU 秒。起始 Test coverage 64.96%、Fault coverage 56.59%。SRAM 阵列仍按已核验模型单独排除，未调整故障统计范围或放宽约束。
 
 本记录为启动记录，最终覆盖率、图样数量和停止原因以本轮 `continue_02.log` 的实际输出为准。没有改 RTL、扫描链结构或 ATPG 脚本，也没有启动 MBIST 实验。
+
+
+## 2026-10-19：392 条图样已保存，延长下一轮 ATPG 预算
+
+02:34 检查确认上一轮已经正常保存退出：`build/atpg/npu_continue_20261019_01/continue_02.log` 报 M234 达到时间上限，总 CPU 902.21 秒。最终 392 条图样，Test coverage 73.63%、Fault coverage 64.14%；相对恢复前分别增加 8.67、7.55 个百分点。DT=1762308、PT=36、UD=354112、AU=16530、ND=614652，总故障 2747638。故障检查点、binary 图样与 STIL 均已写出。
+
+复查第一次长运行 `build/atpg/npu_stuck_at_20261018/run.log`：1184 条图样时 Test coverage 80.09%、CPU 3591.85 秒；最后可见 1504 条、82.53%、CPU 4036.20 秒。该次只留下日志，没有已保存图样/故障检查点，不能用其百分比替代当前可恢复结果；旧进程消失的原因仍未确定。
+
+用户要求继续提高覆盖率，本轮仅把共享脚本 `scripts/atpg/npu_generate_patterns.tcl` 的 `set_atpg -time {0 900}` 改为 `set_atpg -time {0 3600}`，保留每 300 CPU 秒保存及正常退出保存逻辑。未调整模型、故障范围、约束或搜索力度。既有教程中 900 秒命令快照描述的是先前实验；从本次起共享脚本采用 3600 秒预算。
+
+将 392 条图样、故障分类和 image 复制到新目录 `build/atpg/npu_continue_20261019_02/`，保留全部旧结果。02:35:28 +0800 使用同一恢复脚本启动下一轮，启动器 PID 124655，日志为 `continue_03.log`：
+
+```bash
+LC_ALL=C setsid nohup /home/synopsys/txs/O-2018.06-SP1/bin/tmax -shell -tcl ../../../scripts/atpg/npu_resume_stuck_at.tcl > continue_03.log 2>&1 < /dev/null &
+```
+
+3600 CPU 秒是搜索预算，不承诺固定墙钟完成时间或覆盖率目标。此处是新一轮启动记录，最终结果以本轮日志和保存点为准。
