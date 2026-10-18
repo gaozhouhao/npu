@@ -1312,3 +1312,12 @@ write_test_protocol -test_mode Internal_scan -output npu_scan.spf -names dc_shel
 本轮临时诊断脚本 `run_with_details.tcl` 对 B7/B8/B9/B10/N20 输出少量实例，主实验脚本保持基础流程。样例分别包括 DesignWare 除法器未使用的 remainder 输出、比较器未用输入位、单元 timing notifier、SYNOPSYS_UNCONNECTED 与除法器内部未用线；这些记录用于区分具体建模/连线问题，不将所有告警简单当作 SRAM 告警。
 
 唯一 N20 对应标准单元模型中的 `tsmc_dff` UDP，在 CP 从 0 变成 X 的弱时钟条件输出 X。官方 N20 说明：UDP 与 ATPG 提取模型的 X 悲观程度不同，可能导致向量仿真失配，建议生成向量后仿真验证。没有修改厂家 UDP，也没有降低告警等级。`set_faults -fault_coverage` 另外提示 M245：默认删除未使用门会改变故障统计范围，最终覆盖率必须连同这一模型范围说明，不能解释为全芯片所有物理故障的覆盖率。`-auto_compression` 是向量压缩/优化，不代表插入了硬件扫描压缩器。
+
+
+### UDP 告警的后续验证脚本（等待 ATPG 输出）
+
+准备 `scripts/atpg/run_npu_pattern_smoke.sh`；在工程根目录运行 `bash scripts/atpg/run_npu_pattern_smoke.sh`。流程只包含 STIL 转换、VCS 编译、仿真三个基本步骤，没有自动探测或配置修改。依赖本轮 ATPG 生成的 `npu_stuck_at.stil`，当前尚未执行。
+
+`stil2verilog` 位于 TetraMAX 的 bin 目录，调用前设置 `SYNOPSYS_TMAX` 指向该安装根目录。`-first 0 -last 9` 选择前 10 条向量；`-parallel 2` 使用并行装载并在每次移位过程模拟 2 个串行移位周期，避免首次验证就逐位模拟所有 4697 级链。它是抽样仿真，不代表全量串行移位验证。`-tb_module_name npu_patterns_tb` 固定 testbench 顶层。
+
+VCS 的 `-full64` 使用 64 位，`-sverilog` 接受 SystemVerilog，`-timescale=1ns/1ps` 明确无 timescale 模块的单位；`+define+UNIT_DELAY` 使用已有 SRAM 单位延迟功能模型，`+notimingcheck` 用于无 SDF 的功能验证，`-debug_access+all -debug_region+cell` 保留并行扫描装载所需的单元内部访问，`-top` 指定生成的 testbench，`-l` 保存编译和运行日志。输入是真实标准单元模型、SRAM 功能模型与扫描门级网表，没有修改厂家 UDP 或 RAM 模型。测试即使通过，也仅说明选中向量的功能一致性，不代表物理时序签核。
