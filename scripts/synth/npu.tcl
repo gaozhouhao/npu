@@ -1,14 +1,13 @@
-# 准备稿：真实 SRAM 模型尚未生成，当前不能运行完整综合。
 # NPU 的第一轮 DC 综合。
 # 请从工程的 build/dc/npu 目录启动 DC。
-# 运行前：填写真实 SRAM .db 路径，并完成 operand_sram.sv 的宏连接。
+# 运行前先执行 operand_sram_lib.tcl，生成下方使用的真实 SRAM .db。
 
 # 1. 标准单元采用与 PE 实验相同的 TT / 0.9 V / 25°C 库。
 set stdcell_db "/home/ICer/eda/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/nldm/tcbn28hpcplusbwp40p140tt0p9v25c.db"
 
-# SRAM 编译器生成模型后，将下面的 TODO 替换为实际 .db 完整路径。
+# Memory Compiler 生成模型，再由 LC 编译得到的 SRAM .db。
 # SRAM 的工艺、电压和温度条件需要与本轮标准单元库配套。
-set sram_db "TODO_GENERATED_SRAM_DB"
+set sram_db "/home/ICer/eda/pdk/tsmc28/Memory/macros/operand_32x64/ts5n28hpcpsvta32x64m2f_130a/NLDM/ts5n28hpcpsvta32x64m2f_130a_tt0p9v25c.db"
 
 # target_library 用于逻辑映射；link_library 用于解析标准单元和 SRAM 实例。
 set_app_var target_library [list $stdcell_db]
@@ -20,7 +19,7 @@ file mkdir reports
 define_design_lib WORK -path work
 
 # 3. 明确列出设计 RTL，不读取 Testbench 和厂商 SRAM 仿真模型。
-# operand_sram.sv 是待完成的 A/B SRAM 包装模块，先预留输入位置。
+# operand_sram.sv 连接真实 A/B 宏；厂商行为模型只用于 VCS。
 set rtl_files {
     ../../../rtl/compute/input_skew.sv
     ../../../rtl/compute/matrix_engine.sv
@@ -85,6 +84,8 @@ compile
 check_design > reports/check_design_mapped.rpt
 report_area > reports/area.rpt
 report_area -hierarchy > reports/area_hierarchy.rpt
+report_reference -hierarchy > reports/references.rpt
+check_timing > reports/check_timing.rpt
 report_timing -max_paths 10 > reports/timing.rpt
 report_timing -delay_type min -max_paths 10 > reports/hold.rpt
 report_constraint -all_violators > reports/constraints.rpt

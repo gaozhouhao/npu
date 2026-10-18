@@ -803,3 +803,78 @@ FATAL (MC, 044): Failed to get license for feature MC2-tsn28hpcp1prf-CLV or MC2-
 这一步只补齐程序组件，不代表 MC2 的宏生成已经通过。存储宏模型仍待取得正式授权后生成；NPU 的真实 SRAM 替换及完整 DC 综合状态保持未完成。
 
 辅助文件位于项目外，不提交到 Git；本轮仅提交这份部署记录。GitHub 认证此前未完成，推送状态以实际执行结果为准。
+
+
+## 2026-10-18：真实 A/B 存储宏接入与完整 NPU 综合启动
+
+### 1. 实际生成成功
+
+本次直接重试已有生成入口，日志保存到 `build/memory/operand_32x64/20261018_132723/generation.log`。实际结果为 `Number of errors : 0, Number of warnings : 0` 和 `Normal Termination`，并产生 Verilog、NLDM、LEF 等视图。
+
+生成宏的实际名称是 `TS5N28HPCPSVTA32X64M2F`，接口为 `CLK/CEB/WEB/A[4:0]/D[63:0]/Q[63:0]`，容量 32×64 bit，CEB 和 WEB 均低有效。本轮使用的目录是：
+
+```text
+/home/ICer/eda/pdk/tsmc28/Memory/macros/operand_32x64/ts5n28hpcpsvta32x64m2f_130a
+```
+
+选择 `tt0p9v25c` 模型，已核对其时间单位为 ns、电容单位为 pF，与标准单元库一致。Liberty 中该单元 area 属性为 2643.049500；16 个宏的属性之和为 42288.792000，最终是否保留 16 个实例仍须看综合报告，不能仅凭配置推定。
+
+### 2. LC 的真实作用和结果
+
+新增 `scripts/synth/operand_sram_lib.tcl`，直线流程只有设置输入输出路径、`read_lib`、`write_lib -format db`、退出。输入是生成的 TT Liberty，输出为同目录同基本文件名的 `.db`，库名为 `ts5n28hpcpsvta32x64m2f_tt0p9v25c`。
+
+LC 实际成功读取库并写出 35,840 bytes 的 `.db`，日志在 `build/lc/operand_sram/run.log`。保留一条 `LBDB-366` 告警：char_config 缺少 `internal_power_calculation` 属性。当前没有据此修改厂商模型或开展功耗签核。
+
+手动复现 LC 转换：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+mkdir -p build/lc/operand_sram
+cd build/lc/operand_sram
+LC_ALL=C /home/synopsys/lc/O-2018.06-SP1/bin/lc_shell -f ../../../scripts/synth/operand_sram_lib.tcl 2>&1 | tee run.log
+```
+
+### 3. RTL 改动与边界
+
+新增 `rtl/memory/operand_sram.sv`，只为 A/B 操作数存储适配接口：
+
+```systemverilog
+assign addr = wen ? waddr : raddr;
+// CEB = ~(ren | wen); WEB = ~wen;
+```
+
+宏 Q 直接连接 rdata，没有增加寄存器或时钟周期。`NPU_TSMC28` 选择真实 32×64 宏；普通仿真分支仍调用原 `sram_model`，保留小尺寸与其他参数的测试能力。真实宏仿真分支仅检查固定容量/字宽和同 bank 不同时读写这两项必要约定。
+
+`operand_buffer.sv` 的三个存储实例改为该包装。Makefile、公共 RTL 清单、GEMM Core 独立清单及 DC 源列表同步更新。已有模型编译器的依赖记录只同步本次 operand_buffer 和新增包装文件，未放宽其他历史 RTL 差异检查，也未宣称 Python 模型端到端重新验证。
+
+本轮没有合并 C/PSUM、改变 Conv cache 时序、改变顶层 AXI 接口或 descriptor 格式。其他行为 RAM 尚未落到硬宏，因此本轮完整 NPU 的面积仍包含这些由标准单元实现的存储。
+
+### 4. 已完成与正在运行的功能验证
+
+普通行为模型分支的 `operand_path_tb` 已 PASS，日志目录为 `build/vcs/operand_path_tb/20261018_132958`，覆盖双 bank 装载、流暂停、K 尾部和 INT8 选择。
+
+真实宏版本的 `gemm_executor_tb` 已 PASS，目录为 `build/vcs/gemm_executor_tb/20261018_133326`。该测试使用 K=260，覆盖 256+4 的 K 分块、64 个 INT32 输出，以及 AR=64、AW=16、W=64 的事务统计。
+
+真实宏测试的调用方式为：
+
+```bash
+PATH=/home/synopsys/vcs/O-2018.09-SP2/bin:$PATH \
+LC_ALL=C bash scripts/sim/run_vcs.sh gemm_executor_tb \
+    +define+NPU_TSMC28+UNIT_DELAY \
+    /home/ICer/eda/pdk/tsmc28/Memory/macros/operand_32x64/ts5n28hpcpsvta32x64m2f_130a/VERILOG/ts5n28hpcpsvta32x64m2f_130a_tt0p9v25c.v
+```
+
+`NPU_TSMC28` 选择真实宏连接，`UNIT_DELAY` 是厂商提供的快速功能模式，关闭模型的物理时序检查并保留小延迟；它不是后仿或时序签核。没有使用屏蔽全部模型告警的选项。当前看到 CEB 未知态提示发生在初始复位时钟沿，完整告警汇总与顶层回归结果随后补记。
+
+### 5. 完整 NPU DC 实验已启动
+
+实际运行目录为 `build/dc/npu_20261018_133300`，与 `build/dc/npu` 同一目录层级，因此 Tcl 中三级相对路径仍正确。执行的是：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning/build/dc/npu_20261018_133300
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/synth/npu.tcl > run.log 2>&1
+```
+
+脚本已填入真实 SRAM `.db`，标准单元用于 target library，标准单元和 SRAM 同时用于 link library。厂商行为 Verilog 只用于 VCS，不交给 DC 当普通 RTL 综合。保留 10 ns 教学时钟和既有接口约束，添加引用统计和 `check_timing` 报告，以核对宏实例及约束覆盖。
+
+在本阶段记录时，顶层 VCS 回归和完整 DC 仍在执行，尚不能报告最终面积、setup/hold 或完整顶层 PASS；最终结果将在同一笔记后续条目补充。

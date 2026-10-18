@@ -1,6 +1,6 @@
 # NPU 第一轮综合的教学约束：TT / 0.9 V / 25°C。
 # 与 PE 实验采用相同的时钟和接口环境假设，便于比较。
-# 标准单元库的时间单位为 ns，电容单位为 pF；SRAM 单位仍需核对。
+# 已核对标准单元和 SRAM 库：时间单位均为 ns，电容单位均为 pF。
 
 # 时钟周期 10 ns，即 100 MHz。
 create_clock -name npu_clk -period 10.0 [get_ports clk]

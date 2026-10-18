@@ -3,6 +3,7 @@ rtl/compute/input_skew.sv
 rtl/compute/systolic_array.sv
 rtl/compute/matrix_engine.sv
 rtl/memory/sram_model.sv
+rtl/memory/operand_sram.sv
 rtl/memory/operand_buffer.sv
 rtl/memory/scratchpad.sv
 rtl/core/matrix_controller.sv

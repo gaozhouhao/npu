@@ -5,6 +5,7 @@ VFLAGS := --binary --timing --assert --trace -Wall -Wno-TIMESCALEMOD
 
 MEMORY_SRCS := \
 	rtl/memory/sram_model.sv \
+	rtl/memory/operand_sram.sv \
 	rtl/memory/operand_buffer.sv \
 	rtl/memory/scratchpad.sv \
 	rtl/memory/operand_loader.sv \

@@ -180,3 +180,7 @@ python compiler/verify_model.py --ddr-dump actual_ddr.bin --image image_0000
 现有 `scratchpad.sv:100/103/127/130` 把 A/B 的 lane-count 和 buffer-count 参数互换。默认方阵/相同 buffer 数相等，因此本次不受影响；若未来要支持非方阵或不同 buffer 数，应先修复该参数连接并回归，再扩展 compiler target。此问题已记录，未修改 RTL。
 
 建议下一步仅扩展已有 `cnn_pool_npu_tb.sv` 的数据加载/检查入口，按顺序验证 Conv1（尤其 K=9）、Pool1、Conv2、Pool2、最后 FC 四段 K。实际运行若发现故障，再根据逐层 golden 定位 DMA、调度或计算时序；本次没有新增独立 RTL testbench，也没有屏蔽 Verilator warning。
+
+### A/B 存储宏接入记录（2026-10-18）
+
+本轮新增 `operand_sram.sv` 并将 `operand_buffer.sv` 内部存储实例接到该包装；普通行为模型分支保持原接口、容量参数和同步读延迟，外部 descriptor 格式未改。`rtl_contract.json` 仅同步这两个文件的依赖记录，未据此放宽其他历史 RTL 差异检查。本轮验证范围是 VCS 与 DC，未重新验证 Python 模型编译端到端流程。

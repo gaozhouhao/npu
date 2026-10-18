@@ -222,7 +222,7 @@ module operand_buffer #(
                     (rbank == '0);
 
 
-                sram_model #(
+                operand_sram #(
                     .DATA_WIDTH (
                         MEM_WORD_WIDTH
                     ),
@@ -327,7 +327,7 @@ module operand_buffer #(
                     );
 
 
-                sram_model #(
+                operand_sram #(
                     .DATA_WIDTH (
                         MEM_WORD_WIDTH
                     ),
@@ -350,7 +350,7 @@ module operand_buffer #(
                 );
 
 
-                sram_model #(
+                operand_sram #(
                     .DATA_WIDTH (
                         MEM_WORD_WIDTH
                     ),

@@ -32,6 +32,7 @@ rtl/dma/read_request_arbiter.sv
 rtl/dma/strided_read_engine.sv
 rtl/memory/buffer_manager.sv
 rtl/memory/c_result_buffer.sv
+rtl/memory/operand_sram.sv
 rtl/memory/operand_buffer.sv
 rtl/memory/operand_loader.sv
 rtl/memory/psum_tile_sram.sv
