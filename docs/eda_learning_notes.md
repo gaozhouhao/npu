@@ -1321,3 +1321,26 @@ write_test_protocol -test_mode Internal_scan -output npu_scan.spf -names dc_shel
 `stil2verilog` 位于 TetraMAX 的 bin 目录，调用前设置 `SYNOPSYS_TMAX` 指向该安装根目录。`-first 0 -last 9` 选择前 10 条向量；`-parallel 2` 使用并行装载并在每次移位过程模拟 2 个串行移位周期，避免首次验证就逐位模拟所有 4697 级链。它是抽样仿真，不代表全量串行移位验证。`-tb_module_name npu_patterns_tb` 固定 testbench 顶层。
 
 VCS 的 `-full64` 使用 64 位，`-sverilog` 接受 SystemVerilog，`-timescale=1ns/1ps` 明确无 timescale 模块的单位；`+define+UNIT_DELAY` 使用已有 SRAM 单位延迟功能模型，`+notimingcheck` 用于无 SDF 的功能验证，`-debug_access+all -debug_region+cell` 保留并行扫描装载所需的单元内部访问，`-top` 指定生成的 testbench，`-l` 保存编译和运行日志。输入是真实标准单元模型、SRAM 功能模型与扫描门级网表，没有修改厂家 UDP 或 RAM 模型。测试即使通过，也仅说明选中向量的功能一致性，不代表物理时序签核。
+
+
+## 2026-10-18：验证 DC 附带 MBIST 组件
+
+用户要求实际验证 DC 里的 MBIST 路径。所有新实验位于 `sim/mbist/`、`scripts/mbist/`、`build/mbist/`，没有修改 npu_top、扫描链、SRAM 包装或后台 ATPG 任务。
+
+先在 `build/mbist/dc_probe_20261018` 查询命令并加载 `dft_mbist.sldb`。库能正常读入；`info commands *mbist*` 为空，BIST 相关公开命令只列出 LogicBIST 配置。官方 `set_dft_configuration` 也没有 memory-BIST 生成选项。因此，当前已验证的是 DesignWare 组件路径，不能声称 DC 有现成的 MBIST 自动插入命令。
+
+使用官方 `report_synlib dft_mbist.sldb DW_mbist_ctrl` / `DW_mbist_apg` 报告接口和参数，文件在 `build/mbist/dc_library_20261018/`。控制器支持存储器数量、端口数、数据位宽和寄存级配置，接口包含模式寄存器、段控制以及与地址/数据图样生成器的握手。控制器本身不直接连接 SRAM 的地址和数据引脚，仍需要 APG/比较/存储器通路配合。初次发现的 `.syn/.vif` 是二进制组件，不能按普通 Verilog 文本读取或手工修改；由 DC 正常展开其实现。
+
+建立 `sim/mbist/dw_mbist_controller_probe.sv`，只例化厂家 `DW_mbist_ctrl`，配置 1 个存储器、1 个端口、64 bit 数据宽度，保留其控制接口用于独立验证。没有自己重写一个控制器来替代厂家 IP。
+
+```bash
+mkdir -p build/mbist/dc_controller_20261018
+cd build/mbist/dc_controller_20261018
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/mbist/dc_controller_probe.tcl > run.log 2>&1
+```
+
+Tcl 中 `synthetic_library` 加入 `dft_mbist.sldb` 和 `dw_foundation.sldb`；`target_library` 指向已有 TSMC28 TT DB，`link_library` 同时包含这几项。`analyze/elaborate/link` 建立参数化实例，`compile -map_effort medium` 选择厂家实现并映射标准单元。链接失败时直接退出，防止把未解析 IP 当作成功结果；没有加入环境或哈希检查。
+
+实际结果：无 Error，`check_design` 返回 1；映射后 370 个组合单元、101 个时序单元，合计 471 个叶单元；报告总单元数 472 包括 1 个层次实例。黑盒为 0，库单元面积 451.205996。输出 `controller_mapped.v` 和 `controller.ddc`。保留了工具对过长参数化文件名的自动缩短提示及 VO-4 网表 assign 提示，没有修改厂家安装文件或参数名来掩盖消息。
+
+这一结果证明控制器能生成并综合，尚不等同于完整 SRAM 自测试通过。下一步在隔离实验中接 APG 与 32×64 SRAM，验证正常存储器和读数据固定故障两种情形。
