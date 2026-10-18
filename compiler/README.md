@@ -183,4 +183,4 @@ python compiler/verify_model.py --ddr-dump actual_ddr.bin --image image_0000
 
 ### A/B 存储宏接入记录（2026-10-18）
 
-本轮新增 `operand_sram.sv` 并将 `operand_buffer.sv` 内部存储实例接到该包装；普通行为模型分支保持原接口、容量参数和同步读延迟，外部 descriptor 格式未改。`rtl_contract.json` 仅同步这两个文件的依赖记录，未据此放宽其他历史 RTL 差异检查。本轮验证范围是 VCS 与 DC，未重新验证 Python 模型编译端到端流程。
+本轮新增 `operand_sram.sv` 并将 `operand_buffer.sv` 内部存储实例接到该包装；普通行为模型分支保持原接口、容量参数和同步读延迟，外部 descriptor 格式未改。`rtl_contract.json` 同步这两个 RTL 文件，以及随后适配 64 位 AXI 读口的 Conv Testbench 的依赖记录，未据此放宽其他历史 RTL 差异检查。本轮验证范围是 VCS 与 DC，未重新验证 Python 模型编译端到端流程。

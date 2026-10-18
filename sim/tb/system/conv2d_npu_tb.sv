@@ -44,7 +44,7 @@ module conv2d_npu_tb;
     logic axi_arready;
 
     logic [ID_WIDTH-1:0] axi_rid;
-    logic [31:0] axi_rdata;
+    logic [63:0] axi_rdata;
     logic [1:0] axi_rresp;
     logic axi_rlast;
     logic axi_rvalid;
@@ -84,6 +84,7 @@ module conv2d_npu_tb;
     logic [63:0] read_addr_q;
     logic [8:0] read_left_q;
     logic [ID_WIDTH-1:0] read_id_q;
+    logic [2:0] read_size_q;
 
     logic write_active_q;
     logic [63:0] write_addr_q;
@@ -152,7 +153,10 @@ module conv2d_npu_tb;
     assign axi_arready = !read_active_q;
 
     assign axi_rvalid = read_active_q;
-    assign axi_rdata = mem[int'(read_addr_q >> 2)];
+    // 描述符等窄读每拍 4B，操作数宽读每拍 8B。
+    assign axi_rdata = (read_size_q == 3'd3)
+        ? {mem[int'(read_addr_q >> 2) + 1], mem[int'(read_addr_q >> 2)]}
+        : {32'd0, mem[int'(read_addr_q >> 2)]};
     assign axi_rid = read_id_q;
     assign axi_rresp = 2'b00;
     assign axi_rlast = (read_left_q == 9'd1);
@@ -165,15 +169,17 @@ module conv2d_npu_tb;
             read_addr_q <= '0;
             read_left_q <= '0;
             read_id_q <= '0;
+            read_size_q <= 3'd2;
 
         end else begin
 
             if (axi_arvalid && axi_arready) begin
 
                 if (
-                    (axi_arsize != 3'd2) ||
+                    ((axi_arsize != 3'd2) && (axi_arsize != 3'd3)) ||
                     (axi_arburst != 2'b01) ||
                     (axi_araddr[1:0] != 2'b00) ||
+                    ((axi_arsize == 3'd3) && axi_araddr[2]) ||
                     (axi_araddr >= 64'(MEMORY_WORDS * 4))
                 ) begin
 
@@ -185,6 +191,7 @@ module conv2d_npu_tb;
                 read_addr_q <= axi_araddr;
                 read_left_q <= {1'b0, axi_arlen} + 9'd1;
                 read_id_q <= axi_arid;
+                read_size_q <= axi_arsize;
 
             end else if (axi_rvalid && axi_rready) begin
 
@@ -194,7 +201,7 @@ module conv2d_npu_tb;
 
                 end else begin
 
-                    read_addr_q <= read_addr_q + 64'd4;
+                    read_addr_q <= read_addr_q + (64'd1 << read_size_q);
                     read_left_q <= read_left_q - 9'd1;
 
                 end

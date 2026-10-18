@@ -878,3 +878,29 @@ LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/synth
 脚本已填入真实 SRAM `.db`，标准单元用于 target library，标准单元和 SRAM 同时用于 link library。厂商行为 Verilog 只用于 VCS，不交给 DC 当普通 RTL 综合。保留 10 ns 教学时钟和既有接口约束，添加引用统计和 `check_timing` 报告，以核对宏实例及约束覆盖。
 
 在本阶段记录时，顶层 VCS 回归和完整 DC 仍在执行，尚不能报告最终面积、setup/hold 或完整顶层 PASS；最终结果将在同一笔记后续条目补充。
+
+
+### 6. 顶层与卷积功能回归完成
+
+真实宏版本的 `npu_top_tb` 已 PASS，目录为 `build/vcs/npu_top_tb/20261018_133637`。实际结果：三个 descriptor 分别验证纯 GEMM INT32、Bias INT32、Bias+Requant+ReLU INT8；总计 10,241 cycles、249 次 AR、48 次 AW、144 个写 beat。该测试采用 8×8 输出、K=260，完整比较其黄金结果。
+
+为了验证 Conv 的 A 装载路径，另复核已有 `conv2d_npu_tb`。其 DDR 读模型仍使用旧的 32 位总线、只接受 ARSIZE=2、每拍固定前进 4B，与当前顶层 64 位读口不符。本次仅修正 Testbench：将读数据改为 64 位，保存每个请求的 ARSIZE，窄读返回一个 32 位字、宽读拼接两个 32 位字，按 4B/8B 前进，并沿用地址对齐检查。DUT 与正在运行的 DC 输入没有因此修改。
+
+新增两行 `sim/filelists/vcs/conv2d_npu_tb.f` 复用普通 VCS 入口。执行方式与前面的宏回归相同，仅将 top 名称换为 `conv2d_npu_tb`。实际结果保存在 `build/vcs/conv2d_npu_tb/20261018_140136`：
+
+```text
+Conv2D + Bias + Requant + ReLU + INT8 writeback PASS cycles=381 busy=0 acc00=131
+```
+
+该用例以独立输入/权重函数和卷积黄金计算，比较全部 16 个 INT8 输出；输入 4×4×8、kernel 3×3、输出 2×2×4、K=72。本次单端口读写互斥检查未触发。这不是全部 Conv 配置或全部算子覆盖闭合。
+
+| 用例 | 存储分支 | 结果 |
+| --- | --- | --- |
+| operand_path_tb | 原行为模型，验证包装的普通分支 | PASS |
+| gemm_executor_tb | 实际宏，UNIT_DELAY | PASS，64 个输出 |
+| npu_top_tb | 实际宏，UNIT_DELAY | PASS，3 个 descriptor |
+| conv2d_npu_tb | 实际宏，UNIT_DELAY | PASS，16 个输出 |
+
+三项实际宏测试各出现 16 条 CEB unknown/high-Z 提示，均只发生在 t=5 ns 的第一次复位时钟沿；没有观察到后续时刻的同类提示。同步复位前的控制状态尚未初始化，宏本身也不提供存储阵列复位。日志原样保留，未通过全局关闭告警来获得 PASS。
+
+完整 DC 此时仍在运行，尚未生成最终网表与报告。中间优化表已显示 setup 目标未满足，但表内面积、负裕量和代价仍在变化；这些不作为最终 PPA 或签核结论。
