@@ -1,5 +1,7 @@
 // Isolated probe of the DC-supplied controller interface, not part of npu_top.
-module dw_mbist_controller_probe (
+module dw_mbist_controller_probe #(
+    parameter integer REGISTERED_IO = 2
+) (
     input  logic clk,
     input  logic rst_n,
     input  logic mbrun,
@@ -33,7 +35,7 @@ module dw_mbist_controller_probe (
         .num_mem(1),
         .num_ports_0(1),
         .data_width_0(64),
-        .registered_io_0(2)
+        .registered_io_0(REGISTERED_IO)
     ) u_controller (
         .bist_clk(clk),
         .bist_clk_t(clk),

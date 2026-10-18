@@ -1344,3 +1344,39 @@ Tcl 中 `synthetic_library` 加入 `dft_mbist.sldb` 和 `dw_foundation.sldb`；`
 实际结果：无 Error，`check_design` 返回 1；映射后 370 个组合单元、101 个时序单元，合计 471 个叶单元；报告总单元数 472 包括 1 个层次实例。黑盒为 0，库单元面积 451.205996。输出 `controller_mapped.v` 和 `controller.ddc`。保留了工具对过长参数化文件名的自动缩短提示及 VO-4 网表 assign 提示，没有修改厂家安装文件或参数名来掩盖消息。
 
 这一结果证明控制器能生成并综合，尚不等同于完整 SRAM 自测试通过。下一步在隔离实验中接 APG 与 32×64 SRAM，验证正常存储器和读数据固定故障两种情形。
+
+
+### APG 与 SRAM 完整路径：当前未通过
+
+继续建立 `dw_mbist_sram_probe`：厂家控制器、厂家 `DW_mbist_apg`（地址/数据生成、控制和比较）、1 个真实 `TS5N28HPCPSVTA32X64M2F` SRAM 宏。配置地址 5 bit、数据 64 bit、单端口、全地址范围 0～31、无外部额外寄存级（registered_io=0）。控制器探针新增 REGISTERED_IO 参数以匹配这项配置，默认仍保留前一实验的 2。
+
+准备了独立 testbench，按厂家的 CTL 模式寄存器定义，通过串行接口装入 March C 指令；正常数据预期 done=1、global fail=0、单存储器 fail_n=1。第二个用例把比较器输入的读数据 bit 0 固定为 0，预期故障被检出，同时统计 SRAM 读写次数和 32 个地址的访问。它是读数据通路故障注入，不是对所有 SRAM 阵列故障的覆盖率验证。这些仅为待执行的用例，当前没有 PASS 结果。
+
+实际执行 `scripts/mbist/dc_sram_probe.tcl`，日志 `build/mbist/dc_sram_20261018/run.log`，在图样生成器实现选择处失败：
+
+```text
+Error: Cannot find a valid implementation for module 'DW_mbist_apg_muxif'. (SYNH-14)
+Error: Compile has abnormally terminated.  (OPT-100)
+```
+
+DC 返回退出码 1，没有输出有效的 `mbist_mapped.v`，因此没有运行 SRAM 用例或 VCS 仿真。
+
+为区分用户配置错误与组件路径问题，另建 `dw_mbist_apg_default_probe`：不覆盖任何厂家参数，87 个接口端口全部暴露到顶层，没有 SRAM 依赖，也没有故障注入或未接输出。`check_design` 返回 1，但执行 `scripts/mbist/dc_apg_default_probe.tcl` 仍在同一 `DW_mbist_apg_muxif` 子模块报 SYNH-14 / OPT-100，退出码 1。日志为 `build/mbist/dc_apg_default_20261018/run.log`。
+
+另外核对了 `report_synlib` 的 APG 合法范围：addr_width=3～24、data_width=3～256、num_ports=1～4、registered_io 允许 0 或满足管线条件的 2/3，memory_full=1 支持全地址空间；本次 5/64/1/0 配置处于列明范围内。默认参数对照也失败，说明问题不只在本次 32×64 连接或未接输出；尚不能由此确定底层原因。实现相关文件存在，不等于工具当前能成功选取该实现。没有手改厂家组件、解密源码或检查任何 License 文件/服务/配置。
+
+当前结论：**DC 附带的控制器组件已经实际生成并映射成功，但这套附带组件的完整 MBIST 路径尚未走通，阻塞在 APG 内部 muxif 实现选择。** 不能把库能加载、控制器能综合写成整个 MBIST 已可用。自动 MBIST 插入命令也未在当前版本公开命令中找到。
+
+后续需要解决 APG 的官方调用/组件配套问题，或采用独立 MBIST 方案；如走教学用自研控制器路线，应明确这是另一套实现，不将其通过结果当作本次厂家 APG 已修复。没有把本实验接入 NPU。准备的 VCS 脚本 `scripts/mbist/run_sram_probe_vcs.sh` 已标注阻塞状态，留作 APG 综合成功后的验证入口。
+
+复现两个综合实验（各自在对应 build 目录）：
+
+```bash
+mkdir -p build/mbist/dc_sram_20261018
+cd build/mbist/dc_sram_20261018
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/mbist/dc_sram_probe.tcl > run.log 2>&1
+```
+
+默认参数对照使用 `build/mbist/dc_apg_default_20261018` 和 `../../../scripts/mbist/dc_apg_default_probe.tcl`。已有日志需先另存，再手动重跑，避免覆盖本次证据。
+
+最终提交前，用新增 REGISTERED_IO 参数后的当前源文件再次运行控制器默认配置，目录 `build/mbist/dc_controller_confirm_20261018`。仍正常完成映射，370 个组合单元、101 个触发器、0 黑盒，面积 451.205996，与初次成功实验一致。这个正对照与两组 APG 失败共同构成本次验证结论。
