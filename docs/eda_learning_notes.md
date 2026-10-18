@@ -1552,3 +1552,18 @@ setsid nohup /home/synopsys/txs/O-2018.06-SP1/bin/tmax -shell -tcl ../../../scri
 补记上一轮实际完成结果：`continue_01.log` 显示 104 条图样，DT=1554877、PT=36、UD=354049、AU=16529、ND=822147，总数2747638。按工具默认 PT 50% 信用，Fault coverage=(1554877+18)/2747638=56.59%，Test coverage=(1554877+18)/(2747638-354049)=64.96%。因900 CPU秒预算停止，实际总CPU912.45秒，故障、104条binary图样和STIL都正常写出，当前无ATPG进程。
 
 明确验证范围：已有 VCS 0 mismatch 是先前14条集合抽样前10条的结果；新增至104条后尚未重新做门级图样验证。独立MBIST的正常与总线bit0 stuck-at-0用例均PASS，但尚未接入整个NPU，地址访问覆盖也不等于全阵列故障覆盖率。
+
+
+## 2026-10-19：从 104 条图样恢复下一轮 ATPG
+
+按用户要求继续提高覆盖率。启动前确认无其它 TetraMAX 进程；将上一轮的 `npu_model.image`、`checkpoint.faults` 和 `checkpoint.patterns` 复制到新目录 `build/atpg/npu_continue_20261019_01/`，保留原目录全部结果。本轮于 02:14:57 +0800 启动，启动器 PID 124125，实际 tmax64 PID 124139。
+
+从新结果目录执行：
+
+```bash
+LC_ALL=C setsid nohup /home/synopsys/txs/O-2018.06-SP1/bin/tmax -shell -tcl ../../../scripts/atpg/npu_resume_stuck_at.tcl > continue_02.log 2>&1 < /dev/null &
+```
+
+本轮复用原恢复与生成脚本：先恢复原模型、2747638 个故障的分类和 104 条图样，再继续 stuck-at ATPG；每 300 CPU 秒保存一次，本轮预算仍为 900 CPU 秒。起始 Test coverage 64.96%、Fault coverage 56.59%。SRAM 阵列仍按已核验模型单独排除，未调整故障统计范围或放宽约束。
+
+本记录为启动记录，最终覆盖率、图样数量和停止原因以本轮 `continue_02.log` 的实际输出为准。没有改 RTL、扫描链结构或 ATPG 脚本，也没有启动 MBIST 实验。
