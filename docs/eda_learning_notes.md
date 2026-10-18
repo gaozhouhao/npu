@@ -1293,3 +1293,22 @@ MBIST 初步盘点：未找到独立 STAR Memory System / Tessent 安装，但 D
 面积从插入前 488830.015022 增至 543531.280428（约增加 11.19%），组合单元数 248924、时序单元数 75137、宏数 16 均保持；增加主要来自扫描触发器替换。这里是库单元面积，不是布局后的芯片面积。报告 Number of ports 是层次统计，不是本轮新增的顶层引脚数；本轮新增仍为 33 个信号位。
 
 保留了 TIM-134 高扇出、UCN-1 多端口别名、VO-4 网表 assign/tran 等工具消息；这些不能与扫描链功能错误混为一谈，也没有被全局屏蔽。此次未执行插入后的功能/shift STA 或门级向量仿真，不能据此声称扫描后时序已收敛。下一步实际运行 ATPG 的建模与 DRC 检查。
+
+
+### ATPG 协议问题与修复
+
+首轮运行在 STIL 解析阶段报 V5 / M100，尚未产生覆盖率。失败日志完整保存在 `build/atpg/npu_stuck_at_20261018_protocol_error/`。四个 `[0:0]` 的 AXI ID 端口在网表中为正常总线位，例如 `m_axi_bid[0]`；DC 的 Verilog 命名协议却输出带额外反斜线的名字，TetraMAX 不能匹配。
+
+从已保存的 `npu_scan.ddc` 重新导出，确认 `-names verilog` 仍产生转义，而下面的原生命名输出与网表一致：
+
+```tcl
+write_test_protocol -test_mode Internal_scan -output npu_scan.spf -names dc_shell
+```
+
+已将此行写回插入脚本，避免每次手改生成文件；原协议另存 `npu_scan_verilog.spf`，重导出日志为 `protocol_export.log`。没有改变顶层端口、扫描链或 RTL。
+
+第二轮实际日志：`End parsing STIL ... with 0 errors`；16 条链均 successfully traced，长度与 DC 一致；`No violations occurred during DRC process`；非扫描单元 DFF=0、DLAT=0。随后建立故障列表并开始确定性 ATPG。注意建模阶段的告警仍保留，测试 DRC 通过不等于所有模型告警消失。
+
+本轮临时诊断脚本 `run_with_details.tcl` 对 B7/B8/B9/B10/N20 输出少量实例，主实验脚本保持基础流程。样例分别包括 DesignWare 除法器未使用的 remainder 输出、比较器未用输入位、单元 timing notifier、SYNOPSYS_UNCONNECTED 与除法器内部未用线；这些记录用于区分具体建模/连线问题，不将所有告警简单当作 SRAM 告警。
+
+唯一 N20 对应标准单元模型中的 `tsmc_dff` UDP，在 CP 从 0 变成 X 的弱时钟条件输出 X。官方 N20 说明：UDP 与 ATPG 提取模型的 X 悲观程度不同，可能导致向量仿真失配，建议生成向量后仿真验证。没有修改厂家 UDP，也没有降低告警等级。`set_faults -fault_coverage` 另外提示 M245：默认删除未使用门会改变故障统计范围，最终覆盖率必须连同这一模型范围说明，不能解释为全芯片所有物理故障的覆盖率。`-auto_compression` 是向量压缩/优化，不代表插入了硬件扫描压缩器。

@@ -47,5 +47,6 @@ report_scan_path -view existing_dft -cell all > reports/scan_cells.rpt
 report_area > reports/area.rpt
 write -format verilog -hierarchy -output npu_scan.v
 write -format ddc -hierarchy -output npu_scan.ddc
-write_test_protocol -output npu_scan.spf -names verilog
+# dc_shell 保留总线位名，避免 [0:0] 端口在 STIL 中多出转义符。
+write_test_protocol -test_mode Internal_scan -output npu_scan.spf -names dc_shell
 exit
