@@ -1060,3 +1060,85 @@ compile -only_hold_time
 `-min_delay` 使最小延迟目标的优先级高于最大延迟目标，但低于最大设计规则。它不是时序例外，也不改变实际要求的保持时间；允许优化器在 setup/hold 冲突时优先修 hold，需要如实报告 setup 变化。
 
 新一轮位于 `build/dc/npu_hold_priority_20261018`，重新读取同一原始 `build/dc/npu_20261018_133300/npu.ddc`，便于与基线比较。没有沿用旧实验的部分优化结果，没有重新 analyze/elaborate RTL，也没有修改存储或计算架构。此条记录时该实验正在运行。
+
+
+### 检查点复核与按 STA 终点插入延迟缓冲
+
+独立读取原始 DDC 与第一轮检查点，在 `build/dc/npu_hold_inspect_20261018` 生成对照报告。原始设计最差 hold -0.20 ns、setup -11.69 ns；检查点最差 hold -0.21 ns、setup -11.71 ns，后者最差 hold 起点为 `m_axi_rdata[11]`，终点为 B SRAM。专用 DEL 系列实例数从 398 增至 411。该检查不是重新综合，也没有修改输入 DDC。
+
+第二轮 hold 优先优化也在缓慢搜索输出短路径。保存 `build/dc/npu_hold_priority_20261018/CHECKPOINT.ddc` 后中止，该轮同样不能记为正常完成。其脚本版本保留在提交 `01b93dc`，该提交已实际推送到 GitHub。
+
+为直接处理已经识别的违例，最终入口改为 STA 驱动的门级缓冲 ECO。使用本机官方 `get_timing_paths`、`insert_buffer` 命令：
+
+1. 读取同一原始 DDC，保留原始时序约束。
+2. 查询 hold slack 小于 0 的路径，每个终点取一条最差路径。
+3. 先保存终点集合，再在各终点前插入 `DEL200MD1BWP40P140`；这样不会在修改网表后继续读取已失效的旧路径对象。
+4. 重新计时，最多三轮；最终仍由报告判断是否修复成功，不能以完成插入当作通过。
+
+该标准单元来自当前 TT 库，功能为 `Z=I`、面积属性为 3.15，有完整延迟与转换时间表。示例低 slew / 低负载下的下降延迟约 0.280 ns，实际值必须由 STA 根据 slew/load 查询，不能把单元名称解读为固定的 200 ps 延迟。没有编写 RTL 的 `#delay`，没有添加功能寄存器，也没有调整 uncertainty 或接口延迟。
+
+新实验目录为 `build/dc/npu_hold_eco_20261018`，入口仍是简单的 `scripts/synth/npu_fix_hold.tcl`。额外保存 `reports/hold_before.rpt` 与 `timing_before.rpt`，修复后以四位小数保存时序和约束报告，避免四舍五入掩盖小负裕量。本条记录时 ECO 正在运行，尚未宣称时序通过。
+
+
+### ECO 端口处理问题与修正
+
+首轮缓冲 ECO 在 `build/dc/npu_hold_eco_20261018` 完成，但日志存在 `NLE-036/NLE-020`，不能记为通过。第一次插入后剩余 698 个违例，后续两轮未减少，最差 hold -0.1408 ns；内部违例大部分修复，残留集中在顶层输出端口。时序叶单元仍为 75137、宏仍为 16；该轮总单元面积 486631.314956、最差 setup -11.9791 ns，约束报告没有额外列出最大电容/转换时间等违例类别。
+
+在独立目录 `build/dc/npu_hold_port_inspect_20261018` 检查 `acc_out[255]`：端口与网络确实相连，通过 `get_ports` 重新获取端口后，`insert_buffer` 可以正常插入；通过网络对象插入也成功。不是 RTL 的端口没有连线。混合集合中的端口对象交给插入命令时未能正确解析连接，具体内部机制没有据此认定为工具缺陷。
+
+脚本改为先用 Tcl 列表保存终点名称，再以 `get_pins` / `get_ports` 重新取得对应对象后执行插入，避免把混合的端口和引脚集合直接交给编辑接口。随后在 `build/dc/npu_hold_fixed_20261018` 从原始 DDC 重新验证最终入口；不沿用前面含错误日志的输出作为最终候选。本条记录时验证正在进行。
+
+
+### 最终结果：当前约束下 hold 违例清零
+
+最终候选位于 `build/dc/npu_hold_fixed_20261018`。DC 正常退出，外层退出码 0、日志无 `Error:`，CPU 使用 83 seconds。实际轮次记录：
+
+```text
+HOLD_ECO_PASS 1: 18154 violating endpoints
+HOLD_ECO_PASS 2: 0 violating endpoints
+```
+
+不仅检查了轮次计数，也核对最终 `reports/constraints.rpt`：仅剩 `max_delay/setup` 违例类别（37589 项），没有 `min_delay/hold`、最大电容、最大转换时间等新增违例类别。`get_timing_paths` 运行时保留了 `TIM-104` 提示（不保证返回最差路径顺序），因此不能单靠查询顺序宣称修复；本次以全部约束报告及最终最差路径报告交叉核对。
+
+| 项目 | 原始综合 | 最终 hold ECO |
+| --- | ---: | ---: |
+| Hold 违例项数 | 18154 | 0 |
+| 最差 hold slack / ns | 约 -0.20 | +0.0008 |
+| 最差 setup slack / ns | 约 -11.69 | -12.0009 |
+| 总单元面积，库属性单位 | 431644.913291 | 488830.015022 |
+| 时序叶单元数 | 75137 | 75137 |
+| SRAM 宏数 | 16 | 16 |
+| DEL200MD1BWP40P140 数量 | 0 | 18154 |
+
+最终组合单元数 248924，较原始 230770 正好增加 18154，网数也增加 18154。新增的是逻辑值不变的延迟缓冲，不是功能寄存器；没有删除或增加状态、没有改变协议周期。总面积增加约 13.25%，这是本轮直接逐终点修复的代价，不将其描述为面积最优方案。
+
+最差 hold 路径已经转移到参数槽 bank 的 bias 寄存器使能端：
+
+```text
+Startpoint: u_gemm_executor/param_fill_slot_q_reg_1_
+Endpoint: u_gemm_executor/u_output_param_slot_bank/bias_q_reg_1__0__9_
+Data arrival:  0.1881 ns
+Data required: 0.1873 ns
+Slack (MET):  +0.0008 ns
+```
+
+该路径原本就接近边界，本轮查询中没有负裕量，因此未加延迟。0.0008 ns 只有 0.8 ps，当前约束下通过但余量很小；它不能代表后续所有 PVT、CTS 和布线条件都通过。
+
+最差 setup 路径仍从池化累加寄存器，经组合除法到 `m_axi_wdata[4]`。新增输出延迟单元在该路径上贡献约 0.3207 ns，最终 arrival 为 20.8009 ns、required 仍为 8.8000 ns，slack -12.0009 ns。相对原始最差 setup 约恶化 0.31 ns，说明 hold 修复需要付出 setup 代价；没有通过放宽时钟或添加时序例外掩盖问题。
+
+`check_timing` 未报告约束覆盖或环路问题。`check_design` 没有 Error，但仍有结构告警，包括 unloaded nets 2065、unloaded inputs 797、unconnected ports 5508 等，不能宣称结构检查零告警。最终网表已实际导出 `npu_mapped.v`、`npu.ddc`、`npu.sdc`；原始模型和宏文件仍在工程外，build 结果不加入 Git。
+
+本轮没有修改任何 RTL，因此没有重复前面的 RTL VCS 回归；没有进行形式等价验证或 SDF 后仿。当前结论限定为 TT / 0.9 V / 25°C、理想时钟、ZeroWireload 和原始 10 ns 教学约束下的门级 STA 修复，后续物理实现仍需重新检查 setup / hold。
+
+最终脚本的手动复现方式保持简单，使用一个新的同层输出目录以保留已有结果：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+mkdir -p build/dc/npu_hold
+cd build/dc/npu_hold
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/synth/npu_fix_hold.tcl > run.log 2>&1
+```
+
+阅读脚本时，重点理解 `read_ddc`（读取现有网表和约束）、`get_timing_paths -delay_type min -slack_lesser_than 0`（找负裕量 hold 路径）、`-nworst 1`（每个终点一条）、`insert_buffer`（插入真实标准单元）、`report_constraint -all_violators`（检查残留违例）。本轮的核心经验是：保持时间修复增加数据路径传播延迟，并不需要增加一拍；门级 ECO 的逻辑正确与时序达标仍要通过相应检查分别确认。
+
+按用户最新选择，存储触发器的 SRAM 化方案暂停，本轮没有修改 Conv cache、C、PSUM 或计算流水。GitHub 公钥认证已实际打通，最终脚本和记录继续按阶段提交并推送，是否推送成功以实际输出为准。
