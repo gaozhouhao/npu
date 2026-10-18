@@ -720,3 +720,70 @@ DC 正常退出。仍有 initial 块被忽略、未标号 `$fatal` 被忽略、`
 Library Compiler（LC）可以将可读的 Liberty `.lib` 编译为 Synopsys `.db`，用于 DC/PrimeTime 等工具读取；它不是生成 SRAM 电路的 Memory Compiler。`.lib` 描述单元功能、引脚、时序、功耗及面积等属性，`.db` 是对应的编译数据库。有配套 `.db` 时可直接使用，不必再次转换；`.ddc` 则是已读入或综合的设计数据库。
 
 上一轮 PE 的最差 hold slack 为 -0.19 ns。该短路径输入最小延迟为 0，理想时钟下不确定度为 0.2 ns，库 hold 时间约 -0.01 ns，故要求保持约 0.19 ns。这个结果在当前约束下有明确原因，但不能视为时序已经通过，也不能用降低频率直接修复。后续应依据真实接口和物理实现确定约束及修复方式，不为获得全绿而取消检查。
+
+
+## 2026-10-18：主体包到位、首次宏生成尝试与阶段提交
+
+### 1. 本次安装 TetraMAX 应选哪一个
+
+已实际读取共享目录内的产品安装说明中与产品类型、目录相关的段落：
+
+- 源目录：`/mnt/hgfs/share/Synopsys2018/tx_vO-2018.06-SP1`。
+- `tx_INSTALL_README.txt` 标识为 `TetraMAX_Overlay_with_Synthesis`。
+- `txs_INSTALL_README.txt` 标识为 `TetraMAX_StandAlone`。
+
+建议在安装器选择 `TetraMAX_StandAlone`（txs）、版本 `O-2018.06-SP1`，最终目录为 `/home/synopsys/txs/O-2018.06-SP1`。若安装器要求的是安装根目录，填写 `/home/synopsys` 并检查最终路径预览。本轮只核对安装说明，没有代用户执行 TetraMAX 安装。
+
+### 2. 存储编译器主体包已实际到位
+
+这次共享 Memory 目录确认新增两个主体包：1PRF 130a 为 30,062,200 bytes，公共 Memory Compiler 110a 为 31,275,076 bytes。外层包还包含同名内层压缩包，公共包内实际引擎版本为 `MC2_2012.02.00.d`，与 1PRF 手册要求一致。
+
+只提取生成必需的 `.mco`、Perl 入口和 64 位引擎到项目之外的 `/home/ICer/eda/pdk/tsmc28/Memory/compilers`，没有运行 `install.sh`。
+
+新增简单的复现输入：
+
+- `scripts/synth/operand_32x64.txt`：一行 `32x64m2f`，表示 32 words × 64 bits、MUX=2、F 分段。
+- `scripts/synth/generate_operand_sram.sh`：仅设置本进程的 `MC_HOME`、引擎路径，进入项目外输出目录并调用 Perl 入口。
+
+本次实际生成命令的主要参数是：
+
+```bash
+perl "$MC_HOME/tsn28hpcp1prf_130a.pl" \
+    -file operand_32x64.txt -SVT -NonBWEB -NonBIST -NonSLP -NonSD
+```
+
+显式 `-SVT` 选择标准阈值；本轮不需要按位写掩码、宏内部 BIST 输入复用、sleep 或 shutdown，因此关闭这些选项。以后外部 MBIST 可以通过存储接口复用控制宏，不以本轮启用宏内部 BIST 引脚为前提。
+
+完整复现入口及保存日志方式：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+mkdir -p build/memory/operand_32x64
+LC_ALL=C bash scripts/synth/generate_operand_sram.sh > build/memory/operand_32x64/generation.log 2>&1
+```
+
+### 3. 真实执行结果：宏未生成
+
+引擎启动并正确解析了生成配置，日志中实际打印 SVT、32×64、MUX=2、F 分段，并构造实例名称 `TS5N28HPCPSVTA32X64M2F`。随后出现：
+
+```text
+FATAL (MC, 044): Failed to get license for feature MC2-tsn28hpcp1prf-CLV or MC2-tsn28hpcp1prf-CPV
+```
+
+这是正常生成命令运行时暴露的阻塞。本轮没有据此读取、验证或修改任何 License 文件、服务、配置，也没有继续尝试相关修复。
+
+程序在打印 FATAL 后仍返回退出码 0；因此 `set -e` 和 shell 退出状态不足以证明生成成功。真正的成功依据应是日志及可用的实际模型。本次没有获得 `.v/.lib/.db` 模型，打印出的实例名称不能当作模型已经生成的证据。
+
+没有实施 SRAM RTL 替换，没有填入虚构的库路径，也没有运行依赖这些模型的完整 NPU 综合。`scripts/synth/npu.tcl` 与 `constraints/npu.sdc` 作为准备稿保存，宏 DB 与包装模块仍待完成。
+
+### 4. Commit 与 push 状态
+
+用户已授权分阶段 commit 并 push。本轮先审查并提交此前验证修复、工程目录迁移、旧脚本退役、PE DC 脚本及学习记录：
+
+```text
+7b389bf refactor: organize NPU verification and checkpoint EDA learning flows
+```
+
+暂存范围明确列出，没有加入外部工艺库、安装包或 build 生成文件。新纳入的 JSON/CSV/TB 行尾格式问题已修正，暂存补丁检查通过。先前记录的回归结果仍按原实验记录说明，没有把本轮格式整理说成重新通过全部回归。
+
+实际执行 `git push origin learning/vcs-pe`，HTTPS 返回无法读取 GitHub 用户名；SSH 非交互测试也未能通过已有主机信任记录。没有成功推送，没有强制推送。用户选择学习 GitHub SSH 认证，已给出生成密钥、上传公钥、核对官方主机指纹、测试连接及切换远程地址的步骤，等待用户完成后重试。
