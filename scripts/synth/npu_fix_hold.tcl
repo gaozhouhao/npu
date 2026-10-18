@@ -8,8 +8,10 @@ read_ddc ../npu_20261018_133300/npu.ddc
 current_design npu_top
 link
 
-# 保留 DDC 中的时钟和接口约束，只优化 hold。
+# 保留 DDC 中的时钟和接口约束，优先优化 hold。
+# 允许优化器在 setup 与 hold 冲突时优先修复 hold。
 set_fix_hold [get_clocks npu_clk]
+set_cost_priority -min_delay
 compile -only_hold_time
 
 file mkdir reports

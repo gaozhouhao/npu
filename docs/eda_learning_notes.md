@@ -1039,3 +1039,24 @@ LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/synth
 ```
 
 脚本内 `read_ddc ../npu_20261018_133300/npu.ddc` 明确选择本轮基线。输入路径和相对目录层级不变即可复现；输出在自己的目录，不覆盖基线。本条记录时设计已链接，hold 优化正在运行，最终修复数量及残留问题随后补记。
+
+用户随后确认已添加 GitHub 公钥，并明确本阶段“先只修 hold，存储方案稍后讨论”。因此本阶段不修改 Conv cache、C 存储或其他存储 RTL，只继续 hold 修复和推送。使用兼容旧版 Git 的 GIT_SSH 入口重新推送，GitHub 成功创建 learning/vcs-pe 远程分支，已包含 83c8466 及此前提交。未创建 PR，也未修改 origin 的 HTTPS 地址。
+
+
+### 调整优化优先级：保留约束，优先修 hold
+
+默认优先级实验运行约 15 分钟，优化表仍停留在 `min_path` 修复：末段面积约 440501.5、setup 违例幅度约 11.71 ns、min-delay cost 约 -3575.50。这里的 cost 不是最差 hold slack，不能当成完成后的时序报告。因进展慢且用户明确要求先解决 hold，本轮改用 hold 优先策略。
+
+先向 DC 发出 SIGINT，DC 实际保存了 `build/dc/npu_hold_20261018/CHECKPOINT.ddc`，但随后继续优化；因此在确认检查点写出后，通过 SIGTERM 停止这一实验。该轮是人工中止的阶段实验，外层退出码为 1，没有最终报告，不能记为正常完成或 hold 通过。默认优先级脚本版本已在提交 `83c8466` 中保存。
+
+根据本机官方 `set_cost_priority` 命令说明，在同一入口补充：
+
+```tcl
+set_fix_hold [get_clocks npu_clk]
+set_cost_priority -min_delay
+compile -only_hold_time
+```
+
+`-min_delay` 使最小延迟目标的优先级高于最大延迟目标，但低于最大设计规则。它不是时序例外，也不改变实际要求的保持时间；允许优化器在 setup/hold 冲突时优先修 hold，需要如实报告 setup 变化。
+
+新一轮位于 `build/dc/npu_hold_priority_20261018`，重新读取同一原始 `build/dc/npu_20261018_133300/npu.ddc`，便于与基线比较。没有沿用旧实验的部分优化结果，没有重新 analyze/elaborate RTL，也没有修改存储或计算架构。此条记录时该实验正在运行。
