@@ -904,3 +904,103 @@ Conv2D + Bias + Requant + ReLU + INT8 writeback PASS cycles=381 busy=0 acc00=131
 三项实际宏测试各出现 16 条 CEB unknown/high-Z 提示，均只发生在 t=5 ns 的第一次复位时钟沿；没有观察到后续时刻的同类提示。同步复位前的控制状态尚未初始化，宏本身也不提供存储阵列复位。日志原样保留，未通过全局关闭告警来获得 PASS。
 
 完整 DC 此时仍在运行，尚未生成最终网表与报告。中间优化表已显示 setup 目标未满足，但表内面积、负裕量和代价仍在变化；这些不作为最终 PPA 或签核结论。
+
+
+## 2026-10-18：完整 NPU DC 综合完成与结果分析
+
+### 1. 执行结果与保存位置
+
+本轮 `compile` 已结束，DC 正常退出，外层进程退出码为 0；`run.log` 未发现 `Error:`。13:33 启动，14:55 写出结果，DC 记录 CPU 使用 4829 seconds，内存 2176 Mbytes。执行目录为 `build/dc/npu_20261018_133300`，使用的脚本仍为 `scripts/synth/npu.tcl`，没有为了消除违例修改约束或 RTL。
+
+已实际生成：
+
+| 输出 | 内容 |
+| --- | --- |
+| `run.log` | 读取 RTL、展开、链接、映射优化与导出的完整日志 |
+| `npu_mapped.v` | 层级门级网表，约 31 MiB |
+| `npu.ddc` | DC 设计数据库，约 18 MiB，供后续在 DC 中继续分析 |
+| `npu.sdc` | 本轮导出的时钟、输入输出延迟等约束 |
+| `reports/area.rpt`、`area_hierarchy.rpt` | 总单元面积和层级面积 |
+| `reports/references.rpt` | 设计引用与存储宏引用 |
+| `reports/timing.rpt`、`hold.rpt` | 最差 10 条 setup / hold 路径 |
+| `reports/constraints.rpt` | 全部已报告的约束违例 |
+| `reports/check_design_mapped.rpt`、`check_timing.rpt` | 综合后结构检查和时序约束检查 |
+
+### 2. SRAM 与面积核对
+
+综合网表中实际包含 **16 个 `TS5N28HPCPSVTA32X64M2F`** 实例，引用报告也列出相同宏，面积报告列出实际 SRAM 库。它们是有时序/面积模型的存储宏；报告中的 `macros/black boxes` 是合并栏目，不能把这 16 个宏理解成 16 个缺失模型。
+
+| 项目 | DC 最终值 |
+| --- | ---: |
+| 组合叶单元数 | 230770 |
+| 时序叶单元数 | 75137 |
+| 存储宏数 | 16 |
+| 组合单元面积 | 196631.440412 |
+| 时序单元面积 | 192724.679911 |
+| 存储宏面积 | 42288.792969 |
+| 总单元面积 | 431644.913291 |
+
+面积按库中 area 属性单位记录，不将它直接称为芯片面积。`Buf/Inv area` 已包含在组合面积中，不能重复相加。报告的 `Number of cells = 306328` 还包含层级单元；叶标准单元为 230770+75137=305907，宏另计。`Number of ports = 60677` 也包含层级端口，不能解释成芯片外部引脚数量。
+
+16 个宏合计 32768 bit，即 4 KiB，只对应 A/B 操作数存储。C、PSUM、Conv cache 等尚未全部换成硬宏，当前 75137 个时序叶单元不能当成最终 SRAM 化后的寄存器规模。`u_gemm_executor` 占 83.1% 总单元面积，`u_pool` 占 10.4%；这些父层级面积已经包含子层级，不能再次与子模块面积相加。
+
+### 3. Setup：100 MHz 目标没有达到
+
+保留 10 ns 时钟、0.2 ns uncertainty、1 ns 最大输出延迟。最差路径为：
+
+```text
+Startpoint: u_pool/sum_q_reg[0][6]
+Endpoint:   m_axi_wdata[3]
+Data arrival time:  20.49 ns
+Data required time:  8.80 ns
+Slack (VIOLATED):  -11.69 ns
+```
+
+这条路径经过 `u_pool/div_150_C175`。对应 RTL 是 `rtl/compute/pool2d_engine.sv` 的 `rounded_average()`：将累计和与像素数扩展到 64 位，在组合函数中完成带舍入的变量除法，再经输出选择连接写数据。DC 将 `/ divisor` 展开为组合除法电路，除法链很长。即使当前 GEMM 用例没有发出池化命令，这个全 NPU 综合仍保留池化硬件并对路径计时。
+
+`8.80 = 10.00 - 0.20 - 1.00`，因此 20.49 ns 的到达时间无法满足本轮接口预算。`constraints.rpt` 共报告 37589 条 setup 违例项，最差 -11.69 ns；最差 10 路径报告并不表示全设计只有 10 条违例。
+
+这不是简单的 SRAM 包装延迟问题。后续可比较迭代除法、流水除法或有明确数值误差约束的倒数乘法，但会改变延迟、握手或数值实现，属于需要先讲解并确认的设计改动。本轮没有实施，也没有擅自添加 false path / multicycle 或降低目标频率。
+
+### 4. Hold：短路径与当前约束共同造成违例
+
+最差路径从 `u_conv_patch_loader/partial_word_q_reg[0]`，经少量选择逻辑，到 A bank0 lane0 SRAM 的 `D[0]`：
+
+```text
+Data arrival time:   0.11 ns
+Clock uncertainty:  0.20 ns
+Library hold time:  0.10 ns
+Data required time: 0.30 ns
+Slack (VIOLATED):  -0.20 ns
+```
+
+以上数值由报告四舍五入显示，不能要求用显示的 0.11-0.30 精确复算 -0.20。`constraints.rpt` 共报告 18154 条 hold 违例项（包括显示为 0.00、但内部精度仍为负的项）。这是实际需要保留的违例证据。与此前 PE 的 input-min 教学违例不同，本轮最差路径是寄存器到 SRAM 的内部路径，不能仅归因于外部输入延迟。
+
+当前时钟理想化、hold uncertainty 设为 0.2 ns，且尚无 CTS 与实际布线寄生。后续需要复核真实时钟预算，并在物理实现中结合时钟偏斜和数据路径延迟修复 hold；不能仅凭本阶段结果认定最终芯片一定有同样违例，也不能直接将其忽略。
+
+### 5. 告警和实验边界
+
+- `check_timing.rpt` 返回 1，未列出时序环或未约束端点告警；这表示本次检查项没有报告问题，不表示 setup / hold 通过。
+- `check_design_mapped.rpt` 仍有告警：unloaded inputs/nets 各 797、unconnected ports 5508、feedthrough 1275、shorted outputs 227、constant outputs 169、同一网接同一单元多个 pin 336。抽查包括固定 AXI 常量、直接连线、被优化或未使用的位；本轮没有逐项证明所有结构告警无害，不能宣称结构检查零告警。
+- `TIM-164`：两库的测量阈值定义不同。只读核对后，标准单元 slew 使用 30%～70%，SRAM 使用 10%～90%；输入/输出延迟阈值均为 50%。本轮未改动厂商模型，跨库 slew 解释仍是后续时序模型复核事项。
+- `TIM-134`：一个高扇出网络采用 1000 的扇出数作延迟估算；这仍是综合阶段估算。
+- 导出保留 `UCN-1/UCN-4` 名称处理和 `VO-4` 的 assign/tran 提示，没有将这些提示隐藏。
+- 仅 TT / 0.9 V / 25°C、ZeroWireload、理想时钟；没有多角、多模式、布局布线、SDF 后仿或形式等价验证。本轮结果用于暴露架构和约束问题，尚未时序收敛。
+- 前面记录的四项 VCS 测试均 PASS，但使用的实际宏 `UNIT_DELAY` 模式只验证对应功能场景，不验证上述物理时序违例，也未覆盖全局平均池化数值功能。
+
+### 6. 手动复现与本次学到的工具分工
+
+已有宏和 `.db` 时，在单独输出目录复现 DC：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+mkdir -p build/dc/npu
+cd build/dc/npu
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/synth/npu.tcl > run.log 2>&1
+```
+
+目录层级与脚本相对路径对应；若该目录已有结果，先选择同层的新目录以保留实验记录。`-f` 指定 Tcl 脚本，`> run.log 2>&1` 保存标准输出和错误输出。脚本依次 analyze、elaborate、link、加载约束、compile、生成报告并导出文件；它不会运行 Testbench。
+
+MC2 生成指定容量 SRAM 的模型；LC 将描述 pin、时序弧、查表数据和面积的 `.lib` 文本编译为 `.db`，便于 DC/PT 读取。`.db` 是库数据库，`.ddc` 是设计数据库，两者用途不同。DC 读 RTL、标准单元/SRAM 库和 SDC，把普通逻辑映射为标准单元并保留已实例化 SRAM。VCS 则使用 RTL/Testbench 与宏 Verilog 模型验证功能。
+
+本轮代码阶段提交为 `4b21c32` 与 `3a7f5f0`。用户说明尚未添加 GitHub 公钥，明确推迟推送；本轮最终实验记录另作提交，未声称 push 成功。外部 PDK/模型、安装包和 build 结果不加入 Git，原始实验文件仍保留在本机。
