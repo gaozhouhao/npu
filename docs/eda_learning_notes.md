@@ -1226,3 +1226,26 @@ Total violations: 16
 已核对生成文件：`_tmax.v` 是包含当前宏名称及 RAM 子模型的 TetraMAX 专用 Verilog；`_fscan.lib` 以 `model ... (model_source = verilog_module; ...)` 建模，是专用 FastScan 模型，不是 Liberty。不能仅凭 `.lib` 扩展名就交给 LC 转成 .db。DC 的 `read_test_model` 接受 DDC/CTL 测试模型，也不能直接将 FastScan 文件当成 CTL 读入。本轮没有换掉 SRAM 的真实时序库，也没有编辑厂商模型。
 
 需要在扫描结构预览后确认扫描接口方案，再进行实际插入。SRAM 阵列的 MBIST/独立存储测试仍未开展，不能声称全 NPU 测试覆盖率已闭合。
+
+
+### 5. 扫描结构预览与待执行插入方案
+
+在预检入口末尾添加 `preview_dft > reports/scan_preview.rpt`，重新构建相同的检查上下文，于独立目录 `build/dft/npu_preview_40mhz_20261018` 执行。工具正常退出，run.log 无 Error。预览实际结果：16 条链、MUX-D、full_scan、no_mix；第一条 4697 个单元，其他 15 条各 4696 个，总计 75137。没有额外 test point、AutoFix、core wrapper 或 test mode 规划。这里的 full_scan 是普通顺序单元的扫描规划，不包含 SRAM 阵列覆盖。
+
+本次预览使用工具默认的 `test_si1...16` / `test_so1...16` 占位名称。实际接口拟统一为：
+
+| 新接口 | 方向 | 数量 | 作用 |
+| --- | --- | ---: | --- |
+| scan_enable | 输入 | 1 | 高有效移位使能；低电平为功能路径 |
+| scan_in_0 ... scan_in_15 | 输入 | 16 | 16 条链各自的扫描数据入口 |
+| scan_out_0 ... scan_out_15 | 输出 | 16 | 对应扫描数据出口 |
+
+共 33 个新增信号位；复用现有 clk，不新增时钟域。16 条链的最大移位长度约 4697，在 10 MHz 下仅移位阶段约需 469.7 us，尚未计入 capture、装载/卸载重叠及协议开销；这不是 ATPG 总测试时间估算。
+
+已准备 `scripts/dft/npu_insert_scan.tcl`，但没有运行。脚本读取已验证的 40 MHz DDC，创建上述接口，用 `set_scan_path` 明确各链输入输出；再次执行 pre-DRC / preview 后由 `insert_dft` 做扫描替换和连接，随后检查 post-DRC、实际链路径并保存 `.v/.ddc/.spf`。
+
+本机官方 `insert_dft` 文档明确支持未做 test-ready compile 时的初始扫描替换；因此本轮可从已映射 DDC 直接插入，不必重新 analyze/elaborate 全部 RTL。`set_dft_insertion_configuration -synthesis_optimization none` 只关闭插入后的时序和设计规则优化，不跳过扫描替换；这样先学习结构插入，再单独分析功能/shift 时序。先前提及的 `compile -scan` 是另一条可用于扫描感知综合的路径，本轮不同时叠加两种入口。
+
+官方 DC 2018 的 `create_port` 只创建标量/单 bit 端口，本轮因此使用简单 for 循环创建明确的标量输入输出，不依赖不存在的总线创建参数。这个循环只表达 16 次相同的接口定义，没有添加运行框架、版本检查或外部环境检查。
+
+实际插链会改变顶层接口和寄存器实现。按用户“重要设计修改先说明并确认”的要求，先完成可审阅的预览与脚本，再请用户确认上述 33 个扫描信号和首阶段普通逻辑扫描范围。SRAM 保留 16 条 TEST-451 建模告警，不将其伪装为测试模型已经解决；阵列测试及 ATPG 模型验证另行开展。此记录时尚未插链，也未运行 ATPG。

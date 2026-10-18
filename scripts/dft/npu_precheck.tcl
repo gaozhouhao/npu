@@ -36,4 +36,7 @@ create_test_protocol
 write_test_protocol -output npu_precheck.spf
 
 dft_drc -pre_dft -verbose > reports/dft_drc_pre.rpt
+
+# 仅预览链结构和所需接口，不执行扫描替换或插链。
+preview_dft > reports/scan_preview.rpt
 exit
