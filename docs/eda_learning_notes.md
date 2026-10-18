@@ -1380,3 +1380,64 @@ LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/mbist
 默认参数对照使用 `build/mbist/dc_apg_default_20261018` 和 `../../../scripts/mbist/dc_apg_default_probe.tcl`。已有日志需先另存，再手动重跑，避免覆盖本次证据。
 
 最终提交前，用新增 REGISTERED_IO 参数后的当前源文件再次运行控制器默认配置，目录 `build/mbist/dc_controller_confirm_20261018`。仍正常完成映射，370 个组合单元、101 个触发器、0 黑盒，面积 451.205996，与初次成功实验一致。这个正对照与两组 APG 失败共同构成本次验证结论。
+
+
+## 2026-10-18：ATPG 中断后的保存与恢复
+
+上一轮 `build/atpg/npu_stuck_at_20261018` 的进程已消失，日志停在 1504 条图样、82.53% 中间 test coverage，没有正常结束标记、故障文件或 STIL；没有证据确定退出原因。这些进度不能作为完整 ATPG 结果，也不能从日志恢复图样。
+
+本次修改保持三个简单入口：`npu_stuck_at.tcl` 建模和 DRC；`npu_generate_patterns.tcl` 搜索并保存；`npu_resume_stuck_at.tcl` 读保存点后继续搜索。没有加入后台守护、哈希或自动环境探测。
+
+关键命令：
+
+```tcl
+write_image npu_model.image -netlist_data -replace
+set_atpg -checkpoint {300 checkpoint.faults checkpoint.patterns}
+set_atpg -time {0 900}
+run_atpg -auto_compression
+```
+
+`write_image` 保存已经过 DRC 的设计模型，`-netlist_data` 保留并行图样仿真需要的网表信息；image 不包含图样。`-checkpoint` 每隔 300 CPU 秒保存故障分类和图样，时间不是墙上时钟，工具也可能在完成当前工作后才保存。原生检查点压缩保存并覆盖同名文件。`-time {0 900}` 不设单故障搜索时限，将本轮 basic/fast ATPG 搜索限制在 900 CPU 秒；建模、压缩、输出等耗时不等同于这一预算。达到时限出现 M234，表示本轮有意停下，不表示覆盖率已经收敛。
+
+正常停止时另外执行 `write_faults` 和 binary/STIL 两种 `write_patterns`，保存最后一段进度；故障文件此时为普通文本，binary 文件用于继续生成，STIL 用于后续向量仿真。中途异常退出只能恢复已完整写出的检查点，仍可能损失最近一段搜索。
+
+恢复遵循本机官方 TetraMAX O-2018.06 帮助 `Using ATPG Checkpoint Files`：
+
+```tcl
+read_image npu_model.image
+set_faults -model stuck -report uncollapsed -summary verbose -fault_coverage
+read_faults checkpoint.faults -force_retain_code
+set_patterns -external checkpoint.patterns
+run_simulation -store
+set_patterns -internal
+```
+
+`-force_retain_code` 精确保留原故障分类；`run_simulation -store` 将外部图样读入内部缓冲并作工具模型下的逻辑仿真，然后切回 internal 才继续 ATPG。这不是 VCS 门级验证。
+
+实际短实验在 `build/atpg/npu_checkpoint_test_20261018`。为验证机制，将本轮预算缩短为 120 CPU 秒，检查点间隔缩短为工具允许的最小值 60 CPU 秒。`run.log` 明确记录原生 fault/pattern checkpointing，保存 10 条图样；随后 M234 正常停止，输出模型、faults、binary、STIL。总故障 2747638，test coverage 45.51%，fault coverage 39.64%。
+
+恢复前原文件另存 `before_resume/`。`resume.log` 记录精确读回 2747638 个故障和 10 条图样；工具仿真 fail_pats=0、failing_meas=0，恢复前后的各类故障计数一致。以 60 CPU 秒继续搜索后保存 14 条图样，test coverage 48.72%，fault coverage 42.44%，再次正常按时限退出。覆盖率较上一轮中间值低，是因为本次只验证短时保存/恢复，不能将它当作覆盖率退化或最终验收结果。
+
+手动启动正式脚本（使用一个尚无旧结果的新目录）：
+
+```bash
+mkdir -p build/atpg/npu_stuck_at_saved_20261018
+cd build/atpg/npu_stuck_at_saved_20261018
+LC_ALL=C /home/synopsys/txs/O-2018.06-SP1/bin/tmax -shell -tcl ../../../scripts/atpg/npu_stuck_at.tcl > run.log 2>&1
+```
+
+在同一结果目录恢复：
+
+```bash
+LC_ALL=C /home/synopsys/txs/O-2018.06-SP1/bin/tmax -shell -tcl ../../../scripts/atpg/npu_resume_stuck_at.tcl > resume.log 2>&1
+```
+
+恢复会继续更新同名保存点；如要保留上一轮结果，先手动复制 `checkpoint.*`、STIL 和日志到另一目录。所有保存点必须来自同一设计模型，不能混用新旧网表。
+
+抽样仿真脚本现在显式接收结果目录，不再固定读取上一轮没有 STIL 的目录。例如在工程根目录：
+
+```bash
+bash scripts/atpg/run_npu_pattern_smoke.sh build/atpg/npu_checkpoint_test_20261018
+```
+
+此处只验证保存/恢复，尚未启动新的长期 ATPG 收敛运行。SRAM 阵列仍排除在普通扫描 ATPG 故障范围之外。

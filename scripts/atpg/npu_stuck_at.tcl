@@ -1,4 +1,4 @@
-# Run from build/atpg/npu_stuck_at_20261018.
+# Run from a NEW directory under build/atpg (see learning notes).
 # Stop on errors; do not generate results from an invalid model.
 set_commands exit
 set_messages -log tmax.log -replace
@@ -21,15 +21,8 @@ run_drc ../../dft/npu_scan_20261018/npu_scan.spf
 report_rules -fail
 report_nonscan_cells -summary
 
-# 4. Generate stuck-at patterns; report both coverage definitions.
+# 4. Save the checked model, including names needed by parallel simulation.
+write_image npu_model.image -netlist_data -replace
 set_faults -model stuck -report uncollapsed -summary verbose -fault_coverage
 add_faults -all
-run_atpg -auto_compression
-report_summaries
-report_faults -class AU -max 30
-report_faults -class ND -max 30
-
-# 5. Save reusable patterns and fault classifications.
-write_faults npu_stuck_at.faults -all -replace
-write_patterns npu_stuck_at.stil -format stil -replace
-exit -force
+source ../../../scripts/atpg/npu_generate_patterns.tcl
