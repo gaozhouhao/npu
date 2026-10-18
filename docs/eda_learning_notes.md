@@ -1004,3 +1004,38 @@ LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/synth
 MC2 生成指定容量 SRAM 的模型；LC 将描述 pin、时序弧、查表数据和面积的 `.lib` 文本编译为 `.db`，便于 DC/PT 读取。`.db` 是库数据库，`.ddc` 是设计数据库，两者用途不同。DC 读 RTL、标准单元/SRAM 库和 SDC，把普通逻辑映射为标准单元并保留已实例化 SRAM。VCS 则使用 RTL/Testbench 与宏 Verilog 模型验证功能。
 
 本轮代码阶段提交为 `4b21c32` 与 `3a7f5f0`。用户说明尚未添加 GitHub 公钥，明确推迟推送；本轮最终实验记录另作提交，未声称 push 成功。外部 PDK/模型、安装包和 build 结果不加入 Git，原始实验文件仍保留在本机。
+
+
+## 2026-10-18：减少存储触发器的分析与 hold 单独修复实验
+
+用户要求先 push，再减少存储触发器，并优先处理 hold。实际推送先尝试现有 HTTPS origin，仍因没有可用用户名凭据失败；再通过已核对主机公钥的 SSH 尝试，返回 `Permission denied (publickey)`。CentOS 7 的旧 Git 不使用较新的 `GIT_SSH_COMMAND`，本次改用临时 `GIT_SSH` 启动脚本完成 SSH 尝试，没有关闭主机身份校验，也没有声称推送成功。已请用户完成公钥添加，等待后重试。
+
+### 存储替换的范围与待确认事项
+
+原面积报告显示，四个 C bank 各 26262.4312，合计约占总单元面积 24.3%；Conv cache 为 103374.1771，占 23.9%。这两处是优先减少触发器存储的对象，状态机、计数器和必要流水寄存器仍保留。
+
+C bank 当前使用通用 `sram_model`，读写地址独立，接口支持同拍读写。现有可用生成器为 1PRF；共享目录的 2PRF 仍只有 doc/rln，没有主体包。完整保留通用接口语义不能直接把独立读写端口接到一个单端口宏上。计划补齐 `tsn28hpcp2prf_20120200_130a.tar.gz` 后，核对真实端口、时序及碰撞规则再替换。
+
+Conv cache 数据和 tag 为组合读数组，当前比较与输出在同周期完成。换成同步 SRAM 会增加查找等待周期，需要修改状态机并测试命中、缺失聚合、反压、冲突替换和失效。已向用户提出保持容量的同步 SRAM 方案并等待确认；本条记录时没有修改这些 RTL，也没有通过缩小容量或删除缓存来降低面积。
+
+### Hold 实验原理与命令
+
+新增 `scripts/synth/npu_fix_hold.tcl`，只加载上轮已映射的 `npu.ddc`，保留其时钟及接口约束，然后执行：
+
+```tcl
+set_fix_hold [get_clocks npu_clk]
+compile -only_hold_time
+```
+
+本机 DC O-2018.06-SP1 官方命令说明中，`set_fix_hold` 启用指定时钟的 hold 修复，`compile -only_hold_time` 仅进行 hold 修复，忽略其他设计规则优化。本实验通过门级缓冲或单元调整增加短路径延迟，不插入功能寄存器或改变协议周期，也不把 hold uncertainty 改为零。需要在结果中同时复查 setup、面积及设计规则，不能把执行该命令当作必然修复成功。
+
+实际运行目录为 `build/dc/npu_hold_20261018`，原目录 `build/dc/npu_20261018_133300` 保留。手动复现命令：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+mkdir -p build/dc/npu_hold
+cd build/dc/npu_hold
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/synth/npu_fix_hold.tcl > run.log 2>&1
+```
+
+脚本内 `read_ddc ../npu_20261018_133300/npu.ddc` 明确选择本轮基线。输入路径和相对目录层级不变即可复现；输出在自己的目录，不覆盖基线。本条记录时设计已链接，hold 优化正在运行，最终修复数量及残留问题随后补记。
