@@ -1543,3 +1543,12 @@ setsid nohup /home/synopsys/txs/O-2018.06-SP1/bin/tmax -shell -tcl ../../../scri
 继续使用每 300 CPU 秒保存、每轮搜索预算 900 CPU 秒的既有脚本。时间上限停止只表示需要检查本轮增益，不代表搜索收敛。当前无法可靠预测最终耗时，不能按前期覆盖率增速线性外推。
 
 判断时区分三件事：达到时间/图样预算；当前模型、约束和搜索力度下工具完成本轮努力；项目达到约定覆盖率且剩余故障得到解释、图样验证通过。只有后者才是工程验收。覆盖率进入平台时，按本机官方 TetraMAX Troubleshooting / Analyzing the Cause of Low Test Coverage 检查 ND、AN、PT 的模块分布和不可控制/不可观察、约束或 X 来源；不应通过随意删故障或放宽约束制造高覆盖率。SRAM 阵列仍属于单独 MBIST 范围。
+
+
+## 2026-10-19：扫描链、ATPG 与 MBIST 初学者教程
+
+按用户要求仅整理已有工作，没有启动新实验或修改运行脚本/RTL。新增 [dft_scan_atpg_mbist_guide.md](/home/ICer/eda/npu-vcs-learning/docs/dft_scan_atpg_mbist_guide.md)，从电路机制、Bash/Tcl 基础、实际脚本逐段解释、故障计分，到 MBIST 接线/模式装载/同步比较时序和手动复现命令完整说明。
+
+补记上一轮实际完成结果：`continue_01.log` 显示 104 条图样，DT=1554877、PT=36、UD=354049、AU=16529、ND=822147，总数2747638。按工具默认 PT 50% 信用，Fault coverage=(1554877+18)/2747638=56.59%，Test coverage=(1554877+18)/(2747638-354049)=64.96%。因900 CPU秒预算停止，实际总CPU912.45秒，故障、104条binary图样和STIL都正常写出，当前无ATPG进程。
+
+明确验证范围：已有 VCS 0 mismatch 是先前14条集合抽样前10条的结果；新增至104条后尚未重新做门级图样验证。独立MBIST的正常与总线bit0 stuck-at-0用例均PASS，但尚未接入整个NPU，地址访问覆盖也不等于全阵列故障覆盖率。
