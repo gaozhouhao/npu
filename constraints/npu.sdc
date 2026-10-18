@@ -1,9 +1,9 @@
-# NPU 第一轮综合的教学约束：TT / 0.9 V / 25°C。
-# 与 PE 实验采用相同的时钟和接口环境假设，便于比较。
+# NPU 功能模式教学约束：TT / 0.9 V / 25°C。
+# 功能目标调整为 40 MHz，保留既有接口延迟和时钟不确定性。
 # 已核对标准单元和 SRAM 库：时间单位均为 ns，电容单位均为 pF。
 
-# 时钟周期 10 ns，即 100 MHz。
-create_clock -name npu_clk -period 10.0 [get_ports clk]
+# 时钟周期 25 ns，即 40 MHz。
+create_clock -name npu_clk -period 25.0 [get_ports clk]
 
 # 0.2 ns 同时用于 setup 和 hold，延续 PE 实验的教学假设。
 # 当前为理想时钟；这不是布局布线后的时钟树或最终签核约束。

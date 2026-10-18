@@ -1142,3 +1142,87 @@ LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/synth
 阅读脚本时，重点理解 `read_ddc`（读取现有网表和约束）、`get_timing_paths -delay_type min -slack_lesser_than 0`（找负裕量 hold 路径）、`-nworst 1`（每个终点一条）、`insert_buffer`（插入真实标准单元）、`report_constraint -all_violators`（检查残留违例）。本轮的核心经验是：保持时间修复增加数据路径传播延迟，并不需要增加一拍；门级 ECO 的逻辑正确与时序达标仍要通过相应检查分别确认。
 
 按用户最新选择，存储触发器的 SRAM 化方案暂停，本轮没有修改 Conv cache、C、PSUM 或计算流水。GitHub 公钥认证已实际打通，最终脚本和记录继续按阶段提交并推送，是否推送成功以实际输出为准。
+
+
+## 2026-10-18：40 MHz 功能时序复核与 DFT 插入前检查
+
+### 1. 本阶段范围与输入
+
+用户同意开始 40 MHz 时序复核和扫描方案准备。本阶段读取已经完成 hold ECO 的 `build/dc/npu_hold_fixed_20261018/npu.ddc`，不重新综合 RTL，不插入扫描链，不修改存储或计算架构。
+
+将 `constraints/npu.sdc` 的功能时钟从 10 ns 改为 25 ns（40 MHz），保留 0.2 ns uncertainty、输入输出延迟、转换时间和输出负载。历史 100 MHz 结果及对应 DDC/SDC 在原 build 目录中保持原样。功能目标降频是用户明确接受的学习目标调整，不将其描述为仍然满足原来的 100 MHz 性能。
+
+新增 `scripts/dft/npu_precheck.tcl`，实际运行目录为 `build/dft/npu_precheck_40mhz_20261018`：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+mkdir -p build/dft/npu_precheck_40mhz_20261018
+cd build/dft/npu_precheck_40mhz_20261018
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/dft/npu_precheck.tcl > run.log 2>&1
+```
+
+手动复现时应使用同层的新输出目录保留已有实验。脚本中的 `../../dc/...` 从当前输出目录指向 build/dc；`../../../constraints/...` 指向工程的功能 SDC。
+
+### 2. 功能时序真实结果
+
+`reports/functional_clock.rpt` 确认 `npu_clk` 周期 25.00 ns、波形 `{0 12.5}`。没有重映射逻辑，单元面积与 hold ECO 结果相同。
+
+| 项目 | 40 MHz 实际结果 |
+| --- | ---: |
+| 最差 setup slack | +2.9991 ns |
+| 最差 hold slack | +0.0008 ns |
+| 全部约束违例 | 0 |
+
+最差 setup 仍是池化累加寄存器到 `m_axi_wdata[4]`：arrival 20.8009 ns，required 25.0000-0.2000-1.0000=23.8000 ns。最差 hold 路径与上一轮相同，降频没有替代短路径修复。
+
+`reports/constraints_40mhz.rpt` 实际输出 `This design has no violated constraints.`。这一结论限定为当前 TT / 0.9 V / 25°C、理想时钟和 ZeroWireload，不代表多角或布线后的时序签核。
+
+在任何 DFT 属性配置之前，已保存 `npu_40mhz.ddc` 与 `npu_40mhz.sdc`，供后续扫描综合复用。当前功能 SDC 保持为 40 MHz，测试协议的 100 ns 周期不会写回功能 SDC。
+
+### 3. 测试协议与命令解释
+
+MUX-D 扫描寄存器在 scan_enable=0 时采样功能 D，在 scan_enable=1 时采样链中前一级的扫描数据。扫描移位用于直接设置/观察内部状态，capture 则用功能逻辑产生响应。
+
+本阶段配置普通 MUX-D、暂定 16 条链、单时钟不混合域：
+
+```tcl
+set_scan_configuration -style multiplexed_flip_flop -chain_count 16 -clock_mixing no_mix
+set test_default_period 100
+set test_default_delay 5
+set test_default_strobe 40
+set_dft_signal -view existing_dft -type ScanClock -port clk -timing {45 55}
+set_dft_signal -view existing_dft -type Constant -port reset -active_state 0
+create_test_protocol
+write_test_protocol -output npu_precheck.spf
+dft_drc -pre_dft -verbose > reports/dft_drc_pre.rpt
+```
+
+`existing_dft` 描述现有端口的测试用途，不创建硬件。clk 复用原端口，测试周期 100 ns（10 MHz），每周期 45 ns 上升、55 ns 下降；输入在 5 ns 驱动，输出在 40 ns 采样。这种先观察扫描输出、再推进移位的时序属于测试协议，不是功能模式的 25 ns STA 时钟，也不是 at-speed 测试。
+
+官方 `set_dft_signal` 文档将 `Reset` 定义为异步置位/复位。当前 RTL 的 reset 是同步复位，因此此阶段用 `Constant 0` 使其测试时保持无效，不误声明为异步 Reset。这会限制本阶段测试中 reset 有效时的逻辑行为；将来分析 ATPG 覆盖率时必须说明，不能直接宣称复位相关故障已覆盖。
+
+`create_test_protocol` 建立协议，`write_test_protocol` 保存 STIL 格式的 `.spf`，`dft_drc -pre_dft` 检查时钟、顺序单元、扫描等价单元等，`-verbose` 保留详细问题实例。没有运行 `compile -scan`、`insert_dft` 或 ATPG，没有新增 scan_enable / scan_in / scan_out 端口。
+
+库中已找到扫描单元模型；SRAM 也存在独立的 `DFT/ATPG/..._tmax.v` 和 `_fscan.lib`，尚未据此运行 ATPG。SRAM 阵列不作为普通寄存器扫描链中的状态位，本阶段的逻辑扫描也不等同于 MBIST。
+
+此条记录时功能时序复核已完成，DFT pre-DRC 正在检查扫描等价单元。最终预检结果和后续端口方案另行补记。
+
+
+### 4. Pre-DFT DRC 的实际结论
+
+本次 DC 正常退出，外层退出码 0、run.log 没有 Error。DFT 报告的实际摘要为：
+
+```text
+Total violations: 16
+16 Cell has unknown model violations (TEST-451)
+0 out of 75137 sequential cells have violations
+75137 cells are valid scan cells
+```
+
+75137 表示本次 pre-DRC 中具备扫描资格的顺序单元，不表示已经全部换成扫描寄存器或连成链。16 条建模告警正好对应 16 个 A/B SRAM 宏，原因是当前 NLDM 视图的 Q 输出功能对 DFT 检查器不完整，形成测试黑盒。它们在 STA 中有实际时序/面积模型，因此不能把测试黑盒告警误解为综合时找不到 SRAM。
+
+本轮没有屏蔽这些告警，也没有将 DFT 预检写成零违例 PASS。该告警是 modeling warning，顺序单元扫描资格检查没有问题；接下来先预览普通逻辑扫描结构，SRAM 的测试模型问题继续单独记录。
+
+已核对生成文件：`_tmax.v` 是包含当前宏名称及 RAM 子模型的 TetraMAX 专用 Verilog；`_fscan.lib` 以 `model ... (model_source = verilog_module; ...)` 建模，是专用 FastScan 模型，不是 Liberty。不能仅凭 `.lib` 扩展名就交给 LC 转成 .db。DC 的 `read_test_model` 接受 DDC/CTL 测试模型，也不能直接将 FastScan 文件当成 CTL 读入。本轮没有换掉 SRAM 的真实时序库，也没有编辑厂商模型。
+
+需要在扫描结构预览后确认扫描接口方案，再进行实际插入。SRAM 阵列的 MBIST/独立存储测试仍未开展，不能声称全 NPU 测试覆盖率已闭合。
