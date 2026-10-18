@@ -32,7 +32,7 @@
     "rtl/memory/sram_model.sv": "63a9498eb4035d92a3bcdb0f0f3ebb8ab8be13e49cf0a62854eec39ab18da555",
     "sim/memory/memory.cpp": "eee97cce0f4151a8f2781c4b070fe84a2b82cfd86d9c4db7cc11e1022d4c252d",
     "sim/memory/memory.h": "0e0de143dbebbe7f1957bfb0e543e489dc8b49ae2ce79e5f0d6bd4fec9041db0",
-    "sim/tb/cnn_pool_npu_tb.sv": "3f8400425b7f7f408367fb5c4e090d5529711fa576eb05e273fbf7e8b1068c23",
-    "sim/tb/conv2d_npu_tb.sv": "42558148369e42f9c3c95c4477e1b390a82e4c3484b46d5573a364acb1e1a4af"
+    "sim/tb/system/cnn_pool_npu_tb.sv": "3f8400425b7f7f408367fb5c4e090d5529711fa576eb05e273fbf7e8b1068c23",
+    "sim/tb/system/conv2d_npu_tb.sv": "42558148369e42f9c3c95c4477e1b390a82e4c3484b46d5573a364acb1e1a4af"
   }
 }

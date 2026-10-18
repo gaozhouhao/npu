@@ -38,9 +38,9 @@ def load_target(path):
         require(match is not None and cfg.get(key) == int(match[1]),
                 f'{key}: config must match audited npu_top default {param}; overrides not audited.')
     require(cfg['pe_rows'] == cfg['pe_cols'],
-            'scratchpad.sv swaps A/B lane-count parameters; rectangular arrays not supported by V0.')
+            'Compiler V0 is audited for the square default NPU configuration only.')
     require(cfg['a_buffer_count'] == cfg['b_buffer_count'],
-            'scratchpad.sv swaps A/B buffer-count parameters; asymmetric counts not supported.')
+            'Compiler V0 is audited for equal A/B buffer counts only.')
     require(cfg['activation_layout'] == 'HWC', 'conv_patch_loader requires HWC.')
     require(cfg['alignment_bytes'] >= 4 and cfg['alignment_bytes'] & (cfg['alignment_bytes']-1) == 0,
             'alignment_bytes must be a power of two >= 4.')

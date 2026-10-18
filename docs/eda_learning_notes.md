@@ -1,0 +1,722 @@
+# Synopsys EDA 学习记录
+
+## 当前脚本用法：初学者简化版（2026-10-17）
+
+按用户要求，脚本只负责基本运行流程。之前章节中的源码快照、Git/哈希记录、自动检查和结果汇总属于历史实现，当前已经删除；原有实验记录和产物保留。
+
+所有入口都在工程根目录执行：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+make vcs-pe
+make vcs-pe-wave
+# GEMM Core 单项实验：
+bash scripts/sim/run_vcs.sh gemm_core_tb
+# 已有功能测试全部依次执行：
+make vcs-regression
+```
+
+`run_vcs.sh` 共 17 行，按下面顺序阅读：
+
+1. `set -e`：一条命令以非零状态退出时，停止继续执行。
+2. `top=$1`：第一个参数是 Testbench 顶层名，例如 `pe_tb`。`shift` 移去这个参数，后面的 `"$@"` 将剩余参数传给 VCS。
+3. `run_dir=...`：`$PWD` 是当前目录，`date +%Y%m%d_%H%M%S` 产生年月日和时分秒，组成此次输出目录。`mkdir -p` 创建目录。
+4. `vcs ...`：编译 RTL 和 Testbench，生成 `simv`。`-full64` 选择 64 位，`-sverilog` 支持 SystemVerilog，`-timescale=1ns/1ps` 设置默认时间尺度，`-top` 选择仿真顶层，`-f` 读取文件表。
+5. `-Mdir` 指定中间编译目录，`-o` 指定仿真程序，`-l` 保存工具日志。源码按文件表直接编译，脚本不再复制或计算哈希。
+6. `cd "$run_dir"` 后执行 `./simv -l simulation.log`。波形文件也输出到该目录。
+
+参数覆盖仍然直接传给 VCS：
+
+```bash
+bash scripts/sim/run_vcs.sh gemm_core_tb   -pvalue+gemm_core_tb.ROWS=2 -pvalue+gemm_core_tb.COLS=3
+```
+
+文件表 `sim/filelists/vcs/<top>.f` 明确列出输入。PE 和 GEMM Core 表只列各自需要的模块；其余已有回归表复用 `sim/filelists/rtl.f`。新测试需要手动增加文件表，脚本不再自动搜索源码。Executor 表额外列出 AXI memory model。
+
+波形选项直接放在 `pe_wave_tb.f`：`-debug_access+all` 保留调试访问，`-P` 链接本机 Verdi 的 `novas.tab` 与 `pli.a`，提供 FSDB 系统任务。本机工具路径写在文件表中，方便直接阅读和修改。
+
+每次输出在 `build/vcs/<top>/年月日_时分秒/`，主要看 `compile.log`、`simulation.log`；PE 波形实验还有 `pe.fsdb` 和 `pe.vcd`。
+
+脚本不再生成 `status.txt`，也不额外打印或汇总 PASS。计算结果仍由 Testbench 中的比较和断言判断，在 `simulation.log` 中阅读。本次删除的是运行脚本的额外检查，没有删除硬件测试用例。
+
+删除了两个自制检查/汇总脚本及 `make check`。`make clean` 直接用一条 `find` 命令删除 `BUILD_DIR` 内的 `.o`、`.d`，不再需要清理辅助脚本。旧的结构检查日志及 17 配置结果文件仍作为历史证据保留，不用于声称新脚本已重新完成全部测试。
+
+参数槽压力脚本改为普通、部分和、A 复用三段明确的 Verilator 编译运行命令，去掉路径检查、数组和模式分支。本轮不运行 Verilator 模型流程。
+
+### 简化脚本的本轮真实结果
+
+- `make vcs-pe` 已完成，退出码 0；目录 `build/vcs/pe_tb/20261017_142951/`。`simulation.log` 包含 RESET、MAC、HOLD、CLEAR 四项 PASS 和 `TEST_PASS pe_tb`，结束时间 56000 ps。
+- `make vcs-pe-wave` 已完成，退出码 0；目录 `build/vcs/pe_wave_tb/20261017_143216/`。同样四项 PASS；日志显示 Verdi PLI 加载并创建 `pe.fsdb`，生成 FSDB 和 VCD，结束时间 56000 ps。
+- 三个修改后的 Shell 脚本通过 `bash -n`；`make -n vcs-pe vcs-pe-wave vcs-regression clean` 已查看命令展开，未执行清理。
+- 本轮未重跑 GEMM/顶层完整回归、Verilator 压力测试或 Verdi GUI。原有 17 配置结果文件保持原样。
+
+---
+
+以下为按时间保存的历史实验记录。
+
+## 2026-10-17：PE 成果核对与 GEMM VCS 实验方案
+
+### 已完成的只读核对
+
+- 工程：`/home/ICer/eda/npu-vcs-learning`，分支：`learning/vcs-pe`。
+- HEAD 与 PE 保存的 revision 一致：`984c253c7adbd1daec1f6f6d80b2688d62e82ebd`。
+- `scripts/sim/run_vcs_pe.sh`、`sim/filelists/vcs/pe_tb.f` 存在，仍未跟踪。
+- `build/vcs/pe/run.RRyzia/` 中编译日志、仿真日志、simv、revision 和源码哈希仍存在。
+- 当前 `pe.sv`、`pe_tb.sv` 的 SHA256 与归档一致；既有 simulation.log 包含 RESET TEST PASS、MAC TEST PASS，结束时间 46000 ps。本轮没有重新运行。
+- 沙箱缺少 bwrap，已通过获准的沙箱外只读命令检查；rg 不可用，使用 find。未检查 License 配置。
+
+### GEMM 架构与接口
+
+默认 4×4 阵列，INT8 有符号乘法、INT32 累加。A 从左向右、B 从上向下传播，input_skew 将第 i 条输入 lane 延迟 i 拍，使相同 k 的数据在 PE(r,c) 相遇。累加值保存在 PE 中，支持多个 K tile 累加。
+
+start 在 IDLE 被接受；tile_k_size、writeback_en 被锁存，clear_acc 决定是否进入 CLEAR。c_base_addr 与读 bank 未锁存，调用方需在使用期间保持稳定。done 在 DONE 状态为高，此时 busy 也为高；下一拍回到 IDLE，busy 才为低。
+
+A/B 每 lane 的 SRAM 为 64×32 bit（默认 K 容量 256）；一个 word 装同一 lane 连续四个 K 元素，低字节对应较小 k。B 按列沿 K 连续存放，即外部组织为 B 转置。逻辑读 k 转为 word=k>>2、elem=k%4；仅 elem=0 时物理读 SRAM，其余元素复用已读 word，elem_sel_q 对齐同步读输出。C 为四个 256×32 bit SRAM bank，共享行地址，一拍写入整行结果。
+
+控制流程：IDLE → 可选 CLEAR → FEED → DRAIN → 可选 WRITEBACK → DONE → IDLE。FEED 发出 K 个请求，最后响应另经 rsp_valid_q/rsp_last_q 跟踪；4×4 的 DRAIN 为 6 拍，WRITEBACK 为 4 拍。需要波形核对最后一次 MAC 与首个 C 写入的边界。
+
+### 静态发现：尚未编译验证
+
+1. gemm_core_tb 漏接 a_wlane/b_wlane，预载 task 使用旧的“同一 k、多 lane”打包；当前接口需要“单 lane、连续 k”打包。TB 地址是 8 bit，物理 word 地址应为 6 bit。
+2. bank 初始化在 forever 时钟循环之后，不可达；应移入初始化代码。
+3. 首 tile 的 16 个裸 assert 默认失败动作不保证终止，后续 PASS 文本仍可打印；建议统一 else $fatal 并采用四态敏感比较。
+4. scratchpad 将 A 的 LANE_COUNT/BUFFER_COUNT 接为 COLS/B_BUFFER_COUNT，B 接为 ROWS/A_BUFFER_COUNT。默认方阵且单 buffer 掩盖此问题，矩形或 A/B buffer 数不同会受影响。修 RTL 前须用户确认。
+5. matrix_engine/input_skew/PE 固定 8/32 位，gemm_core 的 DATA_WIDTH/ACC_WIDTH 并非端到端通用参数。
+
+### 现有 TB 意图与验证缺口
+
+意图：两次 K=3；第一次 clear=1、writeback=0，检查 16 个部分和；第二次 clear=0、writeback=1，读取四行 C 并逐元素比较。最终期望行分别为 [301,322,343,364]、[697,754,811,868]、[1093,1186,1279,1372]、[1489,1618,1747,1876]。以上属于测试意图，接口问题修复前不能视为有效覆盖。
+
+缺口：负数/INT8 极值、零、K=1/4/5/256、非法 K、跨 word、非零 C base/边界、reset 中断、忙时 start、连续任务、writeback 禁止时 C 不变、bank 切换/并行预载、矩形阵列、协议断言、功能覆盖统计。
+
+### 待确认方案（尚未执行）
+
+先仅修复 TB 的 lane 接口、连续 K 打包、bank 初始化、断言终止语义；保留原始两 tile 数学用例，不改 RTL。tile0 A lane0 word0 示例为 `{8'd0,8'd3,8'd2,8'd1}`；B lane0 为 `{8'd0,8'd9,8'd5,8'd1}`。第四字节填零但由 tile_k_size=3 屏蔽。
+
+拟创建 sim/vcs/gemm_core.f，按以下顺序列出相对于工程根的源码：
+
+```text
+rtl/compute/pe.sv
+rtl/compute/input_skew.sv
+rtl/compute/systolic_array.sv
+rtl/compute/matrix_engine.sv
+rtl/memory/sram_model.sv
+rtl/memory/operand_buffer.sv
+rtl/memory/scratchpad.sv
+rtl/core/matrix_controller.sv
+rtl/core/gemm_core.sv
+sim/tb/integration/gemm_core_tb.sv
+```
+
+每次运行创建独立 build/vcs/gemm/run.XXXXXX，保存 git revision、git diff、源码 SHA256 和绝对路径 sources.f。编译与仿真分开保存退出码、工具日志和完整控制台输出。
+
+核心命令（须在创建运行目录和 sources.f 后执行；本轮未执行）：
+
+```bash
+vcs -full64 -sverilog -timescale=1ns/1ps \
+  -top gemm_core_tb -f sources.f -o simv -l compile.log \
+  > compile.console.log 2>&1
+timeout 60 ./simv -l simulation.log > simulation.console.log 2>&1
+```
+
+- -full64：64 位工具/可执行仿真器；-sverilog：SystemVerilog 解析。
+- -timescale：未声明时间单位模块的默认尺度；不覆盖源码显式 timescale。
+- -top：唯一仿真根；-f：源文件及选项清单；-o：可执行仿真器路径；-l：工具日志。
+- timeout 60：外部墙钟超时；TB 原有 #20000 为 20 us 仿真时间超时，二者解决不同问题。
+- > ... 2>&1：同时保存 stdout/stderr，避免遗漏早期诊断。
+- 编译内部经历解析、参数展开/generate/端口绑定、代码生成与链接；simv 执行离散事件仿真及 NBA 更新。TB 在 negedge 驱动、posedge 后 #1 采样，避免读取 NBA 更新前数据。
+- TB 已有 $dumpfile/$dumpvars，预期输出 gemm_core_tb.vcd。先检查 VCD 层次/信号是否足够；若优化导致必要内部信号不可见，再评估当前 VCS 版本的调试访问选项。不预设 FSDB/Verdi 插件可用。
+
+通过条件：编译和运行退出码正常；没有未解释的端口/位宽警告及断言错误；部分和与 C 共 32 个元素检查通过；有最终 K-TILING TEST PASSED；波形核对请求/响应对齐、最后 MAC、四行 C 写回以及 done/busy。退出码或 PASS 文本不能单独证明成功。
+
+用户确认前不编译、不仿真、不修改 TB/RTL；不进入 UVM、综合或 DFT。
+
+## 2026-10-17：PE 波形实验（用户已授权执行）
+
+### 目的与原理
+
+复用既有 PE 激励，验证 VCS 生成 FSDB 与 VCD 的能力。FSDB 系统任务由 Verdi 的 PLI 接口提供；只保留波形文件而不加载对应源码，无法完整验证 RTL 关联调试。
+
+新增 `sim/tb/unit/compute/pe_wave_tb.sv`，实例化原有 pe_tb，分别调用 `$fsdbDumpfile/$fsdbDumpvars` 和 `$dumpfile/$dumpvars`。未改变原 TB 或 RTL，原 PE 历史结果保持不变。新层次为 `pe_wave_tb.test.dut`。
+
+### 真实执行
+
+- VCS：`/home/synopsys/vcs/O-2018.09-SP2/bin/vcs`。
+- Verdi：`/home/synopsys/verdi/Verdi_O-2018.09-SP2/bin/verdi`。
+- 已读取厂商 `share/PLI/README.PLI` 与本机 Verdi/Tcl 手册，选用 `share/PLI/VCS/linux64/novas.tab` 和 `pli.a`。
+- 执行 `bash scripts/sim/run_vcs_pe_wave.sh`，本次目录 `build/vcs/pe_wave/run.8ANQ9e/`。
+- COMPILE_RC=0、SIMULATION_RC=0、RESULT=PASS；日志含 RESET TEST PASS、MAC TEST PASS。
+- `pe.fsdb` 约 8.8 KB，`pe.vcd` 约 1.9 KB；FSDB dumper 日志显示成功遍历 pe_wave_tb。
+- 新脚本通过 `bash -n`，并已为后续编译增加 180 秒超时；本次首次编译使用的是加超时之前的命令。仿真一直使用 60 秒超时。
+
+编译命令核心如下，脚本使用独立运行目录中的绝对源码清单：
+
+```bash
+timeout 180 vcs -full64 -sverilog -timescale=1ns/1ps -debug_access+all \
+  -P "$pli/novas.tab" "$pli/pli.a" \
+  -top pe_wave_tb -f sources.f -o simv -l compile.log \
+  > compile.console.log 2>&1
+timeout 60 ./simv -l simulation.log > simulation.console.log 2>&1
+```
+
+`-P` 注册 FSDB 系统任务并链接对应 PLI 库；`-debug_access+all` 保留调试访问能力，适合本次小设计教学，会增加优化限制与调试开销。无需修改全局 shell 或 License 配置。
+
+### 波形结果
+
+使用厂商工具实际读取 FSDB：
+
+```bash
+fsdb2vcd pe.fsdb -o pe.from_fsdb.vcd
+```
+
+转换退出码 0。Python 2 文本解析直接 VCD 和转换后的 VCD，在下表时刻得到相同关键值，输出保存在 `waveform-analysis.txt`：
+
+| 时间 | reset | A | B | A/B valid | acc_out |
+|---|---|---|---|---|---|
+| 5 ns | 1 | 0 | 0 | 0/0 | 0 |
+| 20 ns | 0 | 3 | -4 | 1/1 | 0 |
+| 25 ns | 0 | 3 | -4 | 1/1 | -12 |
+| 35 ns | 0 | 3 | -4 | 1/1 | -24 |
+| 45 ns | 0 | 3 | -4 | 1/1 | -36 |
+
+解释：TB 在 20 ns 负沿驱动输入，25 ns 正沿执行第一次 MAC，26 ns 检查得到 -12。随后 valid 没撤销，35/45 ns 继续累加；这是原 TB 的覆盖局限，不能将“Single MAC PASS”理解为已验证无效周期保持。未擅自修复。
+
+### Verdi 加载验证边界
+
+当前 DISPLAY 为空。厂商手册明确 `verdi -batch` 不要求 DISPLAY，且可用 `-play` 执行 Tcl。第一次仅导入源码的 45 秒尝试超时（124），未证明设计导入完成。第二次使用 `sim/verdi/pe_wave_check.tcl`，明确选择 DUT、打开 FSDB、添加关键信号、打印范围并 debExit，退出码 0，输出 `PE_WAVE_TIME_RANGE=0 46000 x 1ps`、`PE_VERDI_WAVE_LOADED`。两次日志均保留；已验证批处理加载链路，可见 GUI 窗口未验证。
+
+成功的批处理命令（在本次运行目录执行）：
+
+```bash
+timeout -k 10 120 verdi -batch -sv -f sources.f -top pe_wave_tb \
+  -play /home/ICer/eda/npu-vcs-learning/sim/verdi/pe_wave_check.tcl \
+  > verdi.console.log 2>&1
+```
+
+`-batch` 不需要显示会话；`-sv` 为 Verdi 的 SystemVerilog 输入选项；`-play` 执行 Tcl。`srcSetScope` 选择源代码层次，`wvOpenFile` 打开动态波形，`wvAddSignal` 加入观察信号，`wvGetFileTimeRange` 核对范围，`debExit` 结束进程。命令执行成功不等于已经人工操作过 GUI。
+
+手动 GUI 命令（需在具备图形桌面的终端执行，本轮未验证可见窗口）：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning/build/vcs/pe_wave/run.8ANQ9e
+verdi -sv -f sources.f -top pe_wave_tb -ssf pe.fsdb
+```
+
+在层次树选择 pe_wave_tb.test.dut，把 clk、reset、a_in、b_in、a_valid_in、b_valid_in、product、acc_out 加到波形；有符号数据选择 Signed Decimal，观察 20/25/35/45 ns。源码文件清单提供层次和定义，FSDB 提供动态值。
+
+### 清理范围
+
+用户已明确：先审查整个项目，列出问题，确认后分批清理。首轮结果见 `docs/code_audit.md`。本轮不删除既有代码与实验产物，不进入 GEMM/UVM/综合/DFT，不检查 License。
+
+## 2026-10-17：工程修复与统一目录（用户授权）
+
+本节更新前面历史检查结论：PE 源码/TB 已按授权修复，旧日志仍描述当时版本，不能继续用旧哈希声称当前源码未变。源码位置与运行命令以本节及项目布局文档为准。
+
+### 原理与修复选择
+
+- 预载接口必须与物理 SRAM 一致：单 lane 连续 K 元素组成一个 word，逻辑 K 地址不等于物理 word 地址。
+- native operand AXI64 DMA 要求行首/步长按 8 字节对齐。逻辑 K=260 保持不变，物理行步长改为 ceil(260/8)*8=264；补齐字节不参与 MAC。
+- synchronous read 的数据/valid 延迟必须共同验证；控制器测试同时统计请求、响应与写回，包含非法 K。
+- TB 初始化过程和总线模型共同写 backing memory 时，不能把写过程声明为单一驱动语义的 always_ff；使用普通测试过程。RTL 中的 always_ff 没有因此改写。
+- 声明顺序对旧 VCS 很重要：首次实例连接前声明完整总线，避免隐式 wire 导致位宽不符合预期。顶层操作数总线声明已前移。
+- 测试失败使用 $fatal，自动流程仍检查失败日志和唯一成功标记。本次 VCS 的某次 $fatal 运行退出码为 0，证明单看退出码确实不足。
+- 先前 PE Single MAC 后继续累加的现象已修复；现在检查 valid=0 时保持，以及 clear 在 valid=1 时优先清零。
+
+### 目录与复现入口
+
+完整命名规范见 `docs/reference/project_layout.md`，52 项路径迁移见 `docs/reference/path_migration.json`。RTL 保留功能分层与合法模块名，测试分层，脚本按用途归类；历史迁移脚本归档，不进入常规构建。
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+make check
+bash scripts/sim/run_vcs.sh gemm_core_tb
+make vcs-regression
+make vcs-pe-wave
+python scripts/check/summarize_vcs.py
+```
+
+`run_vcs.sh` 接受顶层名及 VCS 参数覆盖选项，使用 -full64、-sverilog、-timescale、-top、-f、-o、-l；波形模式额外链接 FSDB PLI 并保留 debug access。每个 run 保存命令、版本标识、工作区状态、源码哈希与快照、编译日志、仿真日志及判定。外部编译/运行超时与 TB 仿真时间超时分开处理。
+
+矩形/不对称缓冲配置示例：
+
+```bash
+VCS_RUN_LABEL=gemm_core_rect_a bash scripts/sim/run_vcs.sh gemm_core_tb \
+  -pvalue+gemm_core_tb.ROWS=2 -pvalue+gemm_core_tb.COLS=3 \
+  -pvalue+gemm_core_tb.A_BUFFER_COUNT=2 -pvalue+gemm_core_tb.B_BUFFER_COUNT=1
+```
+
+### 真实结果与问题过程
+
+17 个 VCS 配置的通过目录与失败尝试保留在 `docs/validation/cleanup_results.json`。GEMM 默认配置完成 176 次比较，原两 K tile 的最终 4x4 矩阵不变；2x3、3x2、不对称 A/B buffer 和 1x1 均有回归。M/N tiling 验证四个 tile 的 64 个 C 元素；executor 验证 8x8、K=260 的 64 个元素；顶层覆盖纯 GEMM、Bias INT32、Bias/Requant/ReLU INT8。
+
+曾在 Bash 脚本执行期间更新同一文件，影响旧 Bash 后续读取位置；受影响项目使用冻结脚本重跑，异常日志未删。native AXI64 对齐问题通过实际失败定位并修复，不通过扩大超时或放宽数值检查绕过。
+
+迁移后的 PE FSDB/VCD 位于 `build/vcs/pe_wave_tb/run.23i6Qt/`；Verdi 批处理读取成功，范围为 0–56000 ps。当前终端仍无 DISPLAY，不声称已人工验证可见 GUI。具备桌面时可执行：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning/build/vcs/pe_wave_tb/run.23i6Qt
+verdi -sv -f sources.f -top pe_wave_tb -ssf pe.fsdb
+```
+
+Python 3/模型依赖与 Verilator 当前不可用，因此不报告模型端到端回归通过。历史 compiler RTL contract 的严格检查保留，旧哈希漂移需要单独 ABI 审核；没有为了让检查通过而替换全部哈希。没有检查 License，也没有进入 UVM、综合或 DFT。
+
+最终运行器进一步固定了复现边界：在执行外部工具前完整解析 main 函数；复制源码后对快照计算 SHA256，并让 sources.f 指向快照，原始路径另存 source-origin.f。这样后续编辑工作区不会改变已经启动实验的编译输入。实际执行的 main 函数也保存到 run 目录。
+
+顶层当前基线实际流量为 descriptor AR=48、operand AR=192、M/R=1、Bias=8、total AR=249、AW=48、W=144，最后原始 C[4][4]=6500；精确请求数检查与原有逐元素输出检查均保留。
+
+
+## 2026-10-17：按用途删除旧脚本（用户授权）
+
+判定顺序是先查调用关系，再核对脚本假设与当前 RTL，最后确认替代入口；不能仅凭文件旧或当前缺少 Python 3/Verilator 就判定脚本坏掉。没有执行历史 RTL 迁移脚本。
+
+实际删除三个已完成的迁移脚本：`fix_early_dma_done.py` 的旧模板在当前 scheduler 匹配 0 次；`enable_multislot_a_reuse.py` 的已应用检测成立；`integrate_psum.sh` 的三个目标 generate 名称已存在，重跑仅重复写源码与备份。原 archive 说明文件随之删除。
+
+另删除 `run_vcs_pe.sh`、`run_vcs_pe_wave.sh` 两个薄包装，Makefile 直接调用统一运行器，手动复现如下：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+make check
+make -n vcs-pe vcs-pe-wave
+# 真正执行实验时使用：
+make vcs-pe
+make vcs-pe-wave
+# 与上述两个入口分别等价：
+bash scripts/sim/run_vcs.sh pe_tb
+bash scripts/sim/run_vcs.sh pe_wave_tb
+```
+
+前面的历史章节保留当时真实运行的旧命令；新实验使用本节入口。原 52 项路径迁移中，47 项仍保留在 `docs/reference/path_migration.json`，5 个删除项转入 `docs/reference/retired_scripts.md`，包含原因和替代方式。
+
+审查还发现两份性能报告把外部读 beat 仍乘以 4：当前 ResNet TB 的 RDATA 为 64 位，要求 ARSIZE=3，每拍地址增加 8，监控器按外部 rvalid/rready 握手计数，因此读字节应为 beat×8。已修正三处计算，写通道仍为 32 位。只改报告算术，没有改 RTL，也没有重新生成或覆盖旧报告。分析历史 AXI32 日志时应使用对应版本。
+
+本轮执行结构/引用检查、剩余 Shell 语法检查和 Make 命令展开；未编译或运行新的 EDA 实验。原始 VCS 日志、结果、源码快照和波形全部保留，未检查或修改 License。
+
+真实检查日志保存在 `build/maintenance/retire_scripts.nzBjDE/`：`make check` 扫描 71 个 SV 文件/模块及 23 个现行输入，通过；Make 展开显示 PE/波形目标直接调用统一入口；47 个迁移目标全部存在，5 个删除脚本没有现行调用，scheduler/executor 清理前后指纹相同。`git diff --check` 返回 0。两份 Python 3 性能报告本轮只完成源码及计数边界核对，未执行报告生成。
+
+
+## 2026-10-17：输出缓冲性能实测与简化（用户授权）
+
+实验对比原双缓冲、单缓冲、直接写回和最终固定乒乓实现，数据与时序模型相同。四种实现各 10 组，40 组均通过，每组核对 64 个输出；最终实现周期逐组与原双缓冲相同。完整表、日志位置和 VCS 手动命令见 [性能报告](validation/output_buffer_comparison.md)。
+
+关键结果：K=4、INT32 时三种原方案为 195/225/243 周期；K=260 时为 3303/3303/3294 周期。原顶层三描述符负载为 10241/10241/10214 周期，最终乒乓仍为 10241。K=4、INT8、写等待8周期时为 298/328/383，最终乒乓为 298。
+
+这次学到：输出缓存收益取决于结果到达速度和写回速度。长 K 的某个负载周期相同，不能推出短 K 也相同；PSUM 路径绕过结果缓存，三个方案的 PSUM 周期确实相同。必须用相同输入和完整结果检查比较时钟周期，不能比较工具启动时间。
+
+正式 `c_result_buffer.sv` 从 177 行缩至 103 行。保留两块64B存储，两个指针分别在完整采集和DMA完成时翻转；删除独立FIFO、空闲搜索、重复active/行计数以及数据阵列复位。输入由现有snapshot控制器逐行写满后才READY。结果接收时保存地址、步长和格式，DMA完成后才释放，避免覆盖。
+
+未给正式RTL增加单/双缓冲或直接输出的模式开关；实验候选保存在 `build/output_compare/20261017_145429/`。原17行运行脚本未改。新增153行性能TB用于复现，AXI仿真模型增加32位参数读取和写等待两项实验所需功能，默认64位/无等待保持原时序。
+
+原executor回归目录 `build/vcs/gemm_executor_tb/20261017_150522/`，64结果及AR=64/AW=16/W=64通过。顶层统计宏带来的未连接只读统计输出端口警告已辨明；数据检查未放宽。没有执行综合、DFT或模型端到端推理，也没有检查或修改License。
+
+
+## 2026-10-17：恢复 VMware 共享文件夹
+
+虚拟机已有 open-vm-tools 和桌面组件 11.0.5，vmtoolsd 正在运行，FUSE 可用。最初 vmware-hgfsclient 返回 1，直接挂载报 `Error -107 cannot open connection!`，说明仅安装 Tools 不足以使宿主机共享目录可访问。
+
+用户在当前 CentOS 虚拟机的 VMware 设置中启用共享，并添加、启用名为 `share` 的条目后，实际读取成功。Ubuntu 的共享设置不能代替这台 CentOS 的设置。本次没有重装 Tools、重启虚拟机或修改系统服务配置。
+
+当前可访问的自动挂载路径为 `/mnt/hgfs/share`。另将指定共享只读挂载到 `/home/ICer/shared/share`，实际挂载选项含 `ro,nosuid,nodev`，便于只读审查宿主机资料。手动复现如下（挂载命令仅在该目录尚未挂载时执行）：
+
+```bash
+mkdir -p /home/ICer/shared/share
+vmhgfs-fuse .host:/share /home/ICer/shared/share -o ro,nodev,nosuid
+findmnt -T /home/ICer/shared/share
+```
+
+`.host:/share` 指宿主机导出的共享名称；后面的路径是虚拟机内的访问位置。`ro` 表示只读，`nodev,nosuid` 禁止使用该挂载中的设备节点与特权位。此用户手动挂载没有添加开机持久化配置；本次未测试重启后的状态。
+
+实际可见内容仅为 `basdg/`、`npu.tar.gz`、`ysyx.zip`。在可见目录限定深度内没有发现原先要审查的 Synopsys2018 目录或工艺库文件，未读取压缩包内部。因此共享访问已恢复，但仍需将 `D:\BaiduNetdiskDownload\Synopsys2018\Synopsys2018` 单独共享或放入现有 share，才能检查该批软件包。未检查或修改任何 Synopsys License 文件、服务或配置。
+
+
+## 2026-10-18：准备并启动 Synopsys Installer 5.0
+
+用户授权完成教程截图中的安装器准备步骤。本次安装器目标为 `/home/synopsys/synopsysinstaller_v5.0`，源目录为 `/home/ICer/shared/share/Synopsys2018/synopsysinstaller_v5.0`。使用 ICer 普通用户复制、解出和启动，无需 sudo，也没有执行 chmod 777。
+
+实际复制和解出命令：
+
+```bash
+cp -r /home/ICer/shared/share/Synopsys2018/synopsysinstaller_v5.0 /home/synopsys/
+cd /home/synopsys/synopsysinstaller_v5.0
+chmod u+x SynopsysInstaller_v5.0.run
+./SynopsysInstaller_v5.0.run -d /home/synopsys/synopsysinstaller_v5.0 > extract.log 2>&1
+```
+
+`cp -r` 递归复制目录；`chmod u+x` 只为文件所有者增加执行权限；`-d` 指定安装器文件的解出位置，省去交互式输入。这里准备的是 Installer 本身，尚未执行 DC、ICC2、TetraMAX 等产品安装。
+
+真实结果：`extract.log` 显示 `Unpacking: SynopsysInstaller.tgz`、`Unpacking: singularity.tar.gz` 和 `Installation complete.`；生成的 `setup.sh` 属于 ICer，模式为 755。解出期间出现当前会话 C.UTF-8 不可用的 locale 警告，程序退出码为 0，文件成功生成；没有为此修改全局语言设置。
+
+启动脚本要求 DISPLAY。虽然远程命令环境未设置 DISPLAY，但用 `DISPLAY=:0 LC_ALL=C xdpyinfo` 实际确认可连接已有 X.Org 桌面。为本次安装器进程移除继承的库搜索路径，使用前台会话启动：
+
+```bash
+cd /home/synopsys/synopsysinstaller_v5.0
+env -u LD_LIBRARY_PATH -u LD_PRELOAD DISPLAY=:0 LC_ALL=C ./setup.sh > setup.log 2>&1
+```
+
+这里的环境设置仅影响该命令，不修改 shell 启动文件。后台启动尝试没有保留安装器进程，因此改为保留前台会话；随后确认 setup.sh、installer、wish、tclsh 进程链持续运行，setup.log 没有错误输出。额外的桌面窗口标题检查两次因自动审批超时未执行，因此没有读取图形画面，启动状态以进程和日志为证。
+
+安装器没有选择任何产品或执行产品安装；未检查或修改 Synopsys License 文件、服务或配置，也没有改动原有 VCS、Verdi 安装。
+
+
+## 2026-10-18：Library Compiler 安装后的启动检查
+
+LC 读取 Liberty 文本时序库（`.lib`），将库模型编译成 Synopsys 二进制库（`.db`），供 DC、PrimeTime 等工具使用。Liberty 描述单元的功能、引脚、面积、时序和功耗；标准单元及 SRAM 宏都可提供这种模型。SRAM/Memory Compiler 根据存储容量和端口等参数生成存储器宏及其配套文件，LC 负责其中库模型的格式转换。
+
+确认用户安装目录 `/home/synopsys/lc/O-2018.06-SP1` 已存在，`bin/lc_shell` 链接到 `snps_shell`。实际启动并保存日志：
+
+```bash
+mkdir -p /home/ICer/eda/npu-vcs-learning/build/lc/startup_check_20261018
+cd /home/ICer/eda/npu-vcs-learning/build/lc/startup_check_20261018
+env LC_ALL=C /home/synopsys/lc/O-2018.06-SP1/bin/lc_shell 2>&1 | tee startup.log
+```
+
+`LC_ALL=C` 仅为该程序指定语言环境；`2>&1 | tee startup.log` 将输出及错误信息显示在终端并保存。进入 `lc_shell>` 后实际执行：
+
+```tcl
+puts "LC_TCL_OK"
+help read_lib
+help write_lib
+exit
+```
+
+真实输出包含 `Version O-2018.06-SP1 for linux64`、`LC_TCL_OK`、`read_lib # read a .lib file` 和 `write_lib # write lib file to db`，最后正常退出。日志为 `build/lc/startup_check_20261018/startup.log`。基础启动与 Tcl 命令解释器可用；尚未读取实际工艺库或执行 `.lib` 到 `.db` 的转换，具体库的兼容性仍需后续实验验证。
+
+本次远程终端的 `command -v lc_shell` 没有找到短命令，检查使用上述绝对路径。用户若要在当前 Bash 终端直接输入 `lc_shell`，可以先执行：
+
+```bash
+export PATH=/home/synopsys/lc/O-2018.06-SP1/bin:$PATH
+```
+
+这只修改当前终端及子进程的搜索路径。本次没有修改 Shell 启动文件，也没有检查或修改 License 配置。过程中部分只读命令及向交互会话发送命令的请求因自动审批超时未执行；改用直接启动、并重试输入后完成了上述验证。
+
+
+## 2026-10-18：在 Bash 中持久设置 LC 程序路径
+
+经用户明确授权，在 `/home/ICer/.bashrc` 末尾追加：
+
+```bash
+# Library Compiler
+export PATH=/home/synopsys/lc/O-2018.06-SP1/bin:$PATH
+```
+
+`.bashrc` 是用户主目录中的隐藏文件，交互式 Bash 启动时读取。新增目录让终端找到 LC，`$PATH` 保留原有程序搜索路径。实际使用 `env LC_ALL=C bash -ic 'command -v lc_shell'` 启动新的交互式 Bash，退出码为 0，输出 `/home/synopsys/lc/O-2018.06-SP1/bin/lc_shell`，确认设置已生效。已打开的桌面终端可执行 `source /home/ICer/.bashrc` 立即加载，或重新打开终端。
+
+
+## 2026-10-18：DC 系统依赖修复与成功启动
+
+用户安装 DC O-2018.06-SP1 后，直接执行 `/home/synopsys/syn/O-2018.06-SP1/bin/dc_shell`，先报缺少 `libtiff.so.3`。用户曾将 `.so.5` 复制改名成 `.so.3`，随后报缺少 `libmng.so.1`。共享库文件名中的主版本表示二进制接口；复制改名不能保证接口兼容，应安装提供所需接口的正确软件包。
+
+最初包下载还受到 DNS 故障阻塞：公网 IP 1.1.1.1 可达，但 getent 无解析结果、curl 报解析超时。用户调整 DNS 后，实际确认域名可解析，CentOS 官方归档 HTTPS 可访问。系统查询显示当时 compat-libtiff3 未安装，libmng 只有 i686 版本；32 位库不能满足 linux64 DC 的依赖。
+
+从 CentOS 官方归档 `https://vault.centos.org/7.9.2009/os/x86_64/Packages/` 下载 `compat-libtiff3-3.9.4-12.el7.x86_64.rpm` 和 `libmng-1.0.10-14.el7.x86_64.rpm`，保存到 `/home/ICer/eda/installers/dc-deps/centos7-x86_64/`。`rpm -K` 对两个包均返回 OK；所需的 64 位 glibc、libgcc、libjpeg-turbo、libstdc++ 和 zlib 已存在。校验原始输出见该目录的 `verification.log`。
+
+远程会话没有免密码 sudo。用户在虚拟机终端执行本地安装并返回成功输出：
+
+```bash
+cd /home/ICer/eda/installers/dc-deps/centos7-x86_64
+sudo yum --disablerepo='*' localinstall ./*.rpm
+/home/synopsys/syn/O-2018.06-SP1/bin/dc_shell
+```
+
+`--disablerepo='*'` 禁用联网软件源，从已下载的 RPM 安装，避免旧镜像源影响本次操作。用户实际启动输出为 `Version O-2018.06-SP1 for linux64 - Jul 19, 2018`、`Initializing...`，随后进入 `dc_shell>`。这是用户手动执行的真实结果；其输出摘录保存在下载目录的 `dc_startup_user_output.log`，没有伪称代理重新运行了 DC。
+
+随后代理只读核对两个 x86_64 包均已安装，`/usr/lib64/libtiff.so.3` 已变为指向 `libtiff.so.3.9.4` 的链接，readelf 显示 SONAME 为 `libtiff.so.3`。原路径的手工改名副本已经被正确兼容库替换，该链接应保留。
+
+本次结论限于 DC 基础启动成功；没有执行 RTL 综合、工艺库读入、DFT 或后端实验。启动横幅中的产品名称不能单独证明各功能流程已经验证。没有检查或修改 Synopsys License 文件、服务或配置。
+
+
+## 2026-10-18：准备 PE 的 DC 综合脚本（尚未执行）
+
+本次按用户要求只编写脚本，没有启动 LC/DC，没有读取实际工艺库或执行综合。第一轮顶层为 `pe`，输入只有 `rtl/compute/pe.sv`；它包含 INT8 乘法、INT32 累加和输出寄存器，不依赖 SRAM。Testbench 和 VCS 仿真文件清单不作为综合输入。
+
+新增两个文件：
+
+- `scripts/synth/pe.tcl`：填写库路径、读取 RTL、建立设计、加载约束、执行普通 `compile`、保存报告和网表。
+- `constraints/pe.sdc`：时钟和接口环境假设。当前教学值为周期 10 ns（100 MHz）、时钟不确定度 0.2 ns、输入延迟 0 至 1 ns、输出延迟 0 至 1 ns、输入转换时间 0.1 ns、输出负载 0.01 pF。它们不是测量结果，也不是已经确认的 NPU 目标。
+
+### 使用前需要填写的内容
+
+`pe.tcl` 最前面的 `stdcell_db` 是明确的占位路径。实际解压 NLDM 包后，需要选择一个 PVT 角的标准单元 `.db`，并填入真实路径；如果交付的是 `.lib`，先通过单独的 LC 实验转换，本脚本不会自动执行转换。库文件的内部名称和角条件尚未核实，因此没有编造一个具体的 TSMC 文件名。
+
+SDC 数值按库单位解释，本版假设时间为 ns、电容为 pF。准备运行时先核对实际库单位；主脚本中的 `report_units` 用于显示单位。一个库角的基础综合不能代替多角时序签核；28nm 物理相关的时序评估后续还需要匹配的物理与 RC 数据。
+
+PE 的 `reset` 是同步高有效复位，`clear` 也是同步清零信号，二者均纳入输入约束。本版没有为它们设置 false path 或固定为无效值。
+
+### 手动运行命令（仅记录，本次未执行）
+
+填好库路径并确认约束后，在 CentOS 终端按顺序运行：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+mkdir -p build/dc/pe
+cd build/dc/pe
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/synth/pe.tcl 2>&1 | tee run.log
+```
+
+从 `build/dc/pe` 启动，可以把工具日志、工作数据库、网表和报告放在同一个实验目录。`../../../` 表示向上三级回到工程根目录。`-f` 指定 DC 要执行的 Tcl 文件；`LC_ALL=C` 设置本次命令的语言环境；`2>&1` 合并错误和普通输出；`tee run.log` 将终端输出同时保存到日志。
+
+输出路径固定为 `build/dc/pe`，重复运行会覆盖同名结果。需要保留多轮实验时，先手动保留上一轮目录，再启动下一轮；脚本没有添加自动编号或清理逻辑。
+
+### DC 主流程及重要参数
+
+| 命令 | 本次作用 |
+| --- | --- |
+| `set_app_var target_library` | 指定 `compile` 可以选取的标准单元库。 |
+| `set_app_var link_library` | 指定解析单元引用时使用的库；`*` 表示先查当前内存中的设计。 |
+| `define_design_lib WORK -path work` | 设置 `analyze` 使用的 HDL 分析目录。 |
+| `analyze -format sverilog` | 按 SystemVerilog 语法读取 PE，支持 `logic` 和 `always_ff`。 |
+| `elaborate pe` | 建立顶层设计并展开 RTL。 |
+| `current_design pe`、`link` | 选中当前设计，解析设计及库单元的引用关系。 |
+| `source` | 读取本轮 SDC 约束。 |
+| `check_design` | 检查设计结构和连接，保存基础设计检查报告。 |
+| `compile` | 优化逻辑并映射到目标标准单元库；本轮使用普通逻辑综合。 |
+| `report_timing -max_paths 10` | 输出最多十条最慢的最大延迟路径。 |
+| `report_constraint -all_violators` | 汇总工具报告的约束违例。 |
+| `change_names -rules verilog -hierarchy` | 按 Verilog 命名规则整理设计中的名字。 |
+| `write -format verilog -hierarchy` | 输出映射后的 Verilog 门级网表。 |
+| `write -format ddc -hierarchy` | 保存供 DC 重新打开的设计数据库；它与输入库 `.db` 的用途不同。 |
+| `write_sdc` | 导出本轮设计约束，供后续分析使用。 |
+
+Tcl 中，`#` 开头是注释，`set` 定义变量，`$变量名` 读取变量，`[...]` 先执行括号内的命令并取得结果，`{...}` 将端口列表作为一组文字传给命令。`get_ports` 选取端口，`all_outputs` 选取全部输出，`list` 建立列表。
+
+### 预期输出（不是已经生成的综合结果）
+
+```text
+build/dc/pe/
+├── run.log
+├── work/
+├── reports/
+│   ├── check_design.rpt
+│   ├── area.rpt
+│   ├── timing.rpt
+│   └── constraints.rpt
+├── pe_mapped.v
+├── pe.ddc
+└── pe.sdc
+```
+
+DC 还可能在该目录生成自身的命令日志。`pe_mapped.v` 用于后续门级检查，`pe.ddc` 用于在 DC 中继续分析；面积和时序报告需要结合本轮库角与接口假设解释。本次没有综合日志、PASS/FAIL 或 PPA 数字可供报告。
+
+
+## 2026-10-18：PE 第一次真实 DC 综合（TT / 0.9 V / 25°C）
+
+用户放入数字标准单元库后，授权填写脚本并尝试运行。本次已实际运行 DC O-2018.06-SP1，完成 PE 的 RTL 读取、链接、标准单元映射和网表导出；随后读取同一个 DDC 补充结构与 hold 报告。没有修改 PE RTL、没有运行 SRAM Compiler、DFT、布局布线、门级仿真或形式等价验证。
+
+### 1. 先核对交付包和库角
+
+源目录：`/mnt/hgfs/share/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/AN61001_20180509/`。
+
+实际 RLN 第 2 页确认版本配套：NLDM 为 `180a`，DOC 为 `110c`，VLG 为 `110a`，RLN 为 `180b`。各文件后缀版本不同在这里是厂商明确规定的组合。RLN 第 1 页确认 9-track、Standard Vt；第 3 页列有本轮选用的 `tt0p9v25c`。
+
+NLDM 归档里已提供编译好的 `.db`，本次没有执行 LC 转换。实际从归档选取两个文件，保存到虚拟机本地目录：
+
+```text
+/home/ICer/eda/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/nldm/
+├── tcbn28hpcplusbwp40p140tt0p9v25c.db
+└── tcbn28hpcplusbwp40p140tt0p9v25c.lib
+```
+
+`.db` 为 20,144,128 字节，`.lib` 为 87,283,165 字节。Liberty 头部实际写明：
+
+```text
+library (tcbn28hpcplusbwp40p140tt0p9v25c)
+time_unit : "1ns"
+capacitive_load_unit (1,pf)
+nom_voltage : 0.9
+nom_temperature : 25
+nom_process : 1
+default_operating_conditions : tt0p9v25c
+```
+
+本次通过只提取指定成员的方式保存这两个文件。若手动从同一归档复现，可执行以下命令；`--strip-components=6` 去掉归档内六级前缀目录，仅保留两个原始文件名：
+
+```bash
+mkdir -p /home/ICer/eda/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/nldm
+tar -xzf /mnt/hgfs/share/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/AN61001_20180509/tcbn28hpcplusbwp40p140_180a_nldm.tar.gz \
+  -C /home/ICer/eda/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/nldm \
+  --strip-components=6 \
+  TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn28hpcplusbwp40p140_180a/tcbn28hpcplusbwp40p140tt0p9v25c.db \
+  TSMCHOME/digital/Front_End/timing_power_noise/NLDM/tcbn28hpcplusbwp40p140_180a/tcbn28hpcplusbwp40p140tt0p9v25c.lib
+```
+
+### 2. 更新脚本并执行
+
+`scripts/synth/pe.tcl` 已填入真实 `.db` 路径。`constraints/pe.sdc` 的时间与电容单位已确认匹配，不需要改变原有 10 ns 时钟、0 至 1 ns 接口延迟、0.1 ns 输入转换时间、0.01 pF 输出负载等教学假设。
+
+实际首次运行命令：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning
+mkdir -p build/dc/pe
+cd build/dc/pe
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/synth/pe.tcl 2>&1 | tee run.log
+```
+
+本轮日志为 `build/dc/pe/run.log`。DC 输出 `Presto compilation completed successfully.`、加载所选 `.db`、`Optimization Complete`，并写出 `.v`、`.ddc`、`.sdc` 后正常退出。`report_units` 实际确认时间 ns、电容 pF。DC 在 `compile` 内选择了算术结构、映射到 TSMC 单元，再进行时序优化和面积恢复；它不是只把 RTL 文本换一种写法。
+
+为了分析首次报告暴露的 hold 问题，本次又从已生成的 `pe.ddc` 读取同一设计，补充两个报告，没有重新 `compile`：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning/build/dc/pe
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f review.tcl 2>&1 | tee review.log
+```
+
+`build/dc/pe/review.tcl` 是本次补查的简短命令记录：设置同一个库，`read_file -format ddc pe.ddc`、`current_design pe`、`link`，随后输出综合后结构检查和最短路径报告。`review.log` 实际显示 `Loaded 4 designs` 并正常退出。后续运行主脚本时，已经会直接生成这两个补充报告，不需要再单独执行 review。
+
+### 3. 面积与 setup 结果
+
+| 项目 | 实际结果 |
+| --- | --- |
+| 顶层 | `pe` |
+| 库角 | TT / 0.9 V / 25°C |
+| 时钟周期 | 10 ns，即 100 MHz |
+| 报告实例数 | 329，含 3 个 DW 层次实例 |
+| 叶级标准单元 | 326 = 276 个组合单元 + 50 个时序单元 |
+| 黑盒数 | 0 |
+| 组合单元面积 | 260.315997 |
+| 非组合单元面积 | 96.768000 |
+| 总单元面积 | 357.083997，按所选库的 area 属性统计 |
+| 最慢 setup 路径 | `b_in[7]` → 乘法器 → 累加器 → `acc_out_reg[30]/D` |
+| 到达时间 / 要求时间 | 2.57 ns / 9.78 ns |
+| setup slack | +7.21 ns，MET |
+
+50 个触发器与 RTL 对应：32 位累加器、8 位 A 传递寄存器、8 位 B 传递寄存器、2 位 valid 寄存器。面积报告中的 Buf/Inv 面积 10.458000 已包含在组合面积中，不能再重复相加。
+
+原始 setup 日志片段见 `reports/timing.rpt`：
+
+```text
+data required time        9.78
+data arrival time        -2.57
+slack (MET)               7.21
+```
+
+这里的 2.57 ns 包含 1 ns 的输入外部延迟；不能把整个数字都视为 PE 内部组合延迟。要求时间由 10 ns 周期扣除 0.2 ns 不确定度及约 0.02 ns setup 时间得到。slack 是要求时间减到达时间。
+
+面积报告未打印物理面积单位。暂按“库面积单位”记录 357.083997；RLN/Databook 未明确给出将 Liberty area 再乘 0.81 的规则，因此不自行缩放，也不把它称为 core/die 面积。报告中的互连面积和 total area 为 undefined。
+
+### 4. Hold 尚有违例
+
+`reports/constraints.rpt` 实际列出 118 条 min_delay/hold 违例，最差为 -0.19 ns。不能把“工具运行结束”或“setup 满足”表述为全部时序通过。
+
+从保存的 DDC 补出的 `reports/hold.rpt` 第一条路径为 `a_in[7]` → `a_out_reg_7_/D`：
+
+```text
+input external delay      0.00
+path delay                0.00
+data arrival time         0.00
+clock uncertainty         0.20
+library hold time        -0.01
+data required time        0.19
+slack (VIOLATED)          -0.19
+```
+
+原因是当前接口最小延迟假设为 0 ns，数据直接进入传递寄存器；本轮 `set_clock_uncertainty 0.2` 同时参与 setup 和 hold 分析。因此最短路径到达 0 ns，而要求约 0.19 ns 后仍保持。它是短路径约束问题，不是乘加路径太慢；降低时钟频率通常不能直接解决同拍 hold 检查。
+
+下一步应先解释并核实真实接口最小延迟和 setup/hold 不确定度，再决定是否需要插入延迟或在物理实现中修复。本次保留原约束和实际违例，没有为了得到全绿而删除 hold 检查。当前也没有用更快工艺角或真实时钟树完成 hold 签核。
+
+### 5. 警告逐项记录
+
+- `VER-318`：`pe.sv:30` 的符号扩展拼接结果类型是 unsigned，导致 signed 到 unsigned 转换提醒。乘积已手动扩展为 32 位，当前加法两侧与接收结果同为 32 位，转换不改变低 32 位的模加结果。该语义分析不等于整个设计已经通过综合前后等价验证；本次没有修改 RTL。
+- 首次 `check_design.rpt` 是 compile 前检查，报告中间单元 C132 不驱动网络。该实例在最终网表中已不存在，但不能拿这个早期报告代替综合后检查。
+- `check_design_mapped.rpt` 实际还有 19 条警告：11 条 DW 模块未使用端口（CI/CO/TC/B低位）、6 条端口直连、2 条同一网络接到多个输入引脚。已对照网表定位到常量优化、直连和乘积符号扩展；报告未指出顶层输入断连。本次不声称结构检查零告警或功能等价已证明。
+- `UCN-1` 与 `VO-4`：对应 DW 加法器的低六位 `assign SUM[i] = A[i]` 直连；实际没有 tran 语句。这些提示没有阻止导出网表，也不代表出现多驱动。
+
+### 6. 输出文件与本轮技术收获
+
+```text
+build/dc/pe/
+├── run.log
+├── review.log
+├── review.tcl
+├── pe_mapped.v
+├── pe.ddc
+├── pe.sdc
+├── work/
+└── reports/
+    ├── check_design.rpt
+    ├── check_design_mapped.rpt
+    ├── area.rpt
+    ├── timing.rpt
+    ├── hold.rpt
+    └── constraints.rpt
+```
+
+主脚本新加的命令只有综合后 `check_design` 和 `report_timing -delay_type min -max_paths 10`，用于区分结构检查、setup 和 hold；保持直线流程，没有自动探测库、复杂分支或清理逻辑。
+
+这次实际掌握了：核对厂商库版本配套与 PVT、直接使用预编译 `.db`、确认单位、读 RTL/链接/技术映射、理解 DW 算术层次、区分库面积和芯片面积、读取 setup/hold 路径、重新打开 DDC、保留并解释真实警告。
+
+本轮使用 `ZeroWireload` 和理想时钟，没有布局、CTS 或真实互连寄生，只有 TT 单角和教学接口假设。+7.21 ns 裕量不能当作最终最高频率依据。门级回归或形式等价仍需后续单独实验。
+
+若手动重复实验，先保留当前 `build/dc/pe` 的真实结果。也可新建同层级的 `build/dc/pe_repeat`，从该目录执行相同相对路径的主脚本；所有输出会保存在新的当前目录中。
+
+
+## 2026-10-18：完整 NPU 的 SRAM 接入准备与 DC 读取检查
+
+本轮目标是先接入真实存储宏，再综合 `npu_top`。截至本记录，真实 SRAM 宏尚未生成、RTL 尚未替换、完整 NPU 尚未执行 `compile`；已经完成存储接口审查、综合脚本与教学约束准备，以及现有 RTL 的 DC `analyze` 检查。
+
+### 1. 主体包与文档包的区别
+
+Windows 的 `D:\share\pdk\tsmc28\Memory` 对应当前虚拟机的 `/mnt/hgfs/share/pdk/tsmc28/Memory`。本次实际目录中有五个文件：1PRF 的 DOC/RLN、2PRF 的 DOC/RLN，以及公共 Memory Compiler 的 RLN。用户已确认以下两个主体包尚未放入，正在补齐：
+
+```text
+tsn28hpcp1prf_20120200_130a.tar.gz
+tsmc_n28hpcpmc_20120200_110a.tar.gz
+```
+
+`_doc` 包提供使用手册，`_rln` 包提供版本说明；它们不能代替生成宏所需的产品数据和公共编译器。文档中的命名示例也不能代替实际生成的 Verilog 模块名和 Liberty 库名。本轮尚未填入虚构的宏名或空壳模型。
+
+### 2. 第一轮存储宏接入范围
+
+NPU 默认是 4×4 INT8 阵列，K tile 为 256。顶层 `MEM_WORD_WIDTH=32` 是外部写接口宽度；内部执行器明确使用 64 位操作数字宽，二者不能一起改成 64。
+
+A、B 各有两个 bank，每个 bank 有四条 lane，每条 lane 需要 32×64 bit。共需 16 个这样的宏，数据容量合计 4 KiB。buffer manager 的装载与计算阶段互斥，同一操作数 bank 不需要同拍读写，因此这一用途可以采用单端口 1PRF。
+
+接入时计划只为 `operand_buffer` 增加薄包装：选择读写地址、转换使能极性、连接生成模型的实际引脚。保留原有同步读延迟，不在宏输出后额外增加一级寄存器。普通 RTL 仿真仍可使用原行为模型，真实宏分支使用 `NPU_TSMC28`。
+
+不能把通用 `sram_model` 全局改成单端口：它原本描述独立的读写端口。C/PSUM 的接口语义需要另行核对；Conv cache 还存在组合读及双 tag 查询，直接换为同步存储宏会改变控制时序。这些存储本轮尚未替换，后续面积报告必须区分宏和由标准单元实现的存储，不能称作所有 SRAM 都已落宏。
+
+### 3. 已准备的综合输入
+
+- `scripts/synth/npu.tcl`：明确列出设计文件，设置标准单元 target library 与 SRAM link library，随后安排 analyze、elaborate、link、加载约束、compile、报告和导出。
+- `constraints/npu.sdc`：10 ns 时钟，0.2 ns setup/hold 共用不确定度，输入 max/min 为 1/0 ns，输出 max/min 为 1/0 ns，输入转换 0.1 ns，输出负载 0.01 pF。
+
+这些是延续 PE 实验的教学接口假设，不是芯片最终时序要求。脚本保留 `TODO_GENERATED_SRAM_DB` 和待实现的 `operand_sram.sv` 输入；在真实模型生成、核对引脚和单位之前，不运行这个完整综合脚本。
+
+### 4. 实际完成的 DC analyze 检查
+
+为先发现 RTL 语言兼容问题，本次在 `build/dc/npu_read` 运行了独立的读取检查：
+
+```bash
+cd /home/ICer/eda/npu-vcs-learning/build/dc/npu_read
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f read_rtl.tcl 2>&1 | tee read_rtl.log
+```
+
+`-f` 指定 DC Tcl 命令文件；`tee` 同时显示和保存标准输出与错误输出。该 Tcl 只定义工作库并执行 `analyze -format sverilog -define SYNTHESIS`，没有 elaborate、link 或 compile。`analyze` 检查语言并保存中间表示，不证明顶层展开、宏链接、功能或时序已通过。
+
+首次按仿真清单读入时遇到：
+
+```text
+npu_perf_monitor.sv:180: The system function '$countones' is not supported for synthesis. (ELAB-939)
+Cannot recover from previous errors. (VER-518)
+```
+
+默认硬件未启用 `NPU_PERF_ENABLE`，但 DC 仍会分析清单中的源文件。因此仅从综合清单移除该可选性能统计模块，保留仿真清单及 RTL。第一次失败的日志保存为 `read_rtl_initial.log`。
+
+调整后，38 个现有 RTL 文件全部完成读取，日志实际显示：
+
+```text
+Presto compilation completed successfully.
+1
+exit
+Memory usage for main task 479 Mbytes.
+CPU usage for this session 3 seconds ( 0.00 hours ).
+```
+
+DC 正常退出。仍有 initial 块被忽略、未标号 `$fatal` 被忽略、`assert property` 被忽略等告警；它们是读取阶段对检查代码的处理提示，不代表这些检查被实现成硬件。本次未为消除这些提示而批量修改 RTL。
+
+实际记录位于 `build/dc/npu_read/read_rtl.tcl`、`read_rtl_initial.log` 和 `read_rtl.log`。没有生成完整 NPU 的门级网表、面积或时序结果。
+
+### 5. LC、库文件与现有 hold 结果
+
+Library Compiler（LC）可以将可读的 Liberty `.lib` 编译为 Synopsys `.db`，用于 DC/PrimeTime 等工具读取；它不是生成 SRAM 电路的 Memory Compiler。`.lib` 描述单元功能、引脚、时序、功耗及面积等属性，`.db` 是对应的编译数据库。有配套 `.db` 时可直接使用，不必再次转换；`.ddc` 则是已读入或综合的设计数据库。
+
+上一轮 PE 的最差 hold slack 为 -0.19 ns。该短路径输入最小延迟为 0，理想时钟下不确定度为 0.2 ns，库 hold 时间约 -0.01 ns，故要求保持约 0.19 ns。这个结果在当前约束下有明确原因，但不能视为时序已经通过，也不能用降低频率直接修复。后续应依据真实接口和物理实现确定约束及修复方式，不为获得全绿而取消检查。

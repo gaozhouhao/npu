@@ -1,3 +1,16 @@
+# Current checkout note (2026-10-17)
+
+Testbenches were moved into unit/integration/system directories; contract file keys
+follow those moves without refreshing historical source hashes. The scratchpad A/B
+parameter mapping is now repaired and GEMM widths are explicitly constrained to
+8/32. Compiler V0 still accepts only its audited default NPU configuration.
+
+The historical contract already differed from multiple RTL files before this
+cleanup. Its strict hash checks remain active; an end-to-end ABI audit and Python 3
+model-tool regression are required before approving a refreshed contract. No hash
+check has been disabled. The remainder of this document describes the original
+compiler delivery and its historical measurements.
+
 # MNIST CNN Model Compiler V0
 
 目标源码：`https://github.com/gaozhouhao/npu`，commit `87cc23c73760820701ebd697d2c04df04fcea050`。

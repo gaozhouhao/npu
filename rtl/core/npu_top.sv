@@ -618,6 +618,21 @@ module npu_top #(
         .m_axi_rready(desc_rready)
     );
 
+    // Declare the full-width operand bus before any instance uses it.
+    logic [ID_WIDTH-1:0] operand64_arid;
+    logic [ADDR_WIDTH-1:0] operand64_araddr;
+    logic [7:0] operand64_arlen;
+    logic [2:0] operand64_arsize;
+    logic [1:0] operand64_arburst;
+    logic operand64_arvalid;
+    logic operand64_arready;
+    logic [ID_WIDTH-1:0] operand64_rid;
+    logic [63:0] operand64_rdata;
+    logic [1:0] operand64_rresp;
+    logic operand64_rlast;
+    logic operand64_rvalid;
+    logic operand64_rready;
+
     // ============================================================
     // GEMM / Conv Executor
     // ============================================================
@@ -821,20 +836,6 @@ module npu_top #(
 
     // ============================================================
 
-
-    logic [ID_WIDTH-1:0] operand64_arid;
-    logic [ADDR_WIDTH-1:0] operand64_araddr;
-    logic [7:0] operand64_arlen;
-    logic [2:0] operand64_arsize;
-    logic [1:0] operand64_arburst;
-    logic operand64_arvalid;
-    logic operand64_arready;
-    logic [ID_WIDTH-1:0] operand64_rid;
-    logic [63:0] operand64_rdata;
-    logic [1:0] operand64_rresp;
-    logic operand64_rlast;
-    logic operand64_rvalid;
-    logic operand64_rready;
 
     // Internal AXI32 side of the external AXI64 adapter.
     logic [ID_WIDTH-1:0] axi32_arid;

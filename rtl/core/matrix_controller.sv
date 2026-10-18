@@ -60,7 +60,7 @@ module matrix_controller #(
     // ============================================================
 
     localparam int DRAIN_CYCLES =
-        ROWS + COLS - 2;
+        (ROWS + COLS > 2) ? ROWS + COLS - 2 : 1;
 
     localparam int DRAIN_WIDTH =
         (DRAIN_CYCLES <= 1)
@@ -101,7 +101,6 @@ module matrix_controller #(
 
     logic [K_SIZE_WIDTH-1:0] tile_k_size_q;
 
-    // logic clear_acc_q;
     logic writeback_en_q;
 
     logic [K_SIZE_WIDTH-1:0] issue_count;
@@ -168,7 +167,6 @@ module matrix_controller #(
 
             tile_k_size_q   <= '0;
 
-            // clear_acc_q     <= 1'b0;
             writeback_en_q  <= 1'b0;
 
             issue_count     <= '0;
@@ -192,7 +190,6 @@ module matrix_controller #(
                     if (start) begin
 
                         tile_k_size_q  <= tile_k_size;
-                        // clear_acc_q    <= clear_acc;
                         writeback_en_q <= writeback_en;
 
                         if (

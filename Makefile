@@ -9,9 +9,11 @@ MEMORY_SRCS := \
 	rtl/memory/scratchpad.sv \
 	rtl/memory/operand_loader.sv \
 	rtl/memory/buffer_manager.sv \
+	rtl/memory/c_result_buffer.sv \
 	rtl/memory/psum_tile_sram.sv
 
 DMA_SRCS := \
+	rtl/dma/axi_read_32to64.sv \
 	rtl/dma/axi_read_master.sv \
 	rtl/dma/axi_write_master.sv \
 	rtl/dma/axi_read_mux.sv \
@@ -20,6 +22,7 @@ DMA_SRCS := \
 	rtl/dma/read_request_arbiter.sv \
 	rtl/dma/gemm_read_path.sv \
 	rtl/dma/conv_patch_loader.sv \
+	rtl/dma/conv_read_cache.sv \
 	rtl/dma/postprocess_param_loader.sv \
 	rtl/dma/c_write_dma.sv
 
@@ -46,31 +49,31 @@ CORE_SRCS := \
 	rtl/core/npu_top.sv
 
 NPU_SRCS := $(MEMORY_SRCS) $(DMA_SRCS) $(COMPUTE_SRCS) $(CORE_SRCS)
-MNIST_TB_SRCS := sim/tb/npu_perf_v2_monitor.sv sim/tb/mnist_npu_tb.sv
+MNIST_TB_SRCS := sim/tb/support/npu_perf_v2_monitor.sv sim/tb/system/mnist_npu_tb.sv
 
-.PHONY: all npu_top conv2d conv_patch cnn_pool mnist mnist_all regression clean
+.PHONY: all npu_top conv2d conv_patch cnn_pool mnist mnist_all regression clean vcs-pe vcs-pe-wave vcs-regression
 all: npu_top
 
 npu_top:
 	$(VERILATOR) $(VFLAGS) --Mdir $(BUILD_DIR)/npu_top \
-		--top-module npu_top_tb $(NPU_SRCS) sim/tb/npu_top_tb.sv
+		--top-module npu_top_tb $(NPU_SRCS) sim/tb/system/npu_top_tb.sv
 	$(BUILD_DIR)/npu_top/Vnpu_top_tb
 
 conv2d:
 	$(VERILATOR) $(VFLAGS) --Mdir $(BUILD_DIR)/conv2d \
-		--top-module conv2d_npu_tb $(NPU_SRCS) sim/tb/conv2d_npu_tb.sv
+		--top-module conv2d_npu_tb $(NPU_SRCS) sim/tb/system/conv2d_npu_tb.sv
 	$(BUILD_DIR)/conv2d/Vconv2d_npu_tb
 
 conv_patch:
 	$(VERILATOR) $(VFLAGS) --Mdir $(BUILD_DIR)/conv_patch \
 		--top-module conv_patch_loader_tb \
 		rtl/memory/operand_loader.sv rtl/dma/conv_patch_loader.sv \
-		sim/tb/conv_patch_loader_tb.sv
+		sim/tb/unit/dma/conv_patch_loader_tb.sv
 	$(BUILD_DIR)/conv_patch/Vconv_patch_loader_tb
 
 cnn_pool:
 	$(VERILATOR) $(VFLAGS) --Mdir $(BUILD_DIR)/cnn_pool \
-		--top-module cnn_pool_npu_tb $(NPU_SRCS) sim/tb/cnn_pool_npu_tb.sv
+		--top-module cnn_pool_npu_tb $(NPU_SRCS) sim/tb/system/cnn_pool_npu_tb.sv
 	$(BUILD_DIR)/cnn_pool/Vcnn_pool_npu_tb
 
 # Enable the performance interface and the MNIST-only v2 testbench monitor.
@@ -87,4 +90,13 @@ mnist_all:
 regression: npu_top conv_patch conv2d cnn_pool
 
 clean:
-	rm -rf $(BUILD_DIR)
+	find "$(BUILD_DIR)" -type f \( -name '*.o' -o -name '*.d' \) -delete
+
+vcs-pe:
+	bash scripts/sim/run_vcs.sh pe_tb
+
+vcs-pe-wave:
+	bash scripts/sim/run_vcs.sh pe_wave_tb
+
+vcs-regression:
+	bash scripts/sim/run_vcs_cleanup_regression.sh

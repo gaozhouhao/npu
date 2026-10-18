@@ -1,0 +1,137 @@
+{
+  "failed_attempts_retained": [
+    {
+      "label": "operand_path_tb",
+      "run": "build/vcs/operand_path_tb/run.NH6WqL",
+      "status": {
+        "COMPILE_RC": "127",
+        "RESULT": "COMPILE_FAIL"
+      }
+    },
+    {
+      "label": "tile_policy_multik_tb",
+      "run": "build/vcs/tile_policy_multik_tb/run.8tkpt9",
+      "status": {
+        "COMPILE_RC": "127",
+        "RESULT": "COMPILE_FAIL"
+      }
+    },
+    {
+      "label": "gemm_executor_tb",
+      "run": "build/vcs/gemm_executor_tb/run.jKKESJ",
+      "status": {
+        "COMPILE_RC": "0",
+        "RESULT": "FAIL",
+        "SIMULATION_RC": "0"
+      }
+    },
+    {
+      "label": "npu_top_tb",
+      "run": "build/vcs/npu_top_tb/run.onXF8l",
+      "status": {
+        "COMPILE_RC": "255",
+        "RESULT": "COMPILE_FAIL"
+      }
+    },
+    {
+      "label": "npu_top_tb",
+      "run": "build/vcs/npu_top_tb/run.c32TCF",
+      "status": {
+        "COMPILE_RC": "255",
+        "RESULT": "COMPILE_FAIL"
+      }
+    }
+  ],
+  "limitations": [
+    "Python 3/model dependencies and Verilator are unavailable in the current PATH.",
+    "Historical compiler RTL-contract hashes remain strict and need a separate ABI audit.",
+    "This focused regression does not establish full-chip coverage closure."
+  ],
+  "results": [
+    {
+      "label": "pe_tb",
+      "result": "PASS",
+      "run": "build/vcs/pe_tb/run.LEI6gF"
+    },
+    {
+      "label": "matrix_controller_tb",
+      "result": "PASS",
+      "run": "build/vcs/matrix_controller_tb/run.1Cd9mg"
+    },
+    {
+      "label": "operand_loader_tb",
+      "result": "PASS",
+      "run": "build/vcs/operand_loader_tb/run.GY6tvE"
+    },
+    {
+      "label": "operand_path_tb",
+      "result": "PASS",
+      "run": "build/vcs/operand_path_tb/run.CxYYum"
+    },
+    {
+      "label": "postprocess_unit_tb",
+      "result": "PASS",
+      "run": "build/vcs/postprocess_unit_tb/run.X4dJe1"
+    },
+    {
+      "label": "tile_scheduler_tb",
+      "result": "PASS",
+      "run": "build/vcs/tile_scheduler_tb/run.WvOUPC"
+    },
+    {
+      "label": "tile_scheduler_early_done_tb",
+      "result": "PASS",
+      "run": "build/vcs/tile_scheduler_early_done_tb/run.z6Y3N2"
+    },
+    {
+      "label": "tile_policy_multik_tb",
+      "result": "PASS",
+      "run": "build/vcs/tile_policy_multik_tb/run.pO6mjs"
+    },
+    {
+      "label": "mn_tiling_tb",
+      "result": "PASS",
+      "run": "build/vcs/mn_tiling_tb/run.f38wRr"
+    },
+    {
+      "label": "gemm_core_tb",
+      "result": "PASS",
+      "run": "build/vcs/gemm_core_tb/run.La6hyq"
+    },
+    {
+      "label": "gemm_core_rect_a",
+      "result": "PASS",
+      "run": "build/vcs/gemm_core_rect_a/run.AM3zyk"
+    },
+    {
+      "label": "gemm_core_rect_b",
+      "result": "PASS",
+      "run": "build/vcs/gemm_core_rect_b/run.kBNm1B"
+    },
+    {
+      "label": "gemm_core_single",
+      "result": "PASS",
+      "run": "build/vcs/gemm_core_single/run.fZGjVS"
+    },
+    {
+      "label": "gemm_executor_tb",
+      "result": "PASS",
+      "run": "build/vcs/gemm_executor_tb/run.xz4oWJ"
+    },
+    {
+      "label": "gemm_dma_integration_tb",
+      "result": "PASS",
+      "run": "build/vcs/gemm_dma_integration_tb/run.kYvLxm"
+    },
+    {
+      "label": "npu_top_tb",
+      "result": "PASS",
+      "run": "build/vcs/npu_top_tb/run.XTi6QE"
+    },
+    {
+      "label": "pe_wave_tb",
+      "result": "PASS",
+      "run": "build/vcs/pe_wave_tb/run.23i6Qt"
+    }
+  ]
+}

@@ -516,6 +516,10 @@ module gemm_core #(
 
     initial begin
 
+        // The current PE and skew pipeline implement signed INT8 / INT32.
+        if (DATA_WIDTH != 8 || ACC_WIDTH != 32)
+            $fatal(1, "gemm_core requires DATA_WIDTH=8 and ACC_WIDTH=32");
+
         if (ROWS < 1) begin
 
             $fatal(

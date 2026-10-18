@@ -3,6 +3,8 @@ build/
 obj_dir/
 *.vcd
 *.fst
+*.fsdb
+*.vcd.gz
 *.log
 
 # Synthesis / STA outputs
@@ -34,17 +36,3 @@ __pycache__/
 # One-time integration packages and source snapshots
 /resnet8_hw_v*.zip
 *.sv.before_*
-
-# Generated simulation artifacts
-*.vcd
-*.fst
-*.vcd.gz
-obj_dir/
-build/
-
-# Python cache
-__pycache__/
-*.pyc
-
-# Local Python environments
-.venv/
