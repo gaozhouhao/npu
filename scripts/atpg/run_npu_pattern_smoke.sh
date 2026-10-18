@@ -9,7 +9,7 @@ sram_v=/home/ICer/eda/pdk/tsmc28/Memory/macros/operand_32x64/ts5n28hpcpsvta32x64
 export SYNOPSYS_TMAX=/home/synopsys/txs/O-2018.06-SP1
 
 cd "$1"
-"$SYNOPSYS_TMAX/bin/stil2verilog" npu_stuck_at.stil npu_patterns_tb.v \
+"$SYNOPSYS_TMAX/bin/stil2verilog" npu_stuck_at.stil npu_patterns_tb \
     -parallel 2 -first 0 -last 9 -tb_module_name npu_patterns_tb \
     -replace -log stil2verilog.log
 
@@ -21,3 +21,5 @@ cd "$1"
     -o simv_patterns -l vcs_compile.log
 
 ./simv_patterns -l vcs_sim.log
+# Check the simulator's verdict, not just its process exit status.
+grep 'Simulation of 10 patterns completed with 0 mismatches' vcs_sim.log

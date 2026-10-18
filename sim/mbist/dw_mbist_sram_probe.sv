@@ -1,4 +1,5 @@
-// Current validation is blocked by APG SYNH-14; see docs/eda_learning_notes.md.
+// The DC script elaborates and names the vendor APG with 5-bit address,
+// 64-bit data, one port and REGISTERED_IO=2 before linking this probe.
 // One dedicated SRAM for checking the DC-supplied MBIST components.
 // The NPU is not connected to this experiment.
 module dw_mbist_sram_probe (
@@ -22,8 +23,8 @@ module dw_mbist_sram_probe (
     wire [3:0] port_no;
     wire [63:0] memory_q, compare_data;
 
-    // No extra registers between the APG and the synchronous SRAM.
-    dw_mbist_controller_probe #(.REGISTERED_IO(0)) u_controller (
+    // Match the synchronous SRAM input sampling in the vendor timing model.
+    dw_mbist_controller_probe #(.REGISTERED_IO(2)) u_controller (
         .clk(clk), .rst_n(rst_n), .mbrun(mbrun),
         .mode_reg_in(16'b0), .mode_reg_si(mode_reg_si),
         .shift_dr(shift_dr), .parallel_dr(1'b0),
@@ -41,11 +42,7 @@ module dw_mbist_sram_probe (
         .serial_pattern_out(serial_pattern_out)
     );
 
-    DW_mbist_apg #(
-        .addr_width(5), .data_width(64), .num_ports(1),
-        .registered_io(0), .memory_full(1),
-        .mem_start_addr(0), .mem_end_addr(31)
-    ) u_pattern_generator (
+    dw_mbist_apg_32x64 u_pattern_generator (
         .bist_clk(clk), .bist_clk_t(clk),
         .rst_n_a(rst_n), .rst_t_n_a(rst_n),
         .simulation_mode(1'b0), .bist_mode(bist_mode), .dbist_mode(1'b0),

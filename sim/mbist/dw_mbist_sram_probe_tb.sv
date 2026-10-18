@@ -1,4 +1,4 @@
-// Current validation is blocked by APG SYNH-14; see docs/eda_learning_notes.md.
+// Isolated gate-level test of the vendor MBIST path and one real SRAM.
 `timescale 1ns/1ps
 module dw_mbist_sram_probe_tb;
     logic clk = 0;

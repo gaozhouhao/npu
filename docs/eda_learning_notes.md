@@ -1441,3 +1441,88 @@ bash scripts/atpg/run_npu_pattern_smoke.sh build/atpg/npu_checkpoint_test_202610
 ```
 
 此处只验证保存/恢复，尚未启动新的长期 ATPG 收敛运行。SRAM 阵列仍排除在普通扫描 ATPG 故障范围之外。
+
+
+### ATPG 图样门级抽样结果
+
+第一次实际运行转换脚本暴露文件名错误：`stil2verilog` 的第二个位置参数是输出前缀，它会自动加 `.v`。原来传 `npu_patterns_tb.v`，生成了 `.v.v`，导致 VCS 找不到输入。已改为 `npu_patterns_tb`；原失败日志保留为 `pattern_smoke_filename_error.log` / `vcs_compile_filename_error.log`。
+
+修正后在 `build/atpg/npu_checkpoint_test_20261018` 完成前 10 条图样的 VCS 门级仿真，真实标准单元模型、SRAM 功能模型和扫描网表均被使用。`vcs_sim.log` 关键行：
+
+```text
+XTB: Starting parallel simulation of 10 patterns
+XTB: Using 2 serial shifts
+XTB: Simulation of 10 patterns completed with 0 mismatches (time: 5200.00 ns, cycles: 52)
+```
+
+N20 的后续抽样检查有了实际结果；没有改厂家 UDP。保留 TFIPC 未接端口和端口转换等消息。它是无 SDF、前 10 条、并行加载加 2 个移位周期的抽样，不能替代全部图样、全串行链或时序验证。
+
+
+## 2026-10-18：继续定位并修复 MBIST 展开路径
+
+用户要求不能止于“工具不能运行”，因此继续做有对照的定位，没有修改厂家安装文件或 NPU。新增实验目录均在 `build/mbist`，旧 SYNH-14 日志仍保留。
+
+- `dc_dependency_20261018`：`check_synlib` 返回 1（无关键错误），保留通用 DesignWare 算术模块的 LBSYN-47 警告；`report_synlib` 能找到 muxif 定义和 rtl 实现。因此并非这个组件完全没有安装。
+- `dc_muxif_20261018`：单独例化 muxif，5 bit 地址、64 bit 数据、单端口，成功映射，0 宏/黑盒，面积 352.547992。这说明该子模块本身可以生成。
+- `dc_wrapper_20261018`：完整厂家 wrapper 在另一个子模块 `DW_mbist_muxport` 报 SYNH-14；`dc_apg_ultra_20261018` 改用 compile_ultra 仍在 muxif 失败。换综合努力等级没有解决嵌套选择问题。
+- `dc_apg_presto_20261018`：只增加子模块的 analyze 不足以修复。`dc_apg_source_20261018` 显式分析厂家 APG VHDL 实体和 rtl 架构，再以顶层展开，则成功映射 32×64 APG，0 宏/黑盒。
+- `dc_sram_source_20261018`：只分析 APG 源码再读 SystemVerilog 顶层，仍会重新走失败的自动嵌套路径。`dc_sram_bind_20261018` 试图对尚未映射的 DesignWare 实例 change_link，返回 UIED-206，不能采用。
+- `dc_apg_default_bind_20261018`：显式展开默认 APG 后链接探针，默认配置成功映射。这是独立的默认参数正对照；被禁用的 debug 和未使用的多端口产生常量、未接接口消息，保留报告。
+
+可用的完整通路修复是：**显式展开厂家 APG，给展开结果一个固定设计名，再让探针直接例化这个设计。** 关键 Tcl：
+
+```tcl
+analyze -format vhdl /home/synopsys/syn/O-2018.06-SP1/dw/dw04/src/DW_mbist_apg.vhd.e
+analyze -format vhdl /home/synopsys/syn/O-2018.06-SP1/dw/dw04/src/DW_mbist_apg_rtl.vhd.e
+elaborate DW_mbist_apg -architecture rtl -parameters "addr_width=5,data_width=64,num_ports=1,registered_io=0,mem_end_addr=31"
+rename_design [current_design] dw_mbist_apg_32x64
+```
+
+`analyze` 使用 DC 正常编译厂家保护 HDL；`-architecture rtl` 指定厂家实现；参数定义单端口同步 32×64 通路；`rename_design` 只给本地展开结果命名，保留组件保护属性，不修改安装目录。探针改为 `dw_mbist_apg_32x64 u_pattern_generator (...)`，参数由脚本集中指定。控制器仍用原厂家组件。普通库加载和映射流程保留。
+
+这组对照把故障定位到原来的合成库自动嵌套展开/绑定路径，并给出了可以运行的显式展开方式；不足以断言厂家库内部具体是哪一项元数据错误。正常工具日志中的 DDB-75 / UID-408 保护设计提示也保留；没有修改保护属性或检查任何授权配置。
+
+`dc_sram_named_20261018` 首次完成完整控制器＋APG＋真实 SRAM 综合，输出 `mbist_mapped.v`、`mbist.ddc`。414 个时序单元、1153 个组合单元，报告的 1571 个总单元还包含层次实例和 SRAM；宏/黑盒一栏为 1，reference 报告确认它是已知 `TS5N28HPCPSVTA32X64M2F`，不是缺失逻辑黑盒。总库单元面积 4410.073551，含 SRAM 面积 2643.049561。check_design 保留了单端口配置下未使用的其它端口、debug、别名和常量连接提示，没有屏蔽。随后从最终跟踪脚本在 `dc_sram_confirm_20261018` 干净复验。
+
+MBIST 的电路路径是：控制器选择 March 操作 → APG 产生地址、写数据、读写控制并比较返回数据 → SRAM 执行访问 → fail/done 状态经模式寄存器移出。此实验专用一块 SRAM，不占用 NPU。下一步用 VCS 对这条实际映射的通路作正常和读数据故障注入验证。
+
+
+### 功能误报的原因与同步时序修复
+
+第一次完整门级运行并未通过：`dc_sram_named_20261018/vcs_sim.log` 的正常 SRAM 状态为 `038b`，触发 Unexpected MBIST failure status。随后为最终跟踪脚本做的 `dc_sram_confirm_20261018` 只确认了相同配置能综合，不能视为功能通过。
+
+在 build 目录添加临时追踪，使用映射后真实引脚 `u_memory.Q`，并按实际地址/写数据维护独立的读回参考。`vcs_trace_sim.log` 记录指令装载为 `810a`；正常 SRAM 无独立读回不一致，首次 mem_fail_n 拉低在运行周期 203，位于读 0 / 写 1 的切换阶段。完整 trace 和失败结果保留，不替换真实宏，不放宽 PASS 条件。
+
+关键配置错误是先前的 `registered_io=0` 未匹配这块同步 SRAM。**它不能简单理解成“有没有再加一层外部寄存器”。** 官方 CTL 按 `registered_input = registered_io > 1`、`registered_output = registered_io & 1` 计算输入、输出和比较控制管线。真实宏在时钟沿采样输入，使用 `registered_io=2`（同步输入、非额外注册输出的模型）并让控制器的 `registered_io_0` 同样为 2，才能匹配本实验的比较时序。它仍然是一个端口，数值 2 与双端口无关。
+
+本次只把控制器与 APG 这一配置从 0 改成 2；地址/数据宽度、真实 SRAM、指令、故障注入、状态检查均保持。`dc_sram_sync_20261018` 先综合，再使用相同 VCS 脚本完成两项门级测试：
+
+```text
+MBIST normal SRAM: status=830b reads=19680 writes=320 read_mask=ffffffff write_mask=ffffffff
+PASS: normal SRAM
+MBIST read-data bit 0 stuck at 0: status=038b reads=19680 writes=320 read_mask=ffffffff write_mask=ffffffff
+PASS: read-data bit 0 stuck at 0
+PASS: DC DesignWare MBIST normal and injected-fault tests
+```
+
+状态 bit 0 为 done，bit 7 为全局失败，bit 15 为该存储器 fail_n；正常用例 done=1/fail=0/fail_n=1，注入后 done=1/fail=1/fail_n=0。两个地址掩码均为全 1，表示所有 32 个地址均有读写。读写计数涵盖固定运行的 20000 个周期，也包含算法完成后仍保持片选的空闲读，因此不能将 19680 解释为 March C 的理论读操作数或性能指标。
+
+成功配置报告：1178 个组合单元、421 个时序单元、1 个已知 SRAM 宏，1603 个总单元包含层次；面积 4444.471552。与错误时序配置的 4410.073551 不同，增加来自管线和控制配置，未更换宏。TIM-164 标准单元与宏的阈值定义差异提示保留；本次无 SDF 功能验证不代表物理时序签核。
+
+另发现旧 VCS 的本次 `$fatal` 失败运行仍返回进程状态 0；仅用 shell 的 set -e 会漏判。两个 VCS 脚本末尾现各保留一条简单 grep，分别要求最终 MBIST PASS 行、或 10 条 ATPG 图样 0 mismatches 行出现。这是对真实实验判定的检查，没有增加环境探测框架。
+
+最终复现命令（在一个新的结果目录，先完成 DC 再运行 VCS）：
+
+```bash
+mkdir -p build/mbist/dc_sram_final_20261018
+cd build/mbist/dc_sram_final_20261018
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/mbist/dc_sram_probe.tcl > run.log 2>&1
+cd ../../..
+bash scripts/mbist/run_sram_probe_vcs.sh build/mbist/dc_sram_final_20261018
+```
+
+`dc_sram_probe.tcl` 现在显式展开并命名 APG，并固定正确的同步时序配置；`dw_mbist_sram_probe.sv` 中的控制器配置与之匹配。VCS 输入为 DC 输出网表、真实标准单元和 SRAM 功能模型、独立 testbench。`-full64` 使用 64 位工具；`-sverilog` 支持 testbench 的 SystemVerilog；`-timescale=1ns/1ps` 给出缺省单位；`+define+UNIT_DELAY` 选择 SRAM 功能延迟模型；`+notimingcheck` 用于无 SDF 功能验证；`-top` 指定 testbench；编译、仿真分别保存日志。
+
+本实验已证明现有 DC 附带组件能组成外部 SRAM 自测试通路，不要求先把这个 NonBIST 宏换成另一种宏。仍不是对 SRAM 所有故障类型的覆盖率认证：故障注入只固定读数据 bit 0，没有枚举阵列、耦合、保持、修复等故障。也没有把 MBIST 插入 NPU。后续接入需要功能/BIST 地址、数据、控制的选择电路，测试时隔离正常访问，确定 16 个宏的分组、控制和结果接口，再重跑功能、扫描和时序检查；这属于另一项需先说明的设计修改。
+
+最终跟踪源文件的干净复验 `build/mbist/dc_sram_final_20261018` 已全部完成：DC 正常结束，1178 组合＋421 时序＋1 个 SRAM 宏、面积 4444.471552，与同步参数对照一致；VCS 正常 SRAM 与故障注入均 PASS，状态分别 830b / 038b，最终 PASS 行也通过脚本检查。`run.log`、`reports/`、`vcs_compile.log`、`vcs_sim.log`、`vcs_run.log` 均保留。这是本轮最终可复现实验结果。

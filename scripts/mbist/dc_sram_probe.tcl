@@ -1,5 +1,5 @@
-# Current validation is blocked by APG SYNH-14; see docs/eda_learning_notes.md.
-# Run from build/mbist/dc_sram_20261018.
+# Elaborate and name the APG before linking the SRAM probe.
+# Run from a new directory under build/mbist.
 set stdcell_db /home/ICer/eda/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/nldm/tcbn28hpcplusbwp40p140tt0p9v25c.db
 set sram_db /home/ICer/eda/pdk/tsmc28/Memory/macros/operand_32x64/ts5n28hpcpsvta32x64m2f_130a/NLDM/ts5n28hpcpsvta32x64m2f_130a_tt0p9v25c.db
 set mbist_lib /home/synopsys/syn/O-2018.06-SP1/libraries/syn/dft_mbist.sldb
@@ -8,6 +8,12 @@ set_app_var target_library [list $stdcell_db]
 set_app_var synthetic_library [list $mbist_lib $dw_lib]
 set_app_var link_library [list "*" $stdcell_db $sram_db $mbist_lib $dw_lib]
 file mkdir reports
+# Use the vendor entity and architecture in this experiment's local WORK.
+analyze -format vhdl /home/synopsys/syn/O-2018.06-SP1/dw/dw04/src/DW_mbist_apg.vhd.e
+analyze -format vhdl /home/synopsys/syn/O-2018.06-SP1/dw/dw04/src/DW_mbist_apg_rtl.vhd.e
+# registered_io=2 matches the SRAM's clocked input sampling.
+elaborate DW_mbist_apg -architecture rtl -parameters "addr_width=5,data_width=64,num_ports=1,registered_io=2,mem_end_addr=31"
+rename_design [current_design] dw_mbist_apg_32x64
 analyze -format sverilog [list ../../../sim/mbist/dw_mbist_controller_probe.sv ../../../sim/mbist/dw_mbist_sram_probe.sv]
 elaborate dw_mbist_sram_probe
 current_design dw_mbist_sram_probe
