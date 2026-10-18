@@ -1249,3 +1249,36 @@ Total violations: 16
 官方 DC 2018 的 `create_port` 只创建标量/单 bit 端口，本轮因此使用简单 for 循环创建明确的标量输入输出，不依赖不存在的总线创建参数。这个循环只表达 16 次相同的接口定义，没有添加运行框架、版本检查或外部环境检查。
 
 实际插链会改变顶层接口和寄存器实现。按用户“重要设计修改先说明并确认”的要求，先完成可审阅的预览与脚本，再请用户确认上述 33 个扫描信号和首阶段普通逻辑扫描范围。SRAM 保留 16 条 TEST-451 建模告警，不将其伪装为测试模型已经解决；阵列测试及 ATPG 模型验证另行开展。此记录时尚未插链，也未运行 ATPG。
+
+
+## 2026-10-18：普通扫描插入与首轮 ATPG（执行中）
+
+用户确认继续普通扫描并在工具齐全时直接测试；本轮沿用已经讲解的 16 条链、33 个扫描信号、100 ns 测试周期。数据通路 RTL 不变，硬 SRAM 阵列暂不测试；C/PSUM/Conv cache 中仍由触发器实现的部分继续纳入扫描。
+
+运行扫描插入：
+
+```bash
+mkdir -p build/dft/npu_scan_20261018
+cd build/dft/npu_scan_20261018
+LC_ALL=C /home/synopsys/syn/O-2018.06-SP1/bin/dc_shell -f ../../../scripts/dft/npu_insert_scan.tcl > run.log 2>&1
+```
+
+`-f` 读取 Tcl，输入是已验证 40 MHz 时序的 DDC 和两个工艺 DB；输出为扫描网表、DDC、STIL 测试协议、链路径和 DRC 报告。插入后尚需检查实际链结构与时序，不能沿用插入前的时序结论。
+
+ATPG 工具 `/home/synopsys/txs/O-2018.06-SP1/bin/tmax` 已实际启动，`report_version` 返回 `O-2018.06-SP1`，日志在 `build/atpg/tool_check_20261018/run.log`。标准单元 Verilog 从官方 VLG 包解至本地工艺库 `logic/tcbn28hpcplusbwp40p140_180b/verilog/tcbn28hpcplusbwp40p140.v`；工艺文件不提交 Git。
+
+准备脚本 `scripts/atpg/npu_stuck_at.tcl`，运行入口：
+
+```bash
+mkdir -p build/atpg/npu_stuck_at_20261018
+cd build/atpg/npu_stuck_at_20261018
+LC_ALL=C /home/synopsys/txs/O-2018.06-SP1/bin/tmax -shell -tcl ../../../scripts/atpg/npu_stuck_at.tcl > run.log 2>&1
+```
+
+`-shell` 使用无 GUI 批处理，`-tcl` 明确使用 Tcl。`set_commands exit` 遇到工具命令错误就退出，避免基于错误模型继续生成向量。`read_netlist -library` 读取单元功能模型，`run_build_model npu_top` 展开门级结构，`run_drc` 读取 DC 输出的 `.spf` 并验证移位和捕获协议。`set_faults -model stuck` 选择固定型故障，`add_faults -all` 建立当前模型的故障集合，`run_atpg -auto_compression` 生成并压缩测试向量。`report_summaries` 和 `write_faults` 保留故障分类，`write_patterns -format stil` 输出 STIL 向量。
+
+SRAM 处理：只对 `TS5N28HPCPSVTA32X64M2F` 使用 `set_build -black_box`。按本机 TetraMAX 官方手册，黑盒内部不参与建模，输出为 X，输入端终止；没有将 SRAM 数据伪造为 0，也没有把所有缺失单元设成黑盒。缺失标准单元等真正模型错误仍应使实验失败。SRAM 输出的 X 及黑盒输入不可观测可能使周边逻辑出现无法检测故障，不能把这些故障随意删去提高覆盖率。DC 的 TEST-451 是已知的 SRAM 建模限制，保留原始报告并限定为 16 个 SRAM 实例，不全局压制消息；本机 `set_dft_drc_rules` 也不支持对 TEST-451 做通用 ignore。
+
+MBIST 初步盘点：未找到独立 STAR Memory System / Tessent 安装，但 DC 附带 `libraries/syn/dft_mbist.sldb`，以及 `dw/dw04/lib/dw04/` 中的 `DW_MBIST_CTRL`、`DW_MBIST_APG`、`DW_MBIST_WRAPPER` 等组件及 `libraries/syn/dftc/mbist_t2_*.ctl`。这些是 MBIST 相关构建组件的存在证据，尚不是当前 NPU 已集成且验证的控制器 IP，亦未验证是否有可直接调用的完整生成流程。当前 SRAM 由 MC2 以 NonBIST 生成，没有额外 BIST 端口；这不妨碍后续通过正常读写端口加测试复用器，但需另行设计和验证。StarRC 属于寄生参数提取，不属于 MBIST。
+
+此条记录创建时扫描插入仍在运行；覆盖率需等待实际 ATPG 完成，不能用 75137 个寄存器的扫描资格比例替代故障覆盖率。
