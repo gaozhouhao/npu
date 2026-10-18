@@ -1526,3 +1526,20 @@ bash scripts/mbist/run_sram_probe_vcs.sh build/mbist/dc_sram_final_20261018
 本实验已证明现有 DC 附带组件能组成外部 SRAM 自测试通路，不要求先把这个 NonBIST 宏换成另一种宏。仍不是对 SRAM 所有故障类型的覆盖率认证：故障注入只固定读数据 bit 0，没有枚举阵列、耦合、保持、修复等故障。也没有把 MBIST 插入 NPU。后续接入需要功能/BIST 地址、数据、控制的选择电路，测试时隔离正常访问，确定 16 个宏的分组、控制和结果接口，再重跑功能、扫描和时序检查；这属于另一项需先说明的设计修改。
 
 最终跟踪源文件的干净复验 `build/mbist/dc_sram_final_20261018` 已全部完成：DC 正常结束，1178 组合＋421 时序＋1 个 SRAM 宏、面积 4444.471552，与同步参数对照一致；VCS 正常 SRAM 与故障注入均 PASS，状态分别 830b / 038b，最终 PASS 行也通过脚本检查。`run.log`、`reports/`、`vcs_compile.log`、`vcs_sim.log`、`vcs_run.log` 均保留。这是本轮最终可复现实验结果。
+
+
+## 2026-10-18：从已有 14 条图样继续 ATPG（运行中）
+
+按用户要求继续搜索，没有重新建模或重新从零生成。运行前将 14 条图样的 `checkpoint.faults`、`checkpoint.patterns`、STIL 和旧工具恢复日志复制到 `build/atpg/npu_checkpoint_test_20261018/before_continue_01/`。本轮 stdout 为 `continue_01.log`。
+
+第一次单独 nohup 的启动器退出，尚未进入恢复；短日志另存 `continue_01_launcher_exit.log`。改用独立会话启动后确认实际 tmax64 进程存活。不能据此确定上一轮长运行消失的原因。使用的命令为：
+
+```bash
+setsid nohup /home/synopsys/txs/O-2018.06-SP1/bin/tmax -shell -tcl ../../../scripts/atpg/npu_resume_stuck_at.tcl > continue_01.log 2>&1 < /dev/null &
+```
+
+命令从上述结果目录执行；当前任务已在运行，不要在同一目录重复启动并同时写相同保存点。实际日志确认恢复 2747638 个故障和 14 条图样，恢复时 test coverage 48.72%、fault coverage 42.44%，随后进入确定性 ATPG，活动候选故障 1210898，默认 abort_limit=10。本记录创建时仍在计算，不是本轮完成报告。
+
+继续使用每 300 CPU 秒保存、每轮搜索预算 900 CPU 秒的既有脚本。时间上限停止只表示需要检查本轮增益，不代表搜索收敛。当前无法可靠预测最终耗时，不能按前期覆盖率增速线性外推。
+
+判断时区分三件事：达到时间/图样预算；当前模型、约束和搜索力度下工具完成本轮努力；项目达到约定覆盖率且剩余故障得到解释、图样验证通过。只有后者才是工程验收。覆盖率进入平台时，按本机官方 TetraMAX Troubleshooting / Analyzing the Cause of Low Test Coverage 检查 ND、AN、PT 的模块分布和不可控制/不可观察、约束或 X 来源；不应通过随意删故障或放宽约束制造高覆盖率。SRAM 阵列仍属于单独 MBIST 范围。
