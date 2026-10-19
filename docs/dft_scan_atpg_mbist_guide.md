@@ -1,5 +1,7 @@
 # 从零读懂本项目的扫描链、ATPG 和 MBIST
 
+更新提示（2026-10-19）：后续ATPG已保存16502条图样，Test coverage 92.19%、Fault coverage 78.58%。本篇保留104条图样、900秒预算等早期教学快照；最新成果、流程复习和面试问答见 [dft_scan_interview_notes.md](/home/ICer/eda/npu-vcs-learning/docs/dft_scan_interview_notes.md)。最新图样尚未重新做VCS验证。
+
 整理日期：2026-10-19。本文对应 `learning/vcs-pe` 分支和本机已实际执行的实验，不是已经完成芯片测试签核的声明。本文只整理知识和证据，没有启动新的综合、ATPG 或仿真。
 
 建议先读第 1～4 节建立电路概念，再看脚本。遇到长路径可以先把它理解成“这份输入文件在哪里”，不必记住路径字符串。
