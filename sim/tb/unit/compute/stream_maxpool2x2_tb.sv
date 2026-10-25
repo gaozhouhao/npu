@@ -1,7 +1,8 @@
 `timescale 1ns/1ps
 
 module stream_maxpool2x2_tb #(
-    parameter int unsigned COLS = 8
+    parameter int unsigned COLS = 8,
+    parameter int unsigned OUTPUT_FIFO_DEPTH = 16
 );
     parameter int unsigned LINE_WORDS = 64*(COLS/4);
     logic clk = 1'b0;
@@ -29,11 +30,15 @@ module stream_maxpool2x2_tb #(
     logic [63:0] previous_awaddr_q;
     logic [31:0] previous_wdata_q;
     integer test_h, test_w, test_channels, test_seed, expected_words;
+    logic [63:0] expected_output_base;
+    bit hold_write_responses;
+    integer accepted_inputs_q, accepted_while_held_q, held_stall_cycles_q;
     logic [31:0] expected [0:1023];
     logic seen [0:1023];
 
     stream_maxpool2x2 #(
-        .COLS(COLS), .LINE_WORDS(LINE_WORDS)
+        .COLS(COLS), .LINE_WORDS(LINE_WORDS),
+        .OUTPUT_FIFO_DEPTH(OUTPUT_FIFO_DEPTH)
     ) dut (.*,
         .m_axi_awid(awid), .m_axi_awaddr(awaddr), .m_axi_awlen(awlen),
         .m_axi_awsize(awsize), .m_axi_awburst(awburst),
@@ -47,7 +52,8 @@ module stream_maxpool2x2_tb #(
     assign awready = !address_pending_q && !response_pending_q &&
         (cycle_q % 3 != 0);
     assign wready = address_pending_q && (cycle_q % 4 == 1);
-    assign bvalid = response_pending_q && response_delay_q == 0;
+    assign bvalid = response_pending_q && response_delay_q == 0 &&
+        !hold_write_responses;
     assign bid = '0;
     assign bresp = 2'b00;
 
@@ -57,6 +63,9 @@ module stream_maxpool2x2_tb #(
             cycle_q <= 0;
             response_delay_q <= 0;
             writes_q <= 0;
+            accepted_inputs_q <= 0;
+            accepted_while_held_q <= 0;
+            held_stall_cycles_q <= 0;
             address_pending_q <= 1'b0;
             response_pending_q <= 1'b0;
             address_q <= 0;
@@ -64,6 +73,15 @@ module stream_maxpool2x2_tb #(
             previous_w_stall_q <= 1'b0;
         end else begin
             cycle_q <= cycle_q + 1;
+            if (in_valid && in_ready)
+                accepted_inputs_q <= accepted_inputs_q + 1;
+            if (hold_write_responses && response_pending_q) begin
+                if (in_valid && in_ready)
+                    accepted_while_held_q <= accepted_while_held_q + 1;
+                if (in_valid && !in_ready)
+                    held_stall_cycles_q <= held_stall_cycles_q + 1;
+                else held_stall_cycles_q <= 0;
+            end else held_stall_cycles_q <= 0;
             if (previous_aw_stall_q &&
                 (!awvalid || awaddr !== previous_awaddr_q))
                 $fatal(1, "AW changed under backpressure");
@@ -85,10 +103,10 @@ module stream_maxpool2x2_tb #(
             if (wvalid && wready) begin
                 if (!wlast || wstrb != 4'hf)
                     $fatal(1, "Invalid output AXI word");
-                if (address_q < cfg_output_base ||
-                    address_q >= cfg_output_base + expected_words*4)
+                if (address_q < expected_output_base ||
+                    address_q >= expected_output_base + expected_words*4)
                     $fatal(1, "Unexpected output address %h", address_q);
-                word_index = (address_q - cfg_output_base) >> 2;
+                word_index = (address_q - expected_output_base) >> 2;
                 if (seen[word_index])
                     $fatal(1, "Duplicate output word %0d", word_index);
                 if (wdata !== expected[word_index])
@@ -133,10 +151,90 @@ module stream_maxpool2x2_tb #(
         cfg_channels = channels;
         cfg_pool_config = pool;
         cfg_output_base = base;
+        expected_output_base = base;
         start = 1'b1;
         @(negedge clk);
         start = 1'b0;
         #1;
+    endtask
+
+    task automatic buffered_response_case;
+        integer width, previous_writes, previous_inputs, previous_held_inputs;
+        // 1x1 pooling makes every input a known output. The first write's B
+        // remains blocked until enough later samples fill all elastic storage.
+        width = OUTPUT_FIFO_DEPTH + 16;
+        if (width*(COLS/4) > LINE_WORDS)
+            $fatal(1, "Insufficient line SRAM for output FIFO stress case");
+        test_h = 1;
+        test_w = width;
+        test_channels = COLS;
+        test_seed = 31;
+        expected_words = width*(COLS/4);
+        for (int index = 0; index < 1024; index++) begin
+            expected[index] = 0;
+            seen[index] = 0;
+        end
+        for (int spatial = 0; spatial < width; spatial++)
+            for (int channel = 0; channel < COLS; channel++)
+                expected[spatial*(COLS/4)+channel/4][(channel%4)*8 +: 8] =
+                    8'(sample(0, spatial, channel, test_seed));
+        previous_writes = writes_q;
+        previous_inputs = accepted_inputs_q;
+        previous_held_inputs = accepted_while_held_q;
+        hold_write_responses = 1;
+        configure(1, width, COLS, pool_config(1, 1, 1, 1), 64'h18000);
+        fork
+            begin
+                send_row(0, 0);
+                // Begin the remaining stream only after B is pending, so
+                // input progress cannot be credited to earlier AXI latency.
+                wait (response_pending_q);
+                for (int spatial = 1; spatial < width; spatial++)
+                    send_row(spatial, 0);
+            end
+            begin
+                wait (response_pending_q);
+                // A stray start and changing pins cannot replace a job whose
+                // original output still owns an outstanding write response.
+                @(negedge clk);
+                if (!busy) $fatal(1, "Pool not busy while first B is held");
+                cfg_input_h = 0;
+                cfg_input_w = 0;
+                cfg_channels = COLS*2;
+                cfg_pool_config = pool_config(3, 3, 1, 1);
+                cfg_output_base = 64'h1c001;
+                start = 1;
+                repeat (3) @(negedge clk);
+                start = 0;
+                // Temporary reducer stalls do not satisfy this condition:
+                // with no B response, input must eventually remain blocked.
+                wait (held_stall_cycles_q >= 100);
+                @(negedge clk);
+                if (accepted_inputs_q-previous_inputs < 2 ||
+                    accepted_while_held_q == previous_held_inputs)
+                    $fatal(1, "Pool input made no progress behind held B: total=%0d held=%0d",
+                        accepted_inputs_q-previous_inputs,
+                        accepted_while_held_q-previous_held_inputs);
+                if (writes_q-previous_writes != 1 || !in_valid || in_ready ||
+                    !busy || error)
+                    $fatal(1, "Unsafe full-FIFO stall or busy-start corruption");
+                repeat (20) begin
+                    @(negedge clk);
+                    if (in_ready || !busy || error)
+                        $fatal(1, "Full output storage failed to backpressure input");
+                end
+                $display("POOL_FIFO_BACKPRESSURE_PASS depth=%0d accepted=%0d accepted_while_B_held=%0d stalled_cycles=%0d",
+                    OUTPUT_FIFO_DEPTH, accepted_inputs_q-previous_inputs,
+                    accepted_while_held_q-previous_held_inputs, held_stall_cycles_q);
+                hold_write_responses = 0;
+            end
+        join
+        while (busy) @(negedge clk);
+        if (error || writes_q-previous_writes != expected_words)
+            $fatal(1, "Buffered pool drain lost words or configuration");
+        for (int index = 0; index < expected_words; index++)
+            if (!seen[index]) $fatal(1, "Buffered pool missing word %0d", index);
+        $display("POOL_BUFFERED_RESPONSE_PASS words=%0d busy_start_ignored=1", expected_words);
     endtask
 
     task automatic send_row(input integer spatial, channel);
@@ -241,10 +339,13 @@ module stream_maxpool2x2_tb #(
         cfg_channels = 0;
         cfg_pool_config = 0;
         cfg_output_base = 0;
+        expected_output_base = 0;
+        hold_write_responses = 0;
         expected_words = 0;
         repeat (4) @(negedge clk);
         reset = 1'b0;
 
+        buffered_response_case();
         run_case(4, 8, COLS*2, 0, 0, 2, 2, 2, 2, 1, 64'h1000);
         run_case(6, 6, COLS*2, 3, 1, 2, 2, 2, 2, 1, 64'h2000);
         run_case(2, 2, COLS, 7, 0, 2, 2, 2, 2, 1, 64'h3000);

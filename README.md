@@ -2,9 +2,11 @@
 
 这是一个由 DDR 描述符驱动的 SystemVerilog NPU。默认 4×4 脉动阵列，执行 GEMM、Conv2D、MaxPool、全局平均池化和残差 ADD；全连接层使用 GEMM。矩阵运算支持 Bias、逐通道重定量和 ReLU。
 
-项目的完整阅读入口是 [架构与模块说明](docs/architecture.md)，包括逻辑框图、实际实例树、模块职责和输入输出、参数传播、数据布局及接口时序。[接口索引](docs/module_interfaces.md) 说明当前 38 个模块的接口。[验证记录](docs/validation.md) 说明当前已验证的范围。
+项目的完整阅读入口是 [架构与模块说明](docs/architecture.md)，包括逻辑框图、实际实例树、模块职责和输入输出、参数传播、数据布局及接口时序。[接口索引](docs/module_interfaces.md) 说明当前 39 个模块的接口。[验证记录](docs/validation.md) 说明当前已验证的范围。
 
 [层间流式结构路线图](docs/streaming_roadmap.md) 对照当前局部融合与通用层间流水的差距，说明双缓冲、行缓冲、重排、DDR 出口及单阵列复用的关系，并给出下一步改造和验收顺序。
+
+融合池化计算结果先进入默认 16 项的输出 FIFO，每项保存目标地址和 32 位数据；独立 DMA 负责写 DDR。源 tile 全部有效行交接后即可释放，整层完成仍等待池化、FIFO 和全部写响应排空。顶层通过 `POOL_OUTPUT_FIFO_DEPTH` 配置容量，支持深度 1 和非二次幂；运行 `make pool-fifo-check` 验证满队列反压和写回解耦。
 
 卷积—池化融合通过描述符 flags bit7 选择，word15 定义窗口高宽和纵横步长，零配置兼容原 `2×2 / stride 2`。后处理结果经结果双缓冲送入池化原始输入行缓冲，窗口回放后再求最大值，只写回池化结果；全部通道状态放不下时按通道块复用缓冲，只有最小通道块仍放不下才回退到独立 Conv/Pool。通道分块可能增加卷积输入读取，需同时比较总流量与周期。融合目前只支持不补边，独立池化支持软件配置四侧补边，越界位置不读取、不参与最大值比较。描述符与状态机见 [最大池化补边](docs/maxpool_padding.md)，融合约束和对照记录见 [卷积—池化融合](docs/conv_pool_fusion.md)。
 
@@ -40,6 +42,7 @@ make stress
 make mnist-all
 make mnist-fused
 make fusion-check
+make pool-fifo-check
 make wave
 make uvm-pe
 make list-tests

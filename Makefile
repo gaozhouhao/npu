@@ -63,7 +63,7 @@ else
 $(error SIM must be vcs or verilator)
 endif
 
-.PHONY: help list-tests compile test regression tail-check fusion-check fc-pool-check fc-alignment-check parameter-check stress wave uvm-pe uvm-pe-compile \
+.PHONY: help list-tests compile test regression tail-check fusion-check pool-fifo-check fc-pool-check fc-alignment-check parameter-check stress wave uvm-pe uvm-pe-compile \
 	mnist mnist-all mnist-fused resnet8-model resnet8 resnet8-perf compiler-test compiler-check resnet50-prepare \
 	synth synth-hold sram-lib sram-generate dft-precheck dft atpg atpg-resume \
 	atpg-smoke mbist mbist-sim clean
@@ -74,6 +74,7 @@ help:
 	  'make regression            Core, DMA, Conv, pooling and top-level checks' \
 	  'make tail-check            Logical M/N/K tails, masked writes and Conv chaining' \
 	  'make fusion-check          Streaming pool and fused/unfused Conv comparison' \
+	  'make pool-fifo-check       FIFO capacity, independent writeback and completion checks' \
 	  'make fc-pool-check         FC reshape coordinates and streaming MaxPool comparison' \
 	  'make fc-alignment-check    FC software packing, hardware output and logical cropping' \
 	  'make parameter-check       Rectangular and 1x1 array configurations' \
@@ -112,7 +113,7 @@ REGRESSION_TESTS := gemm_pe_tb gemm_array_tb gemm_cycle_controller_tb \
 	gemm_tile_compute_tb npu_gemm_engine_tb gemm_dma_integration_tb gemm_output_tb \
 	npu_top_tb conv_patch_reader_tb result_write_dma_tb conv2d_npu_tb cnn_pool_npu_tb \
 	cnn_pool_per_channel_npu_tb cnn_pool_global_avg_npu_tb pool2d_global_avg_tb \
-	stream_maxpool2x2_tb pool_window_buffer_tb pool_coordinate_mapper_tb conv_pool_fused_npu_tb fc_pool_fused_npu_tb tail_tiles_npu_tb pool2d_configurable_tb maxpool_padding_npu_tb npu_command_reader_tb
+	stream_maxpool2x2_tb pool_result_dma_tb pool_window_buffer_tb pool_coordinate_mapper_tb conv_pool_fused_npu_tb fc_pool_fused_npu_tb tail_tiles_npu_tb pool2d_configurable_tb maxpool_padding_npu_tb npu_command_reader_tb
 regression:
 	@$(foreach t,$(REGRESSION_TESTS),$(MAKE) --no-print-directory test TEST=$(t) &&) true
 
@@ -174,6 +175,15 @@ fc-pool-check:
 	  $(FC_PYTHON) scripts/model/check_fc_pool.py check --out $(BUILD_DIR)/fc-pool/$$fc_pool_case; \
 	done
 
+pool-fifo-check:
+	$(MAKE) test TEST=pool_result_dma_tb CONFIG=fifo1 PARAMS="FIFO_DEPTH=1"
+	$(MAKE) test TEST=pool_result_dma_tb CONFIG=fifo3 PARAMS="FIFO_DEPTH=3"
+	$(MAKE) test TEST=pool_result_dma_tb CONFIG=fifo16 PARAMS="FIFO_DEPTH=16"
+	$(MAKE) test TEST=stream_maxpool2x2_tb CONFIG=fifo1-cols4 PARAMS="COLS=4 OUTPUT_FIFO_DEPTH=1"
+	$(MAKE) test TEST=stream_maxpool2x2_tb CONFIG=fifo3-cols8 PARAMS="COLS=8 OUTPUT_FIFO_DEPTH=3"
+	$(MAKE) test TEST=stream_maxpool2x2_tb CONFIG=fifo16-cols12 PARAMS="COLS=12 OUTPUT_FIFO_DEPTH=16"
+	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=fifo-overlap PARAMS="WRITE_RESPONSE_DELAY=2000 POOL_OUTPUT_FIFO_DEPTH=3 EXPECT_POOL_OVERLAP=1 EXPECT_POOL_BACKPRESSURE=1"
+
 fusion-check:
 	$(MAKE) test TEST=pool_window_buffer_tb CONFIG=cols4 PARAMS="COLS=4"
 	$(MAKE) test TEST=pool_window_buffer_tb CONFIG=cols8 PARAMS="COLS=8"
@@ -193,7 +203,7 @@ fusion-check:
 	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=channel-tiling-overlap PARAMS="COUT=12 POOL_SH=1 POOL_SW=1 LINE_WORDS=16 WRITE_RESPONSE_DELAY=30"
 	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=channel-tiling-cols8 PARAMS="COUT=24 COLS=8 LINE_WORDS=32"
 	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=channel-tiling-cache-pressure PARAMS="COUT=12 LINE_WORDS=16 CONV_CACHE_LINES=2"
-	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=full-buffer-stall PARAMS="POOL_SH=1 POOL_SW=1 WRITE_RESPONSE_DELAY=200 REQUIRE_FULL_BUFFER=1"
+	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=full-buffer-stall PARAMS="POOL_SH=1 POOL_SW=1 WRITE_RESPONSE_DELAY=2000 POOL_OUTPUT_FIFO_DEPTH=1 REQUIRE_FULL_BUFFER=1"
 	$(MAKE) test TEST=pool2d_configurable_tb
 
 parameter-check:

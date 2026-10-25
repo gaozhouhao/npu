@@ -17,7 +17,8 @@ module npu_top #(
     parameter int unsigned CONV_CACHE_LINES = 256,
     parameter bit CONV_CACHE_ENABLE = 1'b1,
     parameter int unsigned CONV_MAX_REQUEST_BEATS = 64,
-    parameter int unsigned POOL_LINE_WORDS = 1024
+    parameter int unsigned POOL_LINE_WORDS = 1024,
+    parameter int unsigned POOL_OUTPUT_FIFO_DEPTH = 16
 ) (
     input logic clk,
     input logic reset,
@@ -722,7 +723,8 @@ module npu_top #(
         .CONV_CACHE_LINES(CONV_CACHE_LINES),
         .CONV_CACHE_ENABLE(CONV_CACHE_ENABLE),
         .CONV_MAX_REQUEST_BEATS(CONV_MAX_REQUEST_BEATS),
-        .POOL_LINE_WORDS(POOL_LINE_WORDS)
+        .POOL_LINE_WORDS(POOL_LINE_WORDS),
+        .POOL_OUTPUT_FIFO_DEPTH(POOL_OUTPUT_FIFO_DEPTH)
     ) u_npu_gemm_engine (
         .operand64_arid(operand64_arid),
         .operand64_araddr(operand64_araddr),

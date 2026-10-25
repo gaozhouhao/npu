@@ -28,6 +28,7 @@
 | `CONV_CACHE_ENABLE` | `bit` | `1'b1` |
 | `CONV_MAX_REQUEST_BEATS` | `int unsigned` | `64` |
 | `POOL_LINE_WORDS` | `int unsigned` | `1024` |
+| `POOL_OUTPUT_FIFO_DEPTH` | `int unsigned` | `16` |
 
 | 端口 | 方向 | 数据类型/每项位宽 | 数组维度 |
 |---|---|---|---|
@@ -245,6 +246,7 @@
 | `CONV_CACHE_ENABLE` | `bit` | `1'b1` |
 | `CONV_MAX_REQUEST_BEATS` | `int unsigned` | `64` |
 | `POOL_LINE_WORDS` | `int unsigned` | `1024` |
+| `POOL_OUTPUT_FIFO_DEPTH` | `int unsigned` | `16` |
 | `K_SIZE_WIDTH` | `int unsigned` | `$clog2(K_TILE_SIZE + 1)` |
 | `CORE_ADDR_WIDTH` | `int unsigned` | `((K_TILE_SIZE > ROWS ? K_TILE_SIZE : ROWS) <= 1) ? 1 : $clog2(K_TILE_SIZE > ROWS ? K_TILE_SIZE : ROWS)` |
 | `ELEMS_PER_WORD` | `int unsigned` | `OPERAND_WORD_WIDTH / DATA_WIDTH` |
@@ -1552,7 +1554,7 @@
 
 源码：[rtl/compute/stream_maxpool2x2.sv](../rtl/compute/stream_maxpool2x2.sv)
 
-逐空间位置接收 COLS 路 INT8，先保存原始池化输入，再按窗口读取并完成可配置窗口/步长的 VALID MaxPool，仅将最终结果写入外存。历史模块名保留。`cfg_pool_config={stride_w,stride_h,kernel_w,kernel_h}`，每项8位且非零；全零兼容 2×2/步长2。`start` 在空闲时配置；`busy` 覆盖当前输入存储、窗口读取及未完成的写事务，配置有效且空闲时 `in_ready` 为高。每个通道块的空间坐标必须按光栅顺序到达，全通道缓存模式下不同通道块可交错。全通道原始行容量需求为 `kernel_h*input_w*(channels/4)` 个32位字；卷积可按通道块执行，将活跃容量降至 `kernel_h*input_w*(COLS/4)`。最小通道块仍超限时报错且禁止输入/写出。FC 只采用全通道缓存。缓冲保存后处理后的 INT8 原始样本，最大值归约放在读取端，未来可以复用读取端扩展其他池化算子。
+逐空间位置接收 COLS 路 INT8，先保存原始池化输入，再按窗口读取并完成可配置窗口/步长的 VALID MaxPool。结果通过 `pool_result_dma` 的地址/数据 FIFO 写入外存。历史模块名保留。`cfg_pool_config={stride_w,stride_h,kernel_w,kernel_h}`，每项8位且非零；全零兼容 2×2/步长2。`start` 仅在排空后接受；`busy` 覆盖窗口回放、归约结果、FIFO及未完成的写响应。本地窗口可接收时 `in_ready` 为高，DMA忙不直接关闭输入，FIFO满后逐级反压。每个通道块的空间坐标必须按光栅顺序到达，全通道缓存模式下不同通道块可交错。全通道原始行容量需求为 `kernel_h*input_w*(channels/4)` 个32位字；卷积可按通道块执行，将活跃容量降至 `kernel_h*input_w*(COLS/4)`。最小通道块仍超限时报错且禁止输入/写出。FC 只采用全通道缓存。缓冲保存后处理后的 INT8 原始样本，最大值归约放在读取端，未来可以复用读取端扩展其他池化算子。
 
 | 参数 | 类型 | 默认值 |
 |---|---|---|
@@ -1560,6 +1562,7 @@
 | `ID_WIDTH` | `int unsigned` | `1` |
 | `COLS` | `int unsigned` | `4` |
 | `LINE_WORDS` | `int unsigned` | `1024` |
+| `OUTPUT_FIFO_DEPTH` | `int unsigned` | `16` |
 
 | 端口 | 方向 | 数据类型/每项位宽 | 数组维度 |
 |---|---|---|---|
@@ -1594,6 +1597,46 @@
 | `m_axi_bresp` | 输入 | `[1:0]` | — |
 | `m_axi_bvalid` | 输入 | `1 位` | — |
 | `m_axi_bready` | 输出 | `1 位` | — |
+
+## pool_result_dma
+
+源码：[rtl/dma/pool_result_dma.sv](../rtl/dma/pool_result_dma.sv)
+
+在 `in_valid && in_ready` 时将绝对字节地址和32位数据入队。写回状态机独立取队头，复制到活动寄存器后释放队列位置，再由 `axi_write_master` 完成单拍 AW/W/B。地址必须四字节对齐；不连续的地址按入队顺序分别写入。满队列可在同拍出队时接收新项，支持深度1及非二次幂。`clear` 只用于空闲时开始新任务；`error` 锁存请求、BRESP或BID错误，直到 `clear/reset`。`busy` 覆盖队列、活动写和写响应完成事件。
+
+| 参数 | 类型 | 默认值 |
+|---|---|---|
+| `ADDR_WIDTH` | `int unsigned` | `64` |
+| `ID_WIDTH` | `int unsigned` | `1` |
+| `FIFO_DEPTH` | `int unsigned` | `16`，正整数 |
+
+| 端口 | 方向 | 位宽 | 含义 |
+|---|---|---|---|
+| `clk` | 输入 | 1 | 时钟 |
+| `reset` | 输入 | 1 | 高有效同步复位 |
+| `clear` | 输入 | 1 | 仅空闲时清队列状态和错误 |
+| `in_valid` | 输入 | 1 | 入队有效 |
+| `in_ready` | 输出 | 1 | 入队可接收 |
+| `in_addr` | 输入 | ADDR_WIDTH | 绝对字节地址 |
+| `in_data` | 输入 | 32 | 四个INT8池化结果 |
+| `busy` | 输出 | 1 | 有排队结果或在途写事务 |
+| `error` | 输出 | 1 | 粘性错误 |
+| `m_axi_awid` | 输出 | ID_WIDTH | 固定为零的写ID |
+| `m_axi_awaddr` | 输出 | ADDR_WIDTH | 写地址 |
+| `m_axi_awlen` | 输出 | 8 | 固定为零，单拍写 |
+| `m_axi_awsize` | 输出 | 3 | 固定为2，四字节 |
+| `m_axi_awburst` | 输出 | 2 | INCR |
+| `m_axi_awvalid` | 输出 | 1 | 地址有效 |
+| `m_axi_awready` | 输入 | 1 | 地址接收 |
+| `m_axi_wdata` | 输出 | 32 | 写数据 |
+| `m_axi_wstrb` | 输出 | 4 | 全字节有效 |
+| `m_axi_wlast` | 输出 | 1 | 单拍末尾 |
+| `m_axi_wvalid` | 输出 | 1 | 写数据有效 |
+| `m_axi_wready` | 输入 | 1 | 写数据接收 |
+| `m_axi_bid` | 输入 | ID_WIDTH | 写响应ID |
+| `m_axi_bresp` | 输入 | 2 | 写响应状态 |
+| `m_axi_bvalid` | 输入 | 1 | 写响应有效 |
+| `m_axi_bready` | 输出 | 1 | 写响应接收 |
 
 ## sync_sram
 

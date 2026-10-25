@@ -22,6 +22,7 @@ rtl/dma/axi_read_master.sv
 rtl/dma/axi_read_mux.sv
 rtl/dma/axi_write_master.sv
 rtl/dma/result_write_dma.sv
+rtl/dma/pool_result_dma.sv
 rtl/dma/conv_patch_reader.sv
 rtl/dma/conv_word_cache.sv
 rtl/dma/operand_fetch.sv

@@ -4,7 +4,7 @@
 
 ```text
 Conv 结果 → 原坐标透传 ─┐
-                       ├→ pool_window_buffer → 池化运算 → AXI 写回
+                       ├→ pool_window_buffer → 池化运算 → 输出 FIFO → 独立 DMA → AXI 写回
 FC 结果 → HWC 坐标适配 ─┘
 ```
 
@@ -23,6 +23,8 @@ FC 结果 → HWC 坐标适配 ─┘
 | `sample_channel_base` | 当前4通道组的全局通道起点 |
 
 反压期间这些信号保持稳定。`pool_max_reducer.sv` 是目前接入的运算模块，逐样本计算有符号最大值。原有 `stream_maxpool2x2.sv` 名称和外部命令、输入、AXI 接口保留，由它连接原始缓存、最大值运算和写回。后续可在窗口接口接入平均值、最小值或其它池化运算；本次没有新增这些运算的描述符编码或选择开关。
+
+最大值结果经 `pool_result_dma` 的 `{addr,data}` FIFO 交给独立写回状态机。FIFO 未满时，计算不用等待上一个结果的 DDR 写响应；满时通过 `result_ready`、`sample_ready` 和窗口状态机逐级反压。窗口回放期间仍不接收新输入，以保护原始行数据。顶层 `POOL_OUTPUT_FIFO_DEPTH` 默认16，活动写使用独立寄存器，不占 FIFO 项；队列及写响应全部排空前 `busy` 保持有效。
 
 容量按32位字计算：
 
