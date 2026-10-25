@@ -98,7 +98,9 @@ GEMM和卷积保留逻辑M/N/K尺寸，按向上取整的块数执行。操作�
 
 全连接显式重排后接池化时，仍按GEMM取数和计算。新增`pool_coordinate_mapper`只转换结果坐标：真实样本的第`j`个输出对应空间索引`j/C`、通道号`j%C`，物理补齐行不送入池化；卷积坐标直接透传。高、宽、通道由软件写入该模式的32字节参数头，完整校验后才启动计算。该模式暂限单样本、完整通道块、VALID池化及全量池化状态可驻留；参见[全连接池化融合](fc_pool_fusion.md)。
 
-下图按源码中的模块实例展开。`×2` 表示独立的 A/B 实例，`×R×C` 或 `×bank×lane` 表示生成循环；性能计数器由 `NPU_PERF_ENABLE` 决定是否实例化。活动清单包含顶层和 37 个功能子模块，共 38 个模块定义。
+融合池化结果通过 `pool_result_dma` 的输出 FIFO 交给独立 AXI writer。FIFO 保存绝对地址与 32 位数据，默认 16 项；地址随数据入队，通道分块产生的非连续地址保持原样。计算端的 ready 由本地窗口缓冲和逐级背压决定，写响应不直接关停输入。源 tile 的有效行全部交接后即可释放，整层完成仍等待窗口、归约、FIFO 和在途写响应排空。
+
+下图按源码中的模块实例展开。`×2` 表示独立的 A/B 实例，`×R×C` 或 `×bank×lane` 表示生成循环；性能计数器由 `NPU_PERF_ENABLE` 决定是否实例化。活动清单包含顶层和 38 个功能子模块，共 39 个模块定义。
 
 ```text
 npu_top
@@ -136,7 +138,8 @@ npu_top
 |   `-- gen_fused_pool.u_pool : stream_maxpool2x2     [AXI32, optional result consumer]
 |       |-- u_input_buffer : pool_window_buffer
 |       |-- u_max : pool_max_reducer
-|       `-- u_writer : axi_write_master
+|       `-- u_result_dma : pool_result_dma             [result FIFO + DMA]
+|           `-- u_writer : axi_write_master
 |-- u_pool : npu_pool_engine
 |   |-- u_rd : axi_read_master
 |   `-- u_wr : axi_write_master
@@ -198,6 +201,7 @@ npu_top
 | `axi_read_width_adapter` | 将内部 32 位读请求映射到对齐的外部 64 位读，并逐半词返回 | 内部 `s_ar*` 和 `s_rready`；外侧 64 位 `m_rdata`、响应及 `m_arready` | 外侧 64 位读请求及 R ready；内部 32 位 `s_rdata`、response/last/valid 和 AR ready |
 | `axi_write_master` | 将内部连续写请求拆成 AXI burst，并等待写响应 | X 位 `req_addr`、32 位 `req_beats`；实例数据宽度的写流；AXI AW/W ready 和 B response | 请求/数据 ready；AXI AW/W/B ready；`busy/done/error`。Pool 实例使用 32 位数据、4 位字节使能 |
 | `result_write_dma` | 逐行读取最终 C tile，选择 INT32 或打包 INT8 格式后写 DDR | `tile_valid`、X 位输出地址、32 位行 stride、`int8_mode`；C×A 位同步 C 行返回；AXI写接收/响应 | `tile_accept`；本地 `c_ren/c_raddr`；AXI32 AW/W/B ready；最后不足四字节时的 `wstrb`；`busy/done/error` |
+| `pool_result_dma` | 缓存池化结果，独立完成单字 AXI 写回 | `clear`；带 valid/ready 的 X 位地址与32位数据；AXI写接收/响应 | 输入 ready；AXI32 AW/W/B ready；覆盖队列及在途响应的 busy；粘性 error |
 
 ### 缓存与存储
 
@@ -276,6 +280,8 @@ Python 模型工具通过 `compiler/target.py` 的 `hardware_defaults()` 读取�
 | `CONV_CACHE_LINES` | 256 | GEMM引擎 → `operand_fetch → conv_word_cache` | 至少2，取2的幂；地址宽度须为缓存索引和tag保留足够位数 |
 | `CONV_CACHE_ENABLE` | 1 | GEMM引擎 → `operand_fetch → conv_word_cache.ENABLE` | 0或1；关闭时卷积读请求经旁路发送 |
 | `CONV_MAX_REQUEST_BEATS` | 64 | GEMM引擎 → `operand_fetch → conv_patch_reader.MAX_REQUEST_BEATS` | 1～256，以64位拍计；决定连续卷积片段的请求上限，底层AXI主机继续负责burst和4KB边界拆分 |
+| `POOL_LINE_WORDS` | 1024 | GEMM引擎 → 融合池化原始输入行缓冲 | 以32位字计，容量按窗口高、输入宽和活跃通道数计算 |
+| `POOL_OUTPUT_FIFO_DEPTH` | 16 | GEMM引擎 → `stream_maxpool2x2.OUTPUT_FIFO_DEPTH → pool_result_dma.FIFO_DEPTH` | 正整数，支持1及非二次幂；每项保存ADDR_WIDTH位地址和32位结果，活动写另存一项 |
 
 常用派生关系为：
 

@@ -2,6 +2,34 @@
 
 更新日期：2026-10-25。下列命令从项目根目录运行，仿真器为VCS O-2018.09-SP2。结果来自实际仿真及自检，不将编译成功当作数值检查通过。下方保留各次历史记录。
 
+## 2026-10-25：池化输出 FIFO 与独立 DMA
+
+Conv/FC 融合池化的32位结果现在先进入 `{绝对地址,数据}` FIFO，由 `pool_result_dma` 独立完成 AXI 写回。顶层 `POOL_OUTPUT_FIFO_DEPTH` 默认16，支持1和非二次幂。源 tile 的有效行全部交接后释放；整层完成继续等待窗口回放、归约、FIFO和所有写响应排空。当前仍是单拍 AXI 写请求，不做 burst 合并。
+
+| 验证入口 | 结果 | 日志 |
+|---|---|---|
+| `make regression CONFIG=pool-fifo-final` | 34/34个功能testbench通过 | `build/pool-fifo/regression.log` |
+| `make compiler-test` | Python3单测128/128通过 | `build/pool-fifo/compiler-tests.log` |
+| `make pool-fifo-check` | 7组仿真通过，FIFO深度1/3/16、COLS4/8/12、长写响应停顿 | `build/pool-fifo/fifo-check.log` |
+| `make fusion-check` | 20组仿真通过，包括通道分块、跨行、重叠窗口、容量回退及满源bank | `build/pool-fifo/fusion-check.log` |
+| `make fc-pool-check FC_PYTHON=build/resnet8-compat/runtime/bin/python` | 13组仿真和19项软件检查通过，包括FC→Conv→FC及真实软件打包数据 | `build/pool-fifo/fc-pool-check.log` |
+| `make tail-check FC_PYTHON=build/resnet8-compat/runtime/bin/python` | 11组仿真和26项池化策略检查通过 | `build/pool-fifo/tail-check.log` |
+| `make mnist-all CONFIG=pool-fifo`、`make mnist-fused` | 两种模式均四图通过，预测7、2、1、0 | `build/pool-fifo/mnist-all.log`、`mnist-fused.log` |
+
+独立DMA记分板按实际入队和AXI握手逐项核对地址/数据，覆盖满队列同拍入出队、指针回卷、64位非连续地址、AW/W信号稳定、SLVERR/BID错误锁存与恢复，以及复位丢弃活动写和排队数据。池化用例在第一笔B响应被阻塞时继续提交输入，直到所有输出存储占满，再解除停顿，逐字核对全部结果；期间尝试的新start和配置修改不会破坏旧任务。
+
+整机长响应场景设置 `WRITE_RESPONSE_DELAY=2000`、FIFO深度3，观察到B等待期间184次池化输入握手、46次源tile退休，并在最终B响应等待期间保持busy，确认数据交接完成与整层完成已分开。比较提交 `9d3ccce` 的原实现和本次实现，使用相同几何、数值及内存模型配置：
+
+| 融合任务 | 原实现周期 | FIFO深度3周期 |
+|---|---:|---:|
+| 普通多K，K72 | 35,110 | 34,093 |
+| 多K A复用、逐通道量化/ReLU，K72 | 37,561 | 34,506 |
+| 单K B驻留，K8 | 33,098 | 32,721 |
+
+上述默认卷积输出为4×8×8，池化2×2/步长2；各任务总读拍和写入字节不变。对照日志为 `build/pool-fifo/before-delay2000.log`、`build/vcs/conv_pool_fused_npu_tb/fifo-overlap/simulation.log`，旧RTL与testbench的隔离副本在 `build/pool-fifo/before/`。
+
+默认MNIST融合每图周期由51,339变为51,318，普通路径仍为68,542，读写流量及全部黄金输出保持一致。默认内存时序下收益很小；FIFO主要吸收有限的写响应停顿，不能提高DDR长期带宽。本次没有进行新的工艺映射或时序/功耗签核。
+
 ## 2026-10-25：流式结构核对与发布回归
 
 本次核对已有局部融合与通用层间流水的差距，新增[流式结构路线图](streaming_roadmap.md)，修正文档中的 FC 融合标志及模块数量。路线图中的通用路由、片上 Conv 输入和跨层调度尚未实现；本次没有修改功能 RTL。

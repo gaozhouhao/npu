@@ -18,6 +18,7 @@ module npu_gemm_engine #(
     parameter bit CONV_CACHE_ENABLE = 1'b1,
     parameter int unsigned CONV_MAX_REQUEST_BEATS = 64,
     parameter int unsigned POOL_LINE_WORDS = 1024,
+    parameter int unsigned POOL_OUTPUT_FIFO_DEPTH = 16,
     parameter int unsigned K_SIZE_WIDTH = $clog2(K_TILE_SIZE + 1),
     parameter int unsigned CORE_ADDR_WIDTH =
         ((K_TILE_SIZE > ROWS ? K_TILE_SIZE : ROWS) <= 1) ? 1 :
@@ -641,7 +642,7 @@ module npu_gemm_engine #(
     logic [CORE_ADDR_WIDTH-1:0] dma_raddr;
 
     typedef enum logic [2:0] {
-        F_IDLE, F_READ, F_CAPTURE, F_SEND, F_DRAIN, F_DONE
+        F_IDLE, F_READ, F_CAPTURE, F_SEND, F_DONE
     } fused_feed_state_t;
     fused_feed_state_t fused_feed_state_q;
     logic [PSUM_ROW_WIDTH-1:0] fused_row_q;
@@ -1824,14 +1825,15 @@ module npu_gemm_engine #(
                 end
                 F_SEND: if (!pool_coordinate_valid || pool_in_ready) begin
                     if (32'(fused_row_q) + 32'd1 == fused_valid_rows_q)
-                        fused_feed_state_q <= F_DRAIN;
+                        // All valid rows now belong to the pool's raw input
+                        // buffer. Release this source tile independently of
+                        // pending pool results and AXI write responses.
+                        fused_feed_state_q <= F_DONE;
                     else begin
                         fused_row_q <= fused_row_q + 1'b1;
                         fused_feed_state_q <= F_READ;
                     end
                 end
-                F_DRAIN: if (!fused_pool_busy)
-                    fused_feed_state_q <= F_DONE;
                 F_DONE: fused_feed_state_q <= F_IDLE;
                 default: fused_feed_state_q <= F_IDLE;
             endcase
@@ -1842,7 +1844,8 @@ module npu_gemm_engine #(
         if (MEM_WORD_WIDTH == 32 && COLS >= 4 && COLS % 4 == 0) begin : gen_fused_pool
             stream_maxpool2x2 #(
                 .ADDR_WIDTH(ADDR_WIDTH), .ID_WIDTH(ID_WIDTH),
-                .COLS(COLS), .LINE_WORDS(POOL_LINE_WORDS)
+                .COLS(COLS), .LINE_WORDS(POOL_LINE_WORDS),
+                .OUTPUT_FIFO_DEPTH(POOL_OUTPUT_FIFO_DEPTH)
             ) u_pool (
                 .clk(clk), .reset(reset),
                 .start(fc_pool_start ||

@@ -16,7 +16,10 @@ module conv_pool_fused_npu_tb #(
     parameter bit CAPACITY_FALLBACK = 0,
     parameter int unsigned CONV_CACHE_LINES = 256,
     parameter int unsigned WRITE_RESPONSE_DELAY = 5,
-    parameter bit REQUIRE_FULL_BUFFER = 0
+    parameter bit REQUIRE_FULL_BUFFER = 0,
+    parameter int unsigned POOL_OUTPUT_FIFO_DEPTH = 16,
+    parameter bit EXPECT_POOL_OVERLAP = 0,
+    parameter bit EXPECT_POOL_BACKPRESSURE = 0
 );
     localparam int POOL_H = (OUT_H-POOL_KH)/POOL_SH+1;
     localparam int POOL_W = (OUT_W-POOL_KW)/POOL_SW+1;
@@ -64,11 +67,15 @@ module conv_pool_fused_npu_tb #(
     int conv_write_bytes_q, logical_pool_read_bytes_q;
     int full_buffer_cycles_q;
     int conv_cache_flushes_q;
+    int pool_inputs_while_b_pending_q, source_retire_while_b_pending_q;
+    int pool_backpressure_cycles_q, final_response_wait_cycles_q;
+    int launch_write_start = 0;
 
     npu_top #(
         .ROWS(ROWS), .COLS(COLS), .K_TILE_SIZE(32),
         .CONV_CACHE_LINES(CONV_CACHE_LINES),
-        .POOL_LINE_WORDS(LINE_WORDS)
+        .POOL_LINE_WORDS(LINE_WORDS),
+        .POOL_OUTPUT_FIFO_DEPTH(POOL_OUTPUT_FIFO_DEPTH)
     ) u_dut (
         .clk(clk), .reset(reset), .start(start),
         .desc_base(64'(DESC_BASE)), .desc_count(desc_count),
@@ -137,8 +144,31 @@ module conv_pool_fused_npu_tb #(
             logical_pool_read_bytes_q <= 0;
             full_buffer_cycles_q <= 0;
             conv_cache_flushes_q <= 0;
+            pool_inputs_while_b_pending_q <= 0;
+            source_retire_while_b_pending_q <= 0;
+            pool_backpressure_cycles_q <= 0;
+            final_response_wait_cycles_q <= 0;
         end else begin
             cycle_q <= cycle_q + 1;
+            // Data reaching memory is insufficient for completion: the last
+            // response still belongs to this program, including a queued pool
+            // result after its source result tile has already been released.
+            if ((wr_active_q || b_pending_q || bvalid_q) && (!busy || done))
+                $fatal(1, "NPU completed before its AXI write response");
+            if (phase == 1) begin
+                if (b_pending_q || bvalid_q) begin
+                    if (u_dut.u_npu_gemm_engine.gen_fused_pool.u_pool.in_valid &&
+                        u_dut.u_npu_gemm_engine.pool_in_ready)
+                        pool_inputs_while_b_pending_q <= pool_inputs_while_b_pending_q + 1;
+                    if (u_dut.u_npu_gemm_engine.c_write_done)
+                        source_retire_while_b_pending_q <= source_retire_while_b_pending_q + 1;
+                    if (write_bytes_q-launch_write_start == pool_bytes)
+                        final_response_wait_cycles_q <= final_response_wait_cycles_q + 1;
+                end
+                if (u_dut.u_npu_gemm_engine.gen_fused_pool.u_pool.in_valid &&
+                    !u_dut.u_npu_gemm_engine.pool_in_ready)
+                    pool_backpressure_cycles_q <= pool_backpressure_cycles_q + 1;
+            end
             if (u_dut.u_npu_gemm_engine.u_read_path.conv_cache_invalidate)
                 conv_cache_flushes_q <= conv_cache_flushes_q + 1;
             if (phase == 1 &&
@@ -339,6 +369,7 @@ module conv_pool_fused_npu_tb #(
 
     task automatic launch(input bit expect_error, output int cycles);
         @(negedge clk);
+        launch_write_start = write_bytes_q;
         start = 1;
         @(negedge clk);
         start = 0;
@@ -360,6 +391,7 @@ module conv_pool_fused_npu_tb #(
         int write_before, read_before, logical_before, conv_read_before, conv_write_before;
         int baseline_write_bytes, baseline_logical_reads, fused_write_bytes;
         int baseline_read_beats, flushes_before;
+        int final_wait_before;
         int expected, address;
         kernel_size = kernel;
         pattern_seed = seed;
@@ -413,6 +445,7 @@ module conv_pool_fused_npu_tb #(
         conv_read_before = conv_read_bursts_q;
         conv_write_before = conv_write_bytes_q;
         flushes_before = conv_cache_flushes_q;
+        final_wait_before = final_response_wait_cycles_q;
         launch(CAPACITY_FALLBACK,fused_cycles);
         if (CAPACITY_FALLBACK) begin
             if (write_bytes_q != write_before)
@@ -420,6 +453,8 @@ module conv_pool_fused_npu_tb #(
             $display("CAPACITY_FALLBACK PASS: standalone pair correct, fused command rejected without writes");
             return;
         end
+        if (final_response_wait_cycles_q == final_wait_before)
+            $fatal(1,"Fused test did not cover waiting for the final B response");
         if (u_dut.u_npu_gemm_engine.pool_channel_tiling_q !==
             ((POOL_KH*OUT_W*(COUT/4)) > LINE_WORDS))
             $fatal(1,"Unexpected pooling channel-tiling mode");
@@ -501,6 +536,15 @@ module conv_pool_fused_npu_tb #(
                         $fatal(1,"Recovery output mismatch");
         if (REQUIRE_FULL_BUFFER && full_buffer_cycles_q == 0)
             $fatal(1,"Test did not exercise two occupied result buffers");
+        if (EXPECT_POOL_OVERLAP &&
+            (pool_inputs_while_b_pending_q < 2 || source_retire_while_b_pending_q == 0))
+            $fatal(1,"Test did not exercise pool input/tile retirement while B is pending");
+        if (EXPECT_POOL_BACKPRESSURE && pool_backpressure_cycles_q == 0)
+            $fatal(1,"Test did not exercise pool input backpressure");
+        $display("POOL_PIPELINE_COVERAGE depth=%0d inputs_while_B_pending=%0d source_retire_while_B_pending=%0d input_stall_cycles=%0d final_B_wait_cycles=%0d",
+            POOL_OUTPUT_FIFO_DEPTH, pool_inputs_while_b_pending_q,
+            source_retire_while_b_pending_q, pool_backpressure_cycles_q,
+            final_response_wait_cycles_q);
         $display("Conv -> MaxPool fusion system PASS: signed INT8, channel tiling, multi-K/A reuse/B stationary, delayed AXI, exact traffic, descriptor rejection and recovery; full_buffer_cycles=%0d",full_buffer_cycles_q);
         $finish;
     end

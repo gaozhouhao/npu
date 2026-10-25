@@ -51,6 +51,8 @@ N 和 K 还受到硬件计算块计数器限制：`N/COLS <= 2^TILE_COUNT_WIDTH-
 
 当前缓存保存池化前的原始INT8输入，并与卷积共享窗口读取接口，结构和最新验证见[原始池化输入缓存](pooling_input_buffer.md)。
 
+池化结果经默认16项的输出 FIFO 交给独立 DMA，顶层参数为 `POOL_OUTPUT_FIFO_DEPTH`。FC 的源结果在真实行全部成功交接后可退休；整层 `done` 仍等待窗口、归约、FIFO与最终写响应排空。输出地址与数据一起入队，后续FC坐标推进不会改变已排队结果。数值格式、描述符和原始行缓冲容量要求不变。
+
 `compiler/fc_pool.py` 提供独立的纯标准库构建函数：
 
 ```python
