@@ -2,7 +2,8 @@
 
 Frontends supply logical shapes and output-major weights. The target descriptor
 ABI remains the same as the original SmallCNN and TFLite compiler entrypoints.
-Activation scales must come from calibration; this module never invents them.
+Deployment activation scales must come from calibration. An explicit benchmark
+mode can use fixed scales to measure integer execution without accuracy claims.
 """
 from __future__ import print_function
 
@@ -99,15 +100,41 @@ def quantization_template(graph):
     return profile
 
 
-def resolve_quantization(graph, profile):
+def benchmark_quantization(graph, activation_scale=0.0625):
+    """Create fixed, uncalibrated scales ONLY for integer performance testing."""
+    require(type(activation_scale) in (int, float) and activation_scale > 0 and
+            not math.isnan(activation_scale) and not math.isinf(activation_scale),
+            'Benchmark activation scale must be finite and positive')
+    profile = quantization_template(graph)
+    del profile['calibration']
+    profile.update(purpose='integer_performance', accuracy_not_measured=True)
+    profile['preprocessing']['description'] = (
+        'Synthetic signed INT8 HWC values; fixed benchmark scales; no image calibration')
+    for entry in profile['tensors'].values():
+        if 'shared_with' not in entry:
+            entry['scale'] = float(activation_scale)
+    return profile
+
+
+def resolve_quantization(graph, profile, benchmark_only=False):
     require(profile.get('schema_version') == 1, 'Unsupported quantization profile version')
     if graph.get('model_sha256'):
         require(profile.get('model_sha256') == graph['model_sha256'],
-                'Quantization profile was not calibrated for this model SHA256')
-    calibration = profile.get('calibration', {})
-    require(profile.get('calibrated') is True and calibration.get('samples', 0) > 0 and
-            calibration.get('dataset') and calibration.get('method'),
-            'Real calibration metadata is required; fill the quantization template first')
+                'Quantization profile does not match this model SHA256')
+    if benchmark_only:
+        require(profile.get('purpose') == 'integer_performance' and
+                profile.get('calibrated') is False and
+                profile.get('accuracy_not_measured') is True,
+                'Benchmark mode requires an explicit uncalibrated integer_performance profile')
+        require('calibration' not in profile,
+                'Benchmark profiles must not claim calibration metadata')
+    else:
+        require(profile.get('purpose') != 'integer_performance',
+                'Integer performance profiles require explicit benchmark_only=True')
+        calibration = profile.get('calibration', {})
+        require(profile.get('calibrated') is True and calibration.get('samples', 0) > 0 and
+                calibration.get('dataset') and calibration.get('method'),
+                'Real calibration metadata is required; fill the quantization template first')
     preprocessing = profile.get('preprocessing', {})
     require(preprocessing.get('description'), 'Record input preprocessing used for calibration')
     require(preprocessing.get('input_layout') == 'HWC' and
@@ -125,7 +152,7 @@ def resolve_quantization(graph, profile):
             result = resolve(entry['shared_with'], visiting+[name])
         else:
             scale, zp = entry.get('scale'), entry.get('zero_point')
-            require(isinstance(scale, (int, float)) and scale > 0 and
+            require(type(scale) in (int, float) and scale > 0 and
                     not math.isnan(scale) and not math.isinf(scale),
                     'Missing or invalid activation scale: '+name)
             require(type(zp) is int and -128 <= zp <= 127,
@@ -314,10 +341,10 @@ def plan_graph(graph, cfg, dataflow='auto'):
                 validation='Graph/ABI/memory checks only; INT8 calibration and accuracy still required')
 
 
-def compile_graph(source_graph, cfg, profile, input_data=None, dataflow='auto'):
+def compile_graph(source_graph, cfg, profile, input_data=None, dataflow='auto', benchmark_only=False):
     plan = plan_graph(source_graph, cfg, dataflow)
     graph = plan['graph']
-    quant = resolve_quantization(graph, profile)
+    quant = resolve_quantization(graph, profile, benchmark_only=benchmark_only)
     image = bytearray(plan['image_bytes'])
     input_name = graph['input']['name']
     region = plan['regions'][input_name]
@@ -372,10 +399,15 @@ def compile_graph(source_graph, cfg, profile, input_data=None, dataflow='auto'):
     descriptors = b''.join(encode(d) for d in plan['commands'])
     image[plan['descriptor_base']:plan['descriptor_base']+len(descriptors)] = bytearray(descriptors)
     plan.update(quantization=quant, weight_quantization=weight_report,
-                calibration=copy.deepcopy(profile['calibration']),
                 preprocessing=copy.deepcopy(profile['preprocessing']),
                 input_provided=input_data is not None,
-                validation='Calibrated INT8 package; compare software/RTL outputs and model accuracy before deployment')
+                calibrated=profile['calibrated'])
+    if benchmark_only:
+        plan.update(purpose='integer_performance', accuracy_not_measured=True,
+                    validation='Uncalibrated integer performance package; accuracy not measured')
+    else:
+        plan.update(calibration=copy.deepcopy(profile['calibration']),
+                    validation='Calibrated INT8 package; compare software/RTL outputs and model accuracy before deployment')
     return plan, binary(image), descriptors
 
 

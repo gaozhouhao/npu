@@ -64,7 +64,8 @@ $(error SIM must be vcs or verilator)
 endif
 
 .PHONY: help list-tests compile test regression tail-check fusion-check pool-fifo-check fc-pool-check fc-alignment-check parameter-check stress wave uvm-pe uvm-pe-compile \
-	mnist mnist-all mnist-fused resnet8-model resnet8 resnet8-perf compiler-test compiler-check resnet50-prepare \
+	mnist mnist-all mnist-fused resnet8-model resnet8 resnet8-perf resnet8-benchmark compiler-test compiler-check \
+	resnet50-prepare resnet50-model resnet50-reference resnet50-benchmark resnet50-compare \
 	synth synth-hold sram-lib sram-generate dft-precheck dft atpg atpg-resume \
 	atpg-smoke mbist mbist-sim clean
 
@@ -85,8 +86,11 @@ help:
 	  'make mnist | mnist-all     Checked-in MNIST inference artifacts' \
 	  'make mnist-fused           Four MNIST images with on-chip Conv/MaxPool fusion' \
 	  'make resnet8 | resnet8-perf MODEL=path/to/model.tflite' \
+	  'make resnet8-benchmark      Same-input baseline/current integer correctness and performance' \
 	  'make compiler-check        Shared ABI, ONNX, legacy compatibility and residual graph RTL' \
 	  'make resnet50-prepare      Normalize real ResNet-50 and emit a calibration template' \
+	  'make resnet50-benchmark    Full real-weight integer workload; no classification accuracy claim' \
+	  'make resnet50-compare      Matched baseline/current full-network performance comparison' \
 	  'make synth [DESIGN=npu|gemm_pe] Synthesis using local process libraries' \
 	  'make dft-precheck | dft | atpg | atpg-smoke | mbist | mbist-sim' \
 	  'make list-tests            Available testbench names' \
@@ -121,6 +125,46 @@ RESNET50_ONNX ?= build/nvidia_reference_models/resnet50/resnet50_v1.onnx
 RESNET50_OUT ?= $(BUILD_DIR)/resnet50-compiler
 resnet50-prepare:
 	$(FC_PYTHON) compiler/compile_onnx.py prepare --model "$(RESNET50_ONNX)" --out "$(RESNET50_OUT)"
+
+RESNET50_BENCH_DIR ?= $(BUILD_DIR)/resnet50-benchmark
+RESNET50_MODEL_DIR ?= $(RESNET50_BENCH_DIR)/model
+RESNET50_CHECK_DIR ?= $(RESNET50_BENCH_DIR)/check
+RESNET50_INPUT_SEED ?= 8
+RESNET50_BENCH_SCALE ?= 0.0625
+BENCH_BASELINE_REF ?= 9d3ccce
+BENCH_CANDIDATE_REF ?= HEAD
+DDR_WR_LATENCY ?= 0
+resnet50-model:
+	$(PYTHON) compiler/compile_onnx.py compile --model "$(RESNET50_ONNX)" \
+		--out "$(RESNET50_MODEL_DIR)" --benchmark-only \
+		--benchmark-scale $(RESNET50_BENCH_SCALE) --input-seed $(RESNET50_INPUT_SEED)
+
+resnet50-reference: resnet50-model
+	$(PYTHON) scripts/model/run_graph_model.py prepare \
+		--package "$(RESNET50_MODEL_DIR)" --out "$(RESNET50_CHECK_DIR)"
+
+resnet50-benchmark: resnet50-model
+	$(PYTHON) scripts/model/run_graph_model.py all \
+		--package "$(RESNET50_MODEL_DIR)" --out "$(RESNET50_CHECK_DIR)" \
+		--source-ref "$(BENCH_CANDIDATE_REF)" --label current \
+		--read-latency $(DDR_RD_LATENCY) --write-latency $(DDR_WR_LATENCY)
+
+resnet50-compare: resnet50-reference
+	$(PYTHON) scripts/model/run_graph_model.py run --package "$(RESNET50_MODEL_DIR)" \
+		--out "$(RESNET50_CHECK_DIR)" --source-ref "$(BENCH_BASELINE_REF)" --label baseline \
+		--read-latency $(DDR_RD_LATENCY) --write-latency $(DDR_WR_LATENCY)
+	$(PYTHON) scripts/model/run_graph_model.py check --package "$(RESNET50_MODEL_DIR)" \
+		--out "$(RESNET50_CHECK_DIR)" --label baseline \
+		--read-latency $(DDR_RD_LATENCY) --write-latency $(DDR_WR_LATENCY)
+	$(PYTHON) scripts/model/run_graph_model.py run --package "$(RESNET50_MODEL_DIR)" \
+		--out "$(RESNET50_CHECK_DIR)" --source-ref "$(BENCH_CANDIDATE_REF)" --label current \
+		--read-latency $(DDR_RD_LATENCY) --write-latency $(DDR_WR_LATENCY)
+	$(PYTHON) scripts/model/run_graph_model.py check --package "$(RESNET50_MODEL_DIR)" \
+		--out "$(RESNET50_CHECK_DIR)" --label current \
+		--read-latency $(DDR_RD_LATENCY) --write-latency $(DDR_WR_LATENCY)
+	$(PYTHON) scripts/analysis/compare_graph_benchmarks.py \
+		--baseline "$(RESNET50_CHECK_DIR)/baseline-report.json" \
+		--current "$(RESNET50_CHECK_DIR)/current-report.json" --out "$(RESNET50_CHECK_DIR)/comparison.json"
 
 compiler-check:
 	$(FC_PYTHON) compiler/test_target_compat.py
@@ -276,6 +320,17 @@ resnet8-perf:
 	cp "$(BUILD_DIR)/resnet8_perf/simulation.log" "$(BUILD_DIR)/resnet8_perf/perf.log"
 	$(PYTHON) scripts/analysis/report_resnet8_perf.py --dir "$(BUILD_DIR)/resnet8_perf"
 DDR_RD_LATENCY ?= 20
+
+RESNET8_BENCH_DIR ?= $(BUILD_DIR)/resnet8-benchmark
+RESNET8_BENCH_ZERO ?= $(BUILD_DIR)/resnet8-compat/zero
+RESNET8_BENCH_NONZERO ?= $(BUILD_DIR)/resnet8-compat/nonzero
+resnet8-benchmark:
+	$(PYTHON) scripts/model/benchmark_resnet8.py \
+		--model-dir "zero=$(RESNET8_BENCH_ZERO)" \
+		--model-dir "nonzero=$(RESNET8_BENCH_NONZERO)" \
+		--zero-input zero --seeded-input nonzero=8 \
+		--baseline-ref "$(BENCH_BASELINE_REF)" --current-ref "$(BENCH_CANDIDATE_REF)" \
+		--ddr-read-latency $(DDR_RD_LATENCY) --output "$(RESNET8_BENCH_DIR)"
 
 # EDA commands are explicit targets and use the existing local technology setup.
 DESIGN ?= npu
