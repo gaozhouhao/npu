@@ -8,7 +8,7 @@
 
 ResNet8在 `9d3ccce` 与 `3b233df` 上各运行零输入和seed8非零输入，共四次完整推理，14层与完整1MiB仿真DDR逐字节通过。两版均为1,735,928周期、读3,608,696字节、实际写114,800字节，改善0%；网络没有使用融合MaxPool输出FIFO。详细逐层结果和利用率口径见[ResNet性能记录](resnet_performance.md)，原始记录在 `build/resnet8-benchmark/`。
 
-完整ResNet50的72条命令和29,404,672字节整数部署包已生成，独立参考已完成；前后两版整网RTL仍在运行，完整正确性和性能结果待其结束后记录。此状态不表示已经通过完整RTL验证。
+完整ResNet50使用真实ONNX权重、224×224×3输入及1001类输出，共72条命令。`9d3ccce` 和 `3b233df` 的两次整网RTL均通过全部72层、累计16,837,097字节层输出及完整29,404,672字节DDR的逐字节检查；最终DDR与独立NumPy整数参考一致。两版均为503,021,224周期、读1,158,799,696字节、按WSTRB实际写16,837,097字节，72层周期/流量均相同，改善0%。唯一MaxPool因padding保持独立，没有经过融合池化FIFO。完整记录在 `build/resnet50-benchmark/check/`，已提交[精简实测记录](reference/resnet50_benchmark_summary.json)。
 
 新增testbench已通过带DDR地址复用的8层残差小图：B响应额外延迟0/7时分别为30,394/30,977周期，全部8层及7,296字节最终DDR通过；读16,864字节、实际写1,649字节。故意破坏首层golden后立即失败，确认检查器会拒绝数值错误。日志在 `build/graph-harness-smoke/`。`make compiler-test` 的145项测试及已有 `make compiler-check` 的93项软件检查和残差图RTL集成也通过，日志在 `build/resnet50-benchmark/validation/`。
 
