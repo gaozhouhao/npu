@@ -1,0 +1,234 @@
+{
+  "artifacts": {
+    "comparison.json": {
+      "path": "build/resnet8-benchmark/comparison.json",
+      "sha256": "151521c44f09cbf9b3d6fb6b65329e50e931056761d1e91c281fab6ee39ed24b"
+    },
+    "per_layer.csv": {
+      "path": "build/resnet8-benchmark/per_layer.csv",
+      "sha256": "ba06c456c86e7d713d28444425cabe2d0eb216b4fa57fb10fb98e79d40839b28"
+    },
+    "performance_detail.json": {
+      "path": "build/resnet8-benchmark/performance_detail.json",
+      "sha256": "3d5e7cfbed10ed42e7e0e87a08d071ffbd9b16026981cd953facd11cac89c136"
+    }
+  },
+  "comparison": {
+    "nonzero": {
+      "baseline_cycles": 1735928,
+      "baseline_read_bytes": 3608696,
+      "baseline_write_bytes": 114800,
+      "current_cycles": 1735928,
+      "current_read_bytes": 3608696,
+      "current_write_bytes": 114800,
+      "cycle_reduction_pct": 0.0,
+      "cycles_saved": 0,
+      "full_ddr_identical": true,
+      "read_bytes_saved": 0,
+      "speedup": 1.0,
+      "write_bytes_saved": 0
+    },
+    "zero": {
+      "baseline_cycles": 1735928,
+      "baseline_read_bytes": 3608696,
+      "baseline_write_bytes": 114800,
+      "current_cycles": 1735928,
+      "current_read_bytes": 3608696,
+      "current_write_bytes": 114800,
+      "cycle_reduction_pct": 0.0,
+      "cycles_saved": 0,
+      "full_ddr_identical": true,
+      "read_bytes_saved": 0,
+      "speedup": 1.0,
+      "write_bytes_saved": 0
+    }
+  },
+  "compute_metrics_for_all_four_runs": {
+    "core_cycles": 858855,
+    "core_dma_overlap_pct": 83.6771,
+    "dma_cycles": 1148200,
+    "executed_mac": 12504064,
+    "executed_pe_core_occupancy_pct": 90.9937,
+    "executed_pe_e2e_utilization_pct": 45.0194,
+    "overlap_cycles": 718665,
+    "tiles": 6659,
+    "useful_mac": 11574592,
+    "useful_over_executed_pct": 92.5666,
+    "useful_pe_core_occupancy_pct": 84.2298,
+    "useful_pe_e2e_utilization_pct": 41.6729
+  },
+  "config_sha256": "5bc1b8384ebd9a78c817aaffc0ca9bfed2a7f1f0ffa2a8574e48e76da08de6e8",
+  "configuration": {
+    "additional_write_response_latency_cycles": 0,
+    "cols": 4,
+    "ddr_read_latency_cycles": 20,
+    "external_read_beat_bytes": 8,
+    "external_write_beat_bytes": 4,
+    "rows": 4,
+    "source_tb": "sim/tb/system/resnet8_npu_tb.sv",
+    "write_byte_accounting": "sum popcount(WSTRB) over accepted AXI write beats"
+  },
+  "correctness": {
+    "checked_full_ddr_bytes_per_run": 1048576,
+    "checked_layers_per_run": 14,
+    "checked_model_ddr_bytes_per_run": 266880,
+    "checked_zero_tail_bytes_per_run": 781696,
+    "ddr_mismatches": 0,
+    "oracle": "compiler/reference_int8.py; independent serialized-descriptor integer reference",
+    "runs": 4
+  },
+  "cross_layer_feature_cache": false,
+  "dataset_accuracy_measured": false,
+  "descriptor_count": 14,
+  "frequency_or_power_measured": false,
+  "identical_measurements_for_all_four_runs": {
+    "cycles_outside_layers": 5838,
+    "executor_cycles": 1337717,
+    "external_bytes": 3723496,
+    "pool_cycles": 26704,
+    "read_beats": 451087,
+    "read_bytes": 3608696,
+    "read_bytes_outside_layers": 1792,
+    "read_transactions": 39075,
+    "testbench_cycles": 1735928,
+    "total_cycles": 1735928,
+    "write_beats": 28700,
+    "write_bytes": 114800,
+    "write_transactions": 28700
+  },
+  "inputs": {
+    "nonzero": {
+      "descriptors_sha256": "34052146dc29c6ef3e9af708f8508af293d61e34f7a84c1b723d4e4e7c883288",
+      "full_ddr_sha256_both_revisions": "cabbdada35f3cb61fc6ca8ee9d1e5de40df36504d405801426a4d78104a98433",
+      "generation": "numpy.random.RandomState(8).randint(-128,128).astype(int8)",
+      "image_sha256": "78b354434fa37d82003fc330d37e8118a11aad9728fd0d3850f7f7f3babc196d",
+      "input_sha256": "3b034985e5ee1d9c0bbdea4179c09e5a45341a3a51246640478d5557629d9934",
+      "top1_numeric_check_only": 6
+    },
+    "zero": {
+      "descriptors_sha256": "34052146dc29c6ef3e9af708f8508af293d61e34f7a84c1b723d4e4e7c883288",
+      "full_ddr_sha256_both_revisions": "8e7ca6c3e8f97ae1bf65e7c511fa076e3d33bd3e1f1a2af305bf384023eea82f",
+      "generation": "quantized real zero",
+      "image_sha256": "0a31c75dec534944d94b9869e0f05dac456dc62f703ff94df8f83e0f3b159150",
+      "input_sha256": "753412db29fc2970bed80a0cefed2d3caf17b282ed5b9b8707b5c39929a27fce",
+      "top1_numeric_check_only": 0
+    }
+  },
+  "layers_common_to_both_revisions_and_inputs": [
+    {
+      "cycles": 99730,
+      "index": 0,
+      "operation": "CONV",
+      "read_bytes": 183312,
+      "written_bytes": 16384
+    },
+    {
+      "cycles": 230674,
+      "index": 1,
+      "operation": "CONV",
+      "read_bytes": 655376,
+      "written_bytes": 16384
+    },
+    {
+      "cycles": 230653,
+      "index": 2,
+      "operation": "CONV",
+      "read_bytes": 655376,
+      "written_bytes": 16384
+    },
+    {
+      "cycles": 208926,
+      "index": 3,
+      "operation": "ADD",
+      "read_bytes": 65560,
+      "written_bytes": 16384
+    },
+    {
+      "cycles": 109276,
+      "index": 4,
+      "operation": "CONV",
+      "read_bytes": 335888,
+      "written_bytes": 8192
+    },
+    {
+      "cycles": 248917,
+      "index": 5,
+      "operation": "CONV",
+      "read_bytes": 622608,
+      "written_bytes": 8192
+    },
+    {
+      "cycles": 45385,
+      "index": 6,
+      "operation": "CONV",
+      "read_bytes": 61456,
+      "written_bytes": 8192
+    },
+    {
+      "cycles": 104478,
+      "index": 7,
+      "operation": "ADD",
+      "read_bytes": 32792,
+      "written_bytes": 8192
+    },
+    {
+      "cycles": 126188,
+      "index": 8,
+      "operation": "CONV",
+      "read_bytes": 315408,
+      "written_bytes": 4096
+    },
+    {
+      "cycles": 224021,
+      "index": 9,
+      "operation": "CONV",
+      "read_bytes": 606224,
+      "written_bytes": 4096
+    },
+    {
+      "cycles": 22368,
+      "index": 10,
+      "operation": "CONV",
+      "read_bytes": 47120,
+      "written_bytes": 4096
+    },
+    {
+      "cycles": 52254,
+      "index": 11,
+      "operation": "ADD",
+      "read_bytes": 16408,
+      "written_bytes": 4096
+    },
+    {
+      "cycles": 26705,
+      "index": 12,
+      "operation": "GLOBAL_AVG",
+      "read_bytes": 8192,
+      "written_bytes": 64
+    },
+    {
+      "cycles": 515,
+      "index": 13,
+      "operation": "FC",
+      "read_bytes": 1184,
+      "written_bytes": 48
+    }
+  ],
+  "maxpool_descriptor_count": 0,
+  "measurement_date": "2026-10-25",
+  "model_sha256": "3c002613d1b2475eb51dd78dfb85a546c8ae658dee71cf6ade43b022fe205415",
+  "revisions": {
+    "baseline": {
+      "commit": "9d3ccce8a5e5cb3b1059ed4dff09c7ad76f63854",
+      "source_set_sha256": "f77cc51839f44e110e92d8a99399496aec72df96bc0e917213f0554158ba6058"
+    },
+    "current": {
+      "commit": "3b233df79a5ba723f178f37b5c5853528c2fef3d",
+      "source_set_sha256": "9291988b7b6976a059514271b10b64c6f7a6bfbfb38c5122af2ea5cbc254fa60"
+    }
+  },
+  "schema_version": 1,
+  "scope": "RTL integer correctness and frequency-independent simulated performance; independent layers exchange activations through DDR",
+  "status": "PASS",
+  "tflite_bit_exact": false
+}

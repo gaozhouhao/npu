@@ -4,7 +4,7 @@
 
 项目的完整阅读入口是 [架构与模块说明](docs/architecture.md)，包括逻辑框图、实际实例树、模块职责和输入输出、参数传播、数据布局及接口时序。[接口索引](docs/module_interfaces.md) 说明当前 39 个模块的接口。[验证记录](docs/validation.md) 说明当前已验证的范围。
 
-[层间流式结构路线图](docs/streaming_roadmap.md) 对照当前局部融合与通用层间流水的差距，说明双缓冲、行缓冲、重排、DDR 出口及单阵列复用的关系，并给出下一步改造和验收顺序。
+当前保持每层独立执行、通过 DDR 交接，不增加跨层特征驻留或片上/DDR混合溢出控制。[层间流式结构路线图](docs/streaming_roadmap.md) 保留此前的技术讨论；当前后续工作集中在真实 ResNet 网络的整数执行与性能测量。
 
 融合池化计算结果先进入默认 16 项的输出 FIFO，每项保存目标地址和 32 位数据；独立 DMA 负责写 DDR。源 tile 全部有效行交接后即可释放，整层完成仍等待池化、FIFO 和全部写响应排空。顶层通过 `POOL_OUTPUT_FIFO_DEPTH` 配置容量，支持深度 1 和非二次幂；运行 `make pool-fifo-check` 验证满队列反压和写回解耦。
 
@@ -12,7 +12,7 @@
 
 全连接也可按软件显式指定的高、宽、通道重排后流入同一池化模块。坐标转换只接收真实样本的输出，过滤为4行阵列补齐的其他行。该模式使用扩展参数头，支持单样本、INT8、不补边且完整池化状态可放入缓冲的配置；普通全连接和卷积描述符不变。运行 `make fc-pool-check`，接口和软件生成方式见 [全连接池化融合](docs/fc_pool_fusion.md)。
 
-[NVIDIA 参考模型适配记录](docs/nvidia_reference_model.md)给出已下载 ResNet-50 的实际算子与逐层形状。通用尾块、池化补边和ONNX图编译已实现；真实网络可准备成72条命令，原SmallCNN/ResNet8入口保留。运行 `make resnet50-prepare`、`make compiler-check`，见[编译器说明](compiler/README.md)。匹配的量化参数、ImageNet精度与整网运行仍待完成，已有官方校准材料的适用边界见[来源核查](docs/resnet50_quantization_sources.md)。
+[NVIDIA 参考模型适配记录](docs/nvidia_reference_model.md)给出已下载 ResNet-50 的实际算子与逐层形状。ONNX入口支持真实权重的72条独立层命令，新增显式 `--benchmark-only` 整数性能模式；该模式使用固定尺度和合成输入，保持 `calibrated=false`，不声称分类精度。运行 `make resnet50-benchmark` 或 `make resnet50-compare`；原SmallCNN/ResNet8入口保留。ResNet-8可用 `make resnet8-benchmark` 做同输入、同DDR时序的版本对照。具体数据和复现方式见[ResNet性能测量](docs/resnet_performance.md)、[编译器说明](compiler/README.md)；ImageNet校准资料边界见[来源核查](docs/resnet50_quantization_sources.md)。
 
 [分类层软件对齐](docs/fc_alignment.md)说明原TFLite入口的1×1001到物理4×1004布局，已通过真实分类层尺寸的整数硬件用例。新增ONNX入口使用尾块支持直接提交逻辑1×1001，保留同一硬件ABI。
 
@@ -63,6 +63,8 @@ make test TEST=npu_top_tb CONFIG=small PARAMS="K_TILE_SIZE=16 PSUM_SLOT_COUNT=2 
 ```bash
 make resnet8 MODEL=models/resnet8/pretrainedResnet_quant.tflite
 make resnet8-perf MODEL=models/resnet8/pretrainedResnet_quant.tflite
+make resnet8-benchmark
+make resnet50-benchmark
 ```
 
 EDA 入口包括 `make synth`、`make synth DESIGN=gemm_pe`、`make dft-precheck`、`make dft`、`make atpg` 和 `make mbist`，依赖本机工具与工艺库。`scripts/technology.tcl` 集中管理工艺路径；Makefile 可通过 `PDK_ROOT` 和 `BUILD_DIR` 指定位置。

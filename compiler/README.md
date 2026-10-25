@@ -37,7 +37,37 @@ Conv权重从ONNX的OIHW转为 `[N,KH,KW,C]`，FC权重转为 `[N,K]`，每行K�
 
 原 `npu_config.json` 的32KiB容量继续用于小模型。ONNX入口默认64MiB，可以用 `--ddr-capacity` 或 `--config` 指定；这是外存规划，不增加片上SRAM。新入口接受已折叠BN的Conv、可融合ReLU、无广播ADD、MaxPool、空间GAP、单样本FC及合法别名，明确拒绝其他算子。带补边MaxPool保持独立命令；此版ONNX入口不启用Conv/Pool融合。
 
-`compiler-check` 包含原四张SmallCNN的20份逐层golden对照、旧TFLite生产代码的尾块兼容检查、真实ONNX图准备及一个8命令小残差图的RTL逐字节对照。小图使用明确标注的确定性测试尺度；真实ResNet-50尚未得到匹配的校准配置，也未完成ImageNet精度和整网RTL运行。所有新manifest的 `deployment_ready` 均保持false，编译成功本身不构成精度验证。官方资料与下一步见[量化来源核查](../docs/resnet50_quantization_sources.md)。
+`compiler-check` 包含原四张SmallCNN的20份逐层golden对照、旧TFLite生产代码的尾块兼容检查、真实ONNX图准备及一个8命令小残差图的RTL逐字节对照。小图使用明确标注的确定性测试尺度。真实ResNet-50另有下面的整数性能入口，匹配模型的ImageNet校准和分类精度仍需后续验证。所有新manifest的 `deployment_ready` 均保持false，编译成功本身不构成精度验证。官方资料见[量化来源核查](../docs/resnet50_quantization_sources.md)。
+
+### 显式整数性能模式
+
+当前选择保持每层独立、DDR交接，先验证真实网络的整数执行和性能，分类精度后续处理。`--benchmark-only` 使用原ONNX的全部真实权重和原始形状，按既有逐输出通道规则量化权重；激活使用明确的固定尺度和确定性合成INT8输入。它不使用随机权重，不缩小网络，也不填造校准记录。
+
+```bash
+make resnet50-model
+make resnet50-benchmark
+# 与指定旧版本比较，两个版本复用同一部署包、golden和DDR时序：
+make resnet50-compare BENCH_BASELINE_REF=9d3ccce BENCH_CANDIDATE_REF=HEAD
+```
+
+等价的包生成命令：
+
+```bash
+python compiler/compile_onnx.py compile \
+  --model build/nvidia_reference_models/resnet50/resnet50_v1.onnx \
+  --out build/resnet50-benchmark/model \
+  --benchmark-only --benchmark-scale 0.0625 --input-seed 8
+```
+
+生成的 `quantization.benchmark.json` 和manifest保留 `purpose=integer_performance`、`calibrated=false`、`accuracy_not_measured=true`，不包含校准数据集/样本数。普通 `compile` 仍拒绝这类profile，必须显式指定性能模式；真实校准profile也不能误用为性能profile。另保存 `input.bin` 和输入生成方式。更改种子、尺度或输入文件会改变整数工作负载，版本对照必须使用同一部署包。
+
+完整模型验证使用Python3和NumPy。`reference_numpy.py` 独立解释序列化DDR和描述符，以INT64整数矩阵乘法加速计算，按照硬件规则处理INT32回绕、33位Bias加法、重定量、补边、残差和GAP；已与标准库 `reference_int8.py` 对照。`scripts/model/run_graph_model.py prepare` 逐层生成golden，`run` 在VCS中逐层核对，再由 `check` 对比最终完整DDR。残差激活区域复用前就检查该层，避免只核对最后分类输出漏掉中间错误。
+
+`graph_model_npu_tb` 的外存和golden缓存容量由包尺寸推导，使用64位超时计数，检查所有1001个输出。`DDR_RD_LATENCY` 表示每个读burst首拍等待，`DDR_WR_LATENCY` 表示WLAST之后的B响应延迟，默认20/0。实际写入字节按WSTRB计数，末尾1001类输出不按1004个有效字节误报。模型可能需要较长RTL仿真时间，逐层结果会及时写入日志。
+
+默认产物在 `build/resnet50-benchmark/`：模型包在 `model/`，golden和报告在 `check/`，其中 `current-report.json`、`current-per_layer.csv` 保存整网/逐层周期和外部读写字节，版本对照另生成 `comparison.json`。比较工具会拒绝模型、输入、参考结果、testbench或DDR时序不同的报告。测量结果见[ResNet性能记录](../docs/resnet_performance.md)。
+
+报告分别记录完整卷积窗口的 `nominal_macs` 和排除边界补零的 `useful_macs`；FC按逻辑M/N/K计数，均不按权重或输入是否为零裁减。`effective_useful_mac_utilization` 使用后者除以默认16个PE与整网周期，和ResNet8的有效MAC口径一致。
 
 ## 命令
 
@@ -67,6 +97,7 @@ make mnist-all
 | `compile_onnx.py` / `onnx_frontend.py` | ONNX准备与编译入口、标准库图解析和按需权重读取 |
 | `graph_compiler.py` | 通用HWC图的命令生成、量化检查、残差内存复用与DDR导出 |
 | `reference_int8.py` | 从真实DDR和描述符执行的独立整数参考 |
+| `reference_numpy.py` | 全网络整数参考，分块矩阵乘法并可流式输出逐层golden；不预测周期 |
 
 `artifacts/npu/commands.bin` 是连续的描述符；`weights.bin`、`params.bin` 是聚合数据；`model.bin` 是48字节 `NPUMV0` 头加零输入DDR模板。`ddr/image_XXXX.bin` 已包含各图输入，仿真时从地址0装入。`memory_map.json` 给出每个区域的地址、shape、大小和布局，`manifest.json` 给出每个文件的长度和SHA256，`golden/` 保存逐层输出及中间累加值。
 
