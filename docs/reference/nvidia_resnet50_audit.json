@@ -1,0 +1,189 @@
+{
+  "batch": 1,
+  "cols": 4,
+  "constant_count": 108,
+  "constant_elements": 25532521,
+  "conv_macs_per_sample": 4087136256,
+  "convolution_output_spatial_counts": {
+    "112x112": 1,
+    "14x14": 19,
+    "28x28": 13,
+    "56x56": 11,
+    "7x7": 9
+  },
+  "deployment_ready": false,
+  "floating_point_weights": true,
+  "ir_version": 6,
+  "issues": [],
+  "model_bytes": 102160076,
+  "model_md5": "f6a4da60cd5f084d97efc2c1ddb10beb",
+  "model_sha256": "358c5906f4057cfff3506a63bcf7b502e69e566bdaa9ea598466fe002c3bd3fa",
+  "operator_counts": {
+    "Add": 17,
+    "Conv": 53,
+    "MatMul": 1,
+    "MaxPool": 1,
+    "ReduceMean": 1,
+    "Relu": 49,
+    "Squeeze": 1
+  },
+  "opsets": [
+    {
+      "domain": "",
+      "version": 11
+    }
+  ],
+  "original_node_count": 125,
+  "original_operator_counts": {
+    "Add": 17,
+    "ArgMax": 1,
+    "Conv": 53,
+    "MatMul": 1,
+    "MaxPool": 1,
+    "ReduceMean": 1,
+    "Relu": 49,
+    "Softmax": 1,
+    "Squeeze": 1
+  },
+  "pool_line_words": 1024,
+  "producer": "tf2onnx",
+  "requirements": [
+    "An ONNX-to-local-descriptor backend is required",
+    "Validate INT8 quantization and local rounding semantics",
+    "Validate transformed graph numerically before RTL deployment"
+  ],
+  "rows": 4,
+  "schema_version": 1,
+  "scope": "Static metadata/shape audit only; no ONNX execution, compilation or accuracy claim",
+  "selected_input": "input_tensor:0",
+  "selected_node_count": 123,
+  "selected_output": "resnet_model/dense/BiasAdd:0",
+  "special_layers": [
+    {
+      "attributes": {
+        "kernel_shape": [
+          3,
+          3
+        ],
+        "pads": [
+          0,
+          0,
+          1,
+          1
+        ],
+        "strides": [
+          2,
+          2
+        ]
+      },
+      "domain": "",
+      "fusion_buffer_estimate": {
+        "active_words": 336,
+        "available_words": 1024,
+        "bytes": 21504,
+        "channel_tiled": true,
+        "fits": true,
+        "minimum_words": 336,
+        "scope": "KH times input W times C/4 raw-input words; capacity only, padding and graph eligibility still need checking",
+        "words": 5376
+      },
+      "fusion_limitation": "Padded pooling stays on the standalone path; streaming fusion supports VALID only",
+      "fusion_supported": false,
+      "input_shapes": [
+        [
+          1,
+          64,
+          112,
+          112
+        ]
+      ],
+      "inputs": [
+        "resnet_model/Relu:0"
+      ],
+      "issues": [],
+      "lowering": "Standalone MaxPool: word 10 packs top/left/bottom/right padding; word 15 packs kernel/stride",
+      "name": "resnet_model/max_pooling2d/MaxPool",
+      "op": "MaxPool",
+      "output_shape": [
+        1,
+        64,
+        56,
+        56
+      ],
+      "outputs": [
+        "resnet_model/max_pooling2d/MaxPool:0"
+      ],
+      "status": "lowering_required"
+    },
+    {
+      "attributes": {
+        "axes": [
+          2,
+          3
+        ],
+        "keepdims": 1
+      },
+      "domain": "",
+      "input_shapes": [
+        [
+          1,
+          2048,
+          7,
+          7
+        ]
+      ],
+      "inputs": [
+        "resnet_model/Relu_48:0"
+      ],
+      "issues": [],
+      "name": "resnet_model/Mean",
+      "op": "ReduceMean",
+      "output_shape": [
+        1,
+        2048,
+        1,
+        1
+      ],
+      "outputs": [
+        "resnet_model/Mean:0"
+      ],
+      "status": "lowering_required"
+    },
+    {
+      "alignment_backend": "compiler/fc_layout.py",
+      "alignment_status": "Physical packing, parameters and logical output extraction implemented; ONNX graph lowering still required",
+      "attributes": {},
+      "domain": "",
+      "input_shapes": [
+        [
+          1,
+          2048
+        ],
+        [
+          2048,
+          1001
+        ]
+      ],
+      "inputs": [
+        "resnet_model/Squeeze:0",
+        "resnet_model/dense/kernel/read:0"
+      ],
+      "issues": [],
+      "lowering": "Use GEMM; allocate and zero-pad FC rows/columns, then keep only logical output elements",
+      "name": "resnet_model/dense/MatMul",
+      "op": "MatMul",
+      "output_shape": [
+        1,
+        1001
+      ],
+      "outputs": [
+        "resnet_model/dense/MatMul:0"
+      ],
+      "padded_output_shape": [
+        4,
+        1004
+      ],
+      "status": "lowering_required"
+    }
+  ]
+}

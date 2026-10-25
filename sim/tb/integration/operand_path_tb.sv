@@ -18,7 +18,7 @@ module operand_path_tb;
     logic [3:0] buffer_raddr;
     logic [LANES*8-1:0] buffer_rdata;
 
-    operand_loader #(.LANE_COUNT(LANES), .K_DEPTH(K_DEPTH), .BUFFER_COUNT(2)) u_loader (
+    operand_packer #(.LANE_COUNT(LANES), .K_DEPTH(K_DEPTH), .BUFFER_COUNT(2)) u_loader (
         .clk(clk), .reset(reset), .load_req(load_req), .load_accept(load_accept),
         .load_size(load_size), .load_done(load_done), .busy(loader_busy),
         .bank_load_req(manager_load_req), .bank_load_grant(manager_load_grant),
@@ -27,14 +27,14 @@ module operand_path_tb;
         .buffer_wen(buffer_wen), .buffer_wbank(buffer_wbank),
         .buffer_wlane(buffer_wlane), .buffer_waddr(buffer_waddr), .buffer_wdata(buffer_wdata)
     );
-    buffer_manager #(.BUFFER_COUNT(2)) u_manager (
+    operand_bank_controller #(.BUFFER_COUNT(2)) u_manager (
         .clk(clk), .reset(reset), .load_req(manager_load_req),
         .load_grant(manager_load_grant), .load_bank(manager_load_bank),
         .load_done(manager_load_done), .compute_req(compute_req),
         .compute_grant(compute_grant), .compute_bank(compute_bank),
         .compute_done(compute_done), .release_bank(release_bank)
     );
-    operand_buffer #(.LANE_COUNT(LANES), .K_DEPTH(K_DEPTH), .BUFFER_COUNT(2)) u_buffer (
+    operand_banks #(.LANE_COUNT(LANES), .K_DEPTH(K_DEPTH), .BUFFER_COUNT(2)) u_buffer (
         .clk(clk), .wen(buffer_wen), .wbank(buffer_wbank), .wlane(buffer_wlane),
         .waddr(buffer_waddr), .wdata(buffer_wdata), .ren(buffer_ren),
         .rbank(buffer_rbank), .r_k_index(buffer_raddr), .rdata(buffer_rdata)

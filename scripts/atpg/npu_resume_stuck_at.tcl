@@ -1,3 +1,5 @@
+source [file join [file dirname [info script]] .. technology.tcl]
+
 # Run from the result directory containing npu_model.image and checkpoint.*.
 set_commands exit
 set_messages -log tmax_resume.log -replace
@@ -11,4 +13,4 @@ set_patterns -external checkpoint.patterns
 run_simulation -store
 set_patterns -internal
 report_summaries
-source ../../../scripts/atpg/npu_generate_patterns.tcl
+source [file join $project_root scripts atpg npu_generate_patterns.tcl]

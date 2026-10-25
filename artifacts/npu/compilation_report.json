@@ -10,7 +10,7 @@
     "data_width": 8,
     "acc_width": 32,
     "activation_layout": "HWC",
-    "alignment_bytes": 4,
+    "alignment_bytes": 8,
     "ddr_base": 0,
     "ddr_capacity_bytes": 32768,
     "tile_count_width": 16
@@ -37,7 +37,7 @@
       "b_region": "conv1_weights",
       "c_region": "conv1_output",
       "a_stride_bytes": null,
-      "b_stride_bytes": 12,
+      "b_stride_bytes": 16,
       "c_stride_bytes": 8,
       "padding": "K row bytes only",
       "tile_counts_m_n_k": [
@@ -49,7 +49,7 @@
       "k_segments": [
         9
       ],
-      "weight_bytes": 96,
+      "weight_bytes": 128,
       "output_bytes": 6272
     },
     {
@@ -145,15 +145,15 @@
       "m": 784,
       "n": 8,
       "k": 9,
-      "a": 10848,
+      "a": 10880,
       "b": 0,
-      "c": 11632,
+      "c": 11664,
       "words10_12": [
         1835036,
         50528257,
         16843009
       ],
-      "param": 10656
+      "param": 10688
     },
     {
       "opcode": 3,
@@ -161,9 +161,9 @@
       "m": 28,
       "n": 28,
       "k": 8,
-      "a": 11632,
+      "a": 11664,
       "b": 0,
-      "c": 17904,
+      "c": 17936,
       "words10_12": [
         0,
         0,
@@ -177,15 +177,15 @@
       "m": 196,
       "n": 16,
       "k": 72,
-      "a": 17904,
-      "b": 96,
-      "c": 19472,
+      "a": 17936,
+      "b": 128,
+      "c": 19504,
       "words10_12": [
         917518,
         50528264,
         16843009
       ],
-      "param": 10704
+      "param": 10736
     },
     {
       "opcode": 3,
@@ -193,9 +193,9 @@
       "m": 14,
       "n": 14,
       "k": 16,
-      "a": 19472,
+      "a": 19504,
       "b": 0,
-      "c": 22608,
+      "c": 22640,
       "words10_12": [
         0,
         0,
@@ -209,15 +209,15 @@
       "m": 4,
       "n": 12,
       "k": 784,
-      "a": 22608,
-      "b": 1248,
-      "c": 25744,
+      "a": 22640,
+      "b": 1280,
+      "c": 25776,
       "words10_12": [
         784,
         784,
         48
       ],
-      "param": 10784
+      "param": 10816
     }
   ],
   "images": [
@@ -308,16 +308,41 @@
     "RTL requant boundary values",
     "DDR address/stride/padding/4KiB writes",
     "descriptor encode/decode",
-    "four DDR chains match original PTQ at every output"
+    "four DDR chains match original PTQ at every output",
+    "64-bit operand words: Conv K rows padded to 8-byte boundaries",
+    "VCS: four images match unchanged golden output bytes at every layer"
   ],
-  "rtl_execution_verified": false,
+  "rtl_execution_verified": true,
   "all_five_descriptors_static_compatible": true,
   "rtl_limitations": [
     "No M/N lane masking: compiler pads FC to 4x12 and allocates all output rows.",
-    "scratchpad swaps A/B lane and buffer parameters; V0 rejects rectangular/asymmetric configurations.",
-    "Existing cnn_pool TB embeds small fixed inputs and a two-descriptor check, not a generic BIN runner.",
     "C++ DPI memory is a simple-port backend; existing AXI top TB uses its own SV memory. Connect through existing AXI responder when loading these images."
   ],
   "required_rtl_changes_for_this_model": [],
-  "validation_limit": "Software functional checks and RTL source audit only; no Verilator run or RTL changes."
+  "validation_limit": "VCS checks all five layer outputs for the four stored DDR images against unchanged golden tensors; full-dataset software accuracy was not re-evaluated.",
+  "rtl_validation": {
+    "command": "make mnist-all",
+    "cycles_per_image": [
+      68542,
+      68542,
+      68542,
+      68542
+    ],
+    "date": "2026-10-21",
+    "golden_and_input_files_unchanged": 52,
+    "layers_per_image": [
+      "conv1",
+      "pool1",
+      "conv2",
+      "pool2",
+      "fc"
+    ],
+    "predictions": [
+      7,
+      2,
+      1,
+      0
+    ],
+    "simulator": "Synopsys VCS O-2018.09-SP2 Full64"
+  }
 }

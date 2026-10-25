@@ -1,14 +1,14 @@
+source [file join [file dirname [info script]] .. technology.tcl]
+
 # 从 build/dft/npu_precheck 目录运行，不插链、不修改 RTL。
-set stdcell_db "/home/ICer/eda/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/nldm/tcbn28hpcplusbwp40p140tt0p9v25c.db"
-set sram_db "/home/ICer/eda/pdk/tsmc28/Memory/macros/operand_32x64/ts5n28hpcpsvta32x64m2f_130a/NLDM/ts5n28hpcpsvta32x64m2f_130a_tt0p9v25c.db"
 set_app_var target_library [list $stdcell_db]
 set_app_var link_library [list "*" $stdcell_db $sram_db]
-read_ddc ../../dc/npu_hold_fixed_20261018/npu.ddc
+read_ddc [file join $build_root dc npu_hold npu.ddc]
 current_design npu_top
 link
 
 # 1. 读取 40 MHz 功能约束，复查同一份已修 hold 的网表。
-source ../../../constraints/npu.sdc
+source [file join $project_root constraints npu.sdc]
 file mkdir reports
 report_clock > reports/functional_clock.rpt
 report_area > reports/area.rpt

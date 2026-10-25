@@ -1,6 +1,7 @@
+source [file join [file dirname [info script]] .. technology.tcl]
+
 # Explicitly elaborate and link the vendor APG before synthesis.
 # Run from a new directory under build/mbist.
-set stdcell_db /home/ICer/eda/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/nldm/tcbn28hpcplusbwp40p140tt0p9v25c.db
 set mbist_lib /home/synopsys/syn/O-2018.06-SP1/libraries/syn/dft_mbist.sldb
 set dw_lib /home/synopsys/syn/O-2018.06-SP1/libraries/syn/dw_foundation.sldb
 set_app_var target_library [list $stdcell_db]
@@ -12,7 +13,7 @@ analyze -format vhdl /home/synopsys/syn/O-2018.06-SP1/dw/dw04/src/DW_mbist_apg.v
 analyze -format vhdl /home/synopsys/syn/O-2018.06-SP1/dw/dw04/src/DW_mbist_apg_rtl.vhd.e
 elaborate DW_mbist_apg -architecture rtl
 set apg_design [get_object_name [current_design]]
-analyze -format sverilog ../../../sim/mbist/dw_mbist_apg_default_probe.sv
+analyze -format sverilog [file join $project_root sim mbist dw_mbist_apg_default_probe.sv]
 elaborate dw_mbist_apg_default_probe
 current_design dw_mbist_apg_default_probe
 change_link u_pattern_generator $apg_design

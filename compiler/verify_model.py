@@ -4,7 +4,9 @@ import json
 import struct
 import sys
 from pathlib import Path
-from target import decode, require, digest, align, MODEL_HEADER, MODEL_MAGIC, validate_descriptor
+from target import (decode, require, digest, align, MODEL_HEADER, MODEL_MAGIC,
+                    validate_descriptor, unpack_pool_config, pool_output_shape,
+                    unpack_pool_padding)
 
 
 def rtl_requant(np, acc, multiplier, shift, relu=True):
@@ -16,6 +18,24 @@ def rtl_requant(np, acc, multiplier, shift, relu=True):
     product = values * multiplier
     scaled = product if not shift else np.where(product < 0, -1, 1) * ((np.abs(product) + half) >> shift)
     return np.clip(scaled, 0 if relu else -128, 127).astype(np.int8)
+
+
+def max_pool_valid(np, value, pool_config=0, pool_padding=0):
+    """HWC MaxPool reference; legacy name retained, optional padding is skipped."""
+    require(value.ndim == 3, 'Pooling reference requires an HWC tensor')
+    height, width, channels = value.shape
+    kh, kw, sh, sw = unpack_pool_config(pool_config)
+    pt, pl, _, _ = unpack_pool_padding(pool_padding)
+    oh, ow = pool_output_shape(height, width, pool_config, pool_padding)
+    result = np.empty((oh, ow, channels), dtype=value.dtype)
+    for y in range(oh):
+        for x in range(ow):
+            # Clip to real input coordinates. Padding is not a numerical zero:
+            # negative border windows must keep their negative maxima.
+            y0, x0 = y*sh-pt, x*sw-pl
+            result[y, x] = value[max(0, y0):min(height, y0+kh),
+                                 max(0, x0):min(width, x0+kw)].max(axis=(0, 1))
+    return result
 
 
 def execute(np, image, commands, plan):
@@ -34,14 +54,27 @@ def execute(np, image, commands, plan):
         require(0 <= addr and addr+len(data) <= len(mem), 'DDR write out of bounds')
         mem[addr:addr+len(data)] = data
 
-    require(len(commands) == 5*64, 'SmallCNN requires exactly five descriptors')
-    for idx, name in enumerate(('conv1', 'pool1', 'conv2', 'pool2', 'fc')):
+    require(len(commands) > 0 and len(commands) % 64 == 0, 'Invalid descriptor byte count')
+    descriptor_layers = plan.get('descriptor_layers',
+                                 [[name] for name in ('conv1', 'pool1', 'conv2', 'pool2', 'fc')])
+    require(len(descriptor_layers)*64 == len(commands), 'Descriptor/layer count mismatch')
+    require([name for names in descriptor_layers for name in names] ==
+            ['conv1', 'pool1', 'conv2', 'pool2', 'fc'], 'Unexpected SmallCNN logical layer order')
+    for idx, names in enumerate(descriptor_layers):
+        name = names[0]
         d = decode(commands[idx*64:(idx+1)*64])
         m, n, k = d['m'], d['n'], d['k']
         flags = d['flags']
+        fused_pool = bool(flags & 128)
+        require(not (d['opcode'] == 1 and fused_pool),
+                'SmallCNN interpreter does not support FC reshape/pool commands; '
+                'use the explicit FC-pool builder and a matching model reference')
+        require((len(names) == 2 and d['opcode'] == 2 and fused_pool) or
+                (len(names) == 1 and not fused_pool), 'Invalid fused descriptor layer mapping')
         if d['opcode'] == 3:
             x = tensor(d['a'], (m, n, k), 'i1')
-            z = x[:m//2*2, :n//2*2].reshape(m//2, 2, n//2, 2, k).max(axis=(1, 3))
+            require(d['words10_12'][1:] == [0, 0], 'Invalid pooling reserved words')
+            z = max_pool_valid(np, x, d.get('pool_config', 0), d['words10_12'][0])
             write(d['c'], z)
             traces[name] = z
             continue
@@ -54,7 +87,7 @@ def execute(np, image, commands, plan):
             oh, ow = (h+2*pt-kh)//sh+1, (width+2*pl-kw)//sw+1
             require(m == oh*ow and k == kh*kw*ci, 'Conv descriptor shape mismatch')
             x = tensor(d['a'], (h, width, ci), 'i1').astype(np.int64)
-            w = tensor(d['b'], (n, align(k)), 'i1')[:, :k].reshape(n, kh, kw, ci).astype(np.int64)
+            w = tensor(d['b'], (n, align(k,8)), 'i1')[:, :k].reshape(n, kh, kw, ci).astype(np.int64)
             x = np.pad(x, ((pt, pt), (pl, pl), (0, 0)))
             raw = np.zeros((oh, ow, n), dtype=np.int64)
             for y in range(kh):
@@ -78,6 +111,12 @@ def execute(np, image, commands, plan):
         else:
             z = adjusted.astype('<i4')
         traces[name] = z
+        if fused_pool:
+            require(flags & 2, 'Fused pooling requires INT8 Conv output')
+            pooled = max_pool_valid(np, z, d.get('pool_config', 0))
+            traces[names[1]] = pooled
+            write(d['c'], pooled)
+            continue
         for row, data in enumerate(z.reshape(m, n)):
             write(d['c'] + row*c_stride, data)
     # Pool2 may overwrite only the first FC row; zero rows must survive the chain.
@@ -104,14 +143,19 @@ def verify_files(np, out):
         require(region['address']>=previous_end and region['address']%4==0,'Overlapping/unaligned memory map')
         previous_end=region['address']+region['bytes']
     require(previous_end<=plan['ddr_capacity_bytes'],'Memory map exceeds DDR capacity')
-    for idx in range(5):
+    require(len(commands) > 0 and len(commands) % 64 == 0, 'Invalid command image length')
+    descriptor_count = len(commands)//64
+    require(plan['desc_count'] == descriptor_count == len(report['descriptors']),
+            'Descriptor count differs from memory map or report')
+    for idx in range(descriptor_count):
         d=decode(commands[idx*64:(idx+1)*64])
         validate_descriptor(d,report['hardware_config'])
         require(d==report['descriptors'][idx],'Serialized descriptor differs from compilation report')
     model = (out/'model.bin').read_bytes()
     magic, version, header_len, load_base, payload_len, desc_base, count = MODEL_HEADER.unpack_from(model)
     require(magic == MODEL_MAGIC and version == 1 and header_len == MODEL_HEADER.size, 'Bad model header')
-    require(load_base == 0 and payload_len == len(model)-header_len and count == 5, 'Bad model lengths')
+    require(load_base == 0 and payload_len == len(model)-header_len and count == descriptor_count,
+            'Bad model lengths')
     require(desc_base == plan['regions']['commands']['address'], 'Bad model descriptor base')
     template = model[header_len:]
     require(template[desc_base:desc_base+len(commands)] == commands, 'Model descriptor mismatch')
@@ -142,8 +186,11 @@ def compare_rtl_dump(np, out, dump, image_id):
     memory=Path(dump).read_bytes()
     require(len(memory)>=plan['image_bytes'],'DDR dump too short; dump starts at address zero')
     compared=[]
+    elided = set(plan.get('elided_intermediate_regions', []))
     for layer,region_name in [('conv1','conv1_output'),('pool1','pool1_output'),('conv2','conv2_output'),
                               ('pool2','pool2_output_fc_input'),('fc','fc_output')]:
+        if region_name in elided:
+            continue
         expected=(out/'golden'/image_id/f'{layer}.bin').read_bytes()
         base=plan['regions'][region_name]['address']
         actual=memory[base:base+len(expected)]

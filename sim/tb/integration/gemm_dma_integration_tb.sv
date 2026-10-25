@@ -227,7 +227,7 @@ module gemm_dma_integration_tb;
     // GEMM read path
     // ============================================================
 
-    gemm_read_path #(
+    operand_fetch #(
         .ADDR_WIDTH     (ADDR_WIDTH),
         .ELEM_WIDTH     (DATA_WIDTH),
         .MEM_WORD_WIDTH (MEM_WORD_WIDTH),
@@ -241,6 +241,8 @@ module gemm_dma_integration_tb;
         .A_BUFFER_COUNT (A_BUFFER_COUNT),
         .B_BUFFER_COUNT (B_BUFFER_COUNT)
     ) u_read_path (
+        .a_valid_lanes(32'(ROWS)), .b_valid_lanes(32'(COLS)),
+        .layer_start(1'b0),
         .conv_mode(1'b0), .conv_input_base(64'd0),
         .conv_input_h(32'd0), .conv_input_w(32'd0), .conv_input_c(32'd0),
         .conv_kernel_h(32'd0), .conv_kernel_w(32'd0), .conv_stride_h(32'd1), .conv_stride_w(32'd1),
@@ -324,7 +326,7 @@ module gemm_dma_integration_tb;
     // GEMM core
     // ============================================================
 
-    gemm_core #(
+    gemm_tile_compute #(
         .ROWS           (ROWS),
         .COLS           (COLS),
         .DATA_WIDTH     (DATA_WIDTH),
@@ -336,7 +338,7 @@ module gemm_dma_integration_tb;
         .DEPTH          (K_DEPTH),
 
         .MEM_WORD_WIDTH (MEM_WORD_WIDTH)
-    ) u_gemm_core (
+    ) u_gemm_tile_compute (
         .clk          (clk),
         .reset        (reset),
 

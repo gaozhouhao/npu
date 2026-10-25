@@ -78,20 +78,15 @@ module axi_write_master #(
     output logic                m_axi_bready
 );
 
-
     // ============================================================
     // Constants
     // ============================================================
 
-    localparam int unsigned DATA_BYTES =
-        DATA_WIDTH / 8;
+    localparam int unsigned DATA_BYTES = DATA_WIDTH / 8;
 
-    localparam int unsigned BYTE_SHIFT =
-        $clog2(DATA_BYTES);
+    localparam int unsigned BYTE_SHIFT = $clog2(DATA_BYTES);
 
-    localparam logic [ADDR_WIDTH-1:0] ALIGN_MASK =
-        ADDR_WIDTH'(DATA_BYTES - 1);
-
+    localparam logic [ADDR_WIDTH-1:0] ALIGN_MASK = ADDR_WIDTH'(DATA_BYTES - 1);
 
     // ============================================================
     // FSM
@@ -105,24 +100,21 @@ module axi_write_master #(
         ST_DONE
     } state_t;
 
-    state_t state;
-
+    state_t state_q;
 
     // ============================================================
-    // Complete request state
+    // Complete request state_q
     // ============================================================
 
     logic [ADDR_WIDTH-1:0] current_addr_q;
     logic [31:0]           remaining_beats_q;
 
-
     // ============================================================
-    // Current AXI burst state
+    // Current AXI burst state_q
     // ============================================================
 
     logic [8:0] burst_beats_q;
     logic [8:0] burst_sent_q;
-
 
     // ============================================================
     // 4KB boundary calculation
@@ -136,28 +128,19 @@ module axi_write_master #(
 
     logic [31:0] burst_beats_calc;
 
-
     always_comb begin
 
-        current_page_offset =
-            current_addr_q[11:0];
+        current_page_offset = current_addr_q[11:0];
 
-        bytes_to_4k =
-            13'd4096 -
-            {1'b0, current_page_offset};
+        bytes_to_4k = 13'd4096 - {1'b0, current_page_offset};
 
-        beats_to_4k =
-            32'(bytes_to_4k) >>
-            BYTE_SHIFT;
-
+        beats_to_4k = 32'(bytes_to_4k) >> BYTE_SHIFT;
 
         // --------------------------------------------------------
         // Start with the remaining request length.
         // --------------------------------------------------------
 
-        burst_beats_calc =
-            remaining_beats_q;
-
+        burst_beats_calc = remaining_beats_q;
 
         // --------------------------------------------------------
         // AXI4 maximum:
@@ -169,11 +152,9 @@ module axi_write_master #(
             32'd256
         ) begin
 
-            burst_beats_calc =
-                32'd256;
+            burst_beats_calc = 32'd256;
 
         end
-
 
         // --------------------------------------------------------
         // Burst may not cross a 4KB boundary.
@@ -184,66 +165,45 @@ module axi_write_master #(
             beats_to_4k
         ) begin
 
-            burst_beats_calc =
-                beats_to_4k;
+            burst_beats_calc = beats_to_4k;
 
         end
 
     end
 
-
     // ============================================================
     // Internal request interface
     // ============================================================
 
-    assign req_ready =
-        (state == ST_IDLE);
-
+    assign req_ready = (state_q == ST_IDLE);
 
     // ============================================================
     // AXI Write Address Channel
     // ============================================================
 
-    assign m_axi_awid =
-        '0;
+    assign m_axi_awid = '0;
 
-    assign m_axi_awaddr =
-        current_addr_q;
+    assign m_axi_awaddr = current_addr_q;
 
-    assign m_axi_awlen =
-        8'(
-            burst_beats_calc -
-            32'd1
-        );
+    assign m_axi_awlen = 8'( burst_beats_calc - 32'd1 );
 
-    assign m_axi_awsize =
-        3'(BYTE_SHIFT);
+    assign m_axi_awsize = 3'(BYTE_SHIFT);
 
-    assign m_axi_awburst =
-        2'b01;
+    assign m_axi_awburst = 2'b01;
 
-    assign m_axi_awvalid =
-        (state == ST_SEND_AW);
-
+    assign m_axi_awvalid = (state_q == ST_SEND_AW);
 
     // ============================================================
     // AXI Write Data Channel
     // ============================================================
 
-    assign m_axi_wdata =
-        data;
+    assign m_axi_wdata = data;
 
-    assign m_axi_wstrb =
-        {DATA_BYTES{1'b1}};
+    assign m_axi_wstrb = {DATA_BYTES{1'b1}};
 
-    assign m_axi_wvalid =
-        (state == ST_SEND_W) &&
-        data_valid;
+    assign m_axi_wvalid = (state_q == ST_SEND_W) && data_valid;
 
-    assign data_ready =
-        (state == ST_SEND_W) &&
-        m_axi_wready;
-
+    assign data_ready = (state_q == ST_SEND_W) && m_axi_wready;
 
     // ------------------------------------------------------------
     // burst_sent_q is zero based.
@@ -258,36 +218,21 @@ module axi_write_master #(
     // beat 3 -> WLAST
     // ------------------------------------------------------------
 
-    assign m_axi_wlast =
-        (state == ST_SEND_W) &&
-        (
-            burst_sent_q ==
-            (
-                burst_beats_q -
-                9'd1
-            )
-        );
-
+    assign m_axi_wlast = (state_q == ST_SEND_W) && ( burst_sent_q == ( burst_beats_q - 9'd1 ) );
 
     // ============================================================
     // AXI Write Response Channel
     // ============================================================
 
-    assign m_axi_bready =
-        (state == ST_WAIT_B);
-
+    assign m_axi_bready = (state_q == ST_WAIT_B);
 
     // ============================================================
     // Status
     // ============================================================
 
-    assign busy =
-        (state != ST_IDLE) &&
-        (state != ST_DONE);
+    assign busy = (state_q != ST_IDLE) && (state_q != ST_DONE);
 
-    assign done =
-        (state == ST_DONE);
-
+    assign done = (state_q == ST_DONE);
 
     // ============================================================
     // Main FSM
@@ -297,27 +242,21 @@ module axi_write_master #(
 
         if (reset) begin
 
-            state <=
-                ST_IDLE;
+            state_q <= ST_IDLE;
 
-            current_addr_q <=
-                '0;
+            current_addr_q <= '0;
 
-            remaining_beats_q <=
-                '0;
+            remaining_beats_q <= '0;
 
-            burst_beats_q <=
-                '0;
+            burst_beats_q <= '0;
 
-            burst_sent_q <=
-                '0;
+            burst_sent_q <= '0;
 
-            error <=
-                1'b0;
+            error <= 1'b0;
 
         end else begin
 
-            case (state)
+            case (state_q)
 
                 // =================================================
                 // IDLE
@@ -330,15 +269,11 @@ module axi_write_master #(
                         req_ready
                     ) begin
 
-                        error <=
-                            1'b0;
+                        error <= 1'b0;
 
-                        current_addr_q <=
-                            req_addr;
+                        current_addr_q <= req_addr;
 
-                        remaining_beats_q <=
-                            req_beats;
-
+                        remaining_beats_q <= req_beats;
 
                         // -----------------------------------------
                         // Empty request
@@ -349,9 +284,7 @@ module axi_write_master #(
                             32'd0
                         ) begin
 
-                            state <=
-                                ST_DONE;
-
+                            state_q <= ST_DONE;
 
                         // -----------------------------------------
                         // Address must be aligned to one AXI beat.
@@ -362,23 +295,19 @@ module axi_write_master #(
                             {ADDR_WIDTH{1'b0}}
                         ) begin
 
-                            error <=
-                                1'b1;
+                            error <= 1'b1;
 
-                            state <=
-                                ST_DONE;
+                            state_q <= ST_DONE;
 
                         end else begin
 
-                            state <=
-                                ST_SEND_AW;
+                            state_q <= ST_SEND_AW;
 
                         end
 
                     end
 
                 end
-
 
                 // =================================================
                 // SEND AW
@@ -395,21 +324,15 @@ module axi_write_master #(
                         // Lock current burst size.
                         // -----------------------------------------
 
-                        burst_beats_q <=
-                            9'(
-                                burst_beats_calc
-                            );
+                        burst_beats_q <= 9'( burst_beats_calc );
 
-                        burst_sent_q <=
-                            9'd0;
+                        burst_sent_q <= 9'd0;
 
-                        state <=
-                            ST_SEND_W;
+                        state_q <= ST_SEND_W;
 
                     end
 
                 end
-
 
                 // =================================================
                 // SEND W
@@ -434,21 +357,17 @@ module axi_write_master #(
                             // Last beat of this AXI burst.
                             // -------------------------------------
 
-                            state <=
-                                ST_WAIT_B;
+                            state_q <= ST_WAIT_B;
 
                         end else begin
 
-                            burst_sent_q <=
-                                burst_sent_q +
-                                9'd1;
+                            burst_sent_q <= burst_sent_q + 9'd1;
 
                         end
 
                     end
 
                 end
-
 
                 // =================================================
                 // WAIT B
@@ -470,11 +389,9 @@ module axi_write_master #(
                             (m_axi_bid != '0)
                         ) begin
 
-                            error <=
-                                1'b1;
+                            error <= 1'b1;
 
-                            state <=
-                                ST_DONE;
+                            state_q <= ST_DONE;
 
                         end else if (
                             remaining_beats_q ==
@@ -485,11 +402,9 @@ module axi_write_master #(
                             // Entire high-level request complete.
                             // -------------------------------------
 
-                            remaining_beats_q <=
-                                '0;
+                            remaining_beats_q <= '0;
 
-                            state <=
-                                ST_DONE;
+                            state_q <= ST_DONE;
 
                         end else begin
 
@@ -499,9 +414,7 @@ module axi_write_master #(
                             // Advance to next legal AXI burst.
                             // -------------------------------------
 
-                            remaining_beats_q <=
-                                remaining_beats_q -
-                                32'(burst_beats_q);
+                            remaining_beats_q <= remaining_beats_q - 32'(burst_beats_q);
 
                             current_addr_q <=
                                 current_addr_q +
@@ -512,15 +425,13 @@ module axi_write_master #(
                                     BYTE_SHIFT
                                 );
 
-                            state <=
-                                ST_SEND_AW;
+                            state_q <= ST_SEND_AW;
 
                         end
 
                     end
 
                 end
-
 
                 // =================================================
                 // DONE
@@ -530,11 +441,9 @@ module axi_write_master #(
 
                 ST_DONE: begin
 
-                    state <=
-                        ST_IDLE;
+                    state_q <= ST_IDLE;
 
                 end
-
 
                 // =================================================
                 // Recovery
@@ -542,78 +451,11 @@ module axi_write_master #(
 
                 default: begin
 
-                    state <=
-                        ST_IDLE;
+                    state_q <= ST_IDLE;
 
                 end
 
             endcase
-
-        end
-
-    end
-
-
-    // ============================================================
-    // Parameter checks
-    // ============================================================
-
-    initial begin
-
-        if (ADDR_WIDTH < 12) begin
-
-            $fatal(
-                1,
-                "ADDR_WIDTH must be >= 12"
-            );
-
-        end
-
-
-        if (DATA_WIDTH < 8) begin
-
-            $fatal(
-                1,
-                "DATA_WIDTH must be >= 8"
-            );
-
-        end
-
-
-        if (
-            (DATA_WIDTH % 8) !=
-            0
-        ) begin
-
-            $fatal(
-                1,
-                "DATA_WIDTH must be byte aligned"
-            );
-
-        end
-
-
-        if (
-            (
-                DATA_BYTES &
-                (DATA_BYTES - 1)
-            ) != 0
-        ) begin
-
-            $fatal(
-                1,
-                "DATA_BYTES must be a power of two"
-            );
-
-        end
-
-
-        if (ID_WIDTH < 1) begin
-
-            $fatal(
-                1,
-                "ID_WIDTH must be >= 1"
-            );
 
         end
 
