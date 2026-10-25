@@ -72,18 +72,13 @@ module axi_read_master #(
     // Constants
     // ============================================================
 
-    localparam int unsigned DATA_BYTES =
-        DATA_WIDTH / 8;
+    localparam int unsigned DATA_BYTES = DATA_WIDTH / 8;
 
-    localparam int unsigned AXI_SIZE_INT =
-        $clog2(DATA_BYTES);
+    localparam int unsigned AXI_SIZE_INT = $clog2(DATA_BYTES);
 
-    localparam logic [2:0] AXI_SIZE =
-        AXI_SIZE_INT[2:0];
+    localparam logic [2:0] AXI_SIZE = AXI_SIZE_INT[2:0];
 
-    localparam logic [ADDR_WIDTH-1:0] ALIGN_MASK =
-        ADDR_WIDTH'(DATA_BYTES - 1);
-
+    localparam logic [ADDR_WIDTH-1:0] ALIGN_MASK = ADDR_WIDTH'(DATA_BYTES - 1);
 
     // ============================================================
     // FSM
@@ -96,8 +91,7 @@ module axi_read_master #(
         ST_DONE
     } state_t;
 
-    state_t state;
-
+    state_t state_q;
 
     // ============================================================
     // Request tracking
@@ -106,7 +100,6 @@ module axi_read_master #(
     logic [ADDR_WIDTH-1:0] current_addr_q;
 
     logic [31:0] remaining_beats_q;
-
 
     // ============================================================
     // Current AXI burst tracking
@@ -117,7 +110,6 @@ module axi_read_master #(
     logic [8:0] burst_beats_q;
     logic [8:0] burst_remaining_q;
 
-
     // ============================================================
     // Burst calculation
     // ============================================================
@@ -126,7 +118,6 @@ module axi_read_master #(
     logic [31:0] burst_beats_calc;
 
     logic [ADDR_WIDTH-1:0] burst_addr_increment;
-
 
     always_comb begin
 
@@ -138,24 +129,17 @@ module axi_read_master #(
         // Because requests are full-beat aligned, this value is
         // always an integer number of beats.
 
-        beats_to_4k =
-            (
-                32'd4096 -
-                {20'd0, current_addr_q[11:0]}
-            ) >> AXI_SIZE_INT;
-
+        beats_to_4k = ( 32'd4096 - {20'd0, current_addr_q[11:0]} ) >> AXI_SIZE_INT;
 
         // Start with all remaining beats.
 
         burst_beats_calc = remaining_beats_q;
-
 
         // AXI4 allows at most 256 beats in one INCR burst.
 
         if (burst_beats_calc > 32'd256) begin
             burst_beats_calc = 32'd256;
         end
-
 
         // An AXI burst must not cross a 4KB boundary.
 
@@ -165,61 +149,44 @@ module axi_read_master #(
 
     end
 
-
     // ============================================================
     // Current burst address increment
     // ============================================================
 
     always_comb begin
 
-        burst_addr_increment =
-            (
-                {{(ADDR_WIDTH - 9){1'b0}}, burst_beats_q}
-                << AXI_SIZE_INT
-            );
+        burst_addr_increment = ( {{(ADDR_WIDTH - 9){1'b0}}, burst_beats_q} << AXI_SIZE_INT );
 
     end
-
 
     // ============================================================
     // Request interface
     // ============================================================
 
-    assign req_ready =
-        (state == ST_IDLE);
-
+    assign req_ready = (state_q == ST_IDLE);
 
     // ============================================================
     // Status
     // ============================================================
 
-    assign busy =
-        (state != ST_IDLE) &&
-        (state != ST_DONE);
+    assign busy = (state_q != ST_IDLE) && (state_q != ST_DONE);
 
-    assign done =
-        (state == ST_DONE);
-
+    assign done = (state_q == ST_DONE);
 
     // ============================================================
     // AXI read address channel
     // ============================================================
 
-    assign m_axi_arid =
-        '0;
+    assign m_axi_arid = '0;
 
-    assign m_axi_araddr =
-        current_addr_q;
+    assign m_axi_araddr = current_addr_q;
 
-    assign m_axi_arsize =
-        AXI_SIZE;
+    assign m_axi_arsize = AXI_SIZE;
 
     assign m_axi_arburst =
         2'b01; // INCR
 
-    assign m_axi_arvalid =
-        (state == ST_AR);
-
+    assign m_axi_arvalid = (state_q == ST_AR);
 
     // ARLEN = number of beats - 1.
     //
@@ -233,40 +200,27 @@ module axi_read_master #(
 
         end else begin
 
-            m_axi_arlen =
-                burst_beats_calc[7:0] - 8'd1;
+            m_axi_arlen = burst_beats_calc[7:0] - 8'd1;
 
         end
 
     end
 
-
     // ============================================================
     // AXI read data -> local data stream
     // ============================================================
 
-    assign data_valid =
-        (state == ST_R) &&
-        m_axi_rvalid;
+    assign data_valid = (state_q == ST_R) && m_axi_rvalid;
 
-    assign data =
-        m_axi_rdata;
-
+    assign data = m_axi_rdata;
 
     // Final beat of the complete request.
 
-    assign data_last =
-        (state == ST_R) &&
-        m_axi_rvalid &&
-        (remaining_beats_q == 32'd1);
-
+    assign data_last = (state_q == ST_R) && m_axi_rvalid && (remaining_beats_q == 32'd1);
 
     // Backpressure propagates directly to AXI.
 
-    assign m_axi_rready =
-        (state == ST_R) &&
-        data_ready;
-
+    assign m_axi_rready = (state_q == ST_R) && data_ready;
 
     // ============================================================
     // Main FSM
@@ -276,7 +230,7 @@ module axi_read_master #(
 
         if (reset) begin
 
-            state <= ST_IDLE;
+            state_q <= ST_IDLE;
 
             current_addr_q     <= '0;
             remaining_beats_q  <= '0;
@@ -288,7 +242,7 @@ module axi_read_master #(
 
         end else begin
 
-            case (state)
+            case (state_q)
 
                 // =================================================
                 // IDLE
@@ -302,7 +256,6 @@ module axi_read_master #(
 
                         error <= 1'b0;
 
-
                         // Zero-length request is treated as a
                         // legal no-op.
 
@@ -311,7 +264,7 @@ module axi_read_master #(
                             current_addr_q    <= req_addr;
                             remaining_beats_q <= '0;
 
-                            state <= ST_DONE;
+                            state_q <= ST_DONE;
 
                         end else if (
                             (req_addr & ALIGN_MASK) !=
@@ -329,21 +282,20 @@ module axi_read_master #(
 
                             error <= 1'b1;
 
-                            state <= ST_DONE;
+                            state_q <= ST_DONE;
 
                         end else begin
 
                             current_addr_q    <= req_addr;
                             remaining_beats_q <= req_beats;
 
-                            state <= ST_AR;
+                            state_q <= ST_AR;
 
                         end
 
                     end
 
                 end
-
 
                 // =================================================
                 // AXI ADDRESS
@@ -356,18 +308,15 @@ module axi_read_master #(
 
                     if (m_axi_arready) begin
 
-                        burst_beats_q <=
-                            burst_beats_calc[8:0];
+                        burst_beats_q <= burst_beats_calc[8:0];
 
-                        burst_remaining_q <=
-                            burst_beats_calc[8:0];
+                        burst_remaining_q <= burst_beats_calc[8:0];
 
-                        state <= ST_R;
+                        state_q <= ST_R;
 
                     end
 
                 end
-
 
                 // =================================================
                 // AXI READ DATA
@@ -388,7 +337,6 @@ module axi_read_master #(
                             error <= 1'b1;
                         end
 
-
                         // -----------------------------------------
                         // This implementation uses one fixed AXI ID.
                         // -----------------------------------------
@@ -396,7 +344,6 @@ module axi_read_master #(
                         if (m_axi_rid != {ID_WIDTH{1'b0}}) begin
                             error <= 1'b1;
                         end
-
 
                         // -----------------------------------------
                         // Check RLAST.
@@ -418,15 +365,12 @@ module axi_read_master #(
 
                         end
 
-
                         // -----------------------------------------
                         // Consume one beat from the complete
                         // request.
                         // -----------------------------------------
 
-                        remaining_beats_q <=
-                            remaining_beats_q - 32'd1;
-
+                        remaining_beats_q <= remaining_beats_q - 32'd1;
 
                         // -----------------------------------------
                         // Last beat of current AXI burst.
@@ -438,39 +382,34 @@ module axi_read_master #(
 
                             burst_remaining_q <= '0;
 
-
                             // Last beat of the entire DMA request.
 
                             if (
                                 remaining_beats_q == 32'd1
                             ) begin
 
-                                state <= ST_DONE;
+                                state_q <= ST_DONE;
 
                             end else begin
 
                                 // Move to the start address of
                                 // the next burst.
 
-                                current_addr_q <=
-                                    current_addr_q +
-                                    burst_addr_increment;
+                                current_addr_q <= current_addr_q + burst_addr_increment;
 
-                                state <= ST_AR;
+                                state_q <= ST_AR;
 
                             end
 
                         end else begin
 
-                            burst_remaining_q <=
-                                burst_remaining_q - 9'd1;
+                            burst_remaining_q <= burst_remaining_q - 9'd1;
 
                         end
 
                     end
 
                 end
-
 
                 // =================================================
                 // DONE
@@ -480,10 +419,9 @@ module axi_read_master #(
 
                 ST_DONE: begin
 
-                    state <= ST_IDLE;
+                    state_q <= ST_IDLE;
 
                 end
-
 
                 // =================================================
                 // Recovery
@@ -491,73 +429,12 @@ module axi_read_master #(
 
                 default: begin
 
-                    state <= ST_IDLE;
+                    state_q <= ST_IDLE;
 
                 end
 
             endcase
 
-        end
-
-    end
-
-
-    // ============================================================
-    // Parameter checks
-    // ============================================================
-
-    initial begin
-
-        if (ADDR_WIDTH < 12) begin
-            $fatal(
-                1,
-                "ADDR_WIDTH must be >= 12"
-            );
-        end
-
-        if (DATA_WIDTH < 8) begin
-            $fatal(
-                1,
-                "DATA_WIDTH must be >= 8"
-            );
-        end
-
-        if ((DATA_WIDTH % 8) != 0) begin
-            $fatal(
-                1,
-                "DATA_WIDTH must be byte aligned"
-            );
-        end
-
-        if (
-            (DATA_BYTES &
-            (DATA_BYTES - 1)) != 0
-        ) begin
-            $fatal(
-                1,
-                "DATA_BYTES must be a power of two"
-            );
-        end
-
-        if (DATA_BYTES > 4096) begin
-            $fatal(
-                1,
-                "DATA_BYTES must be <= 4096"
-            );
-        end
-
-        if (AXI_SIZE_INT > 7) begin
-            $fatal(
-                1,
-                "AXI transfer size exceeds ARSIZE encoding"
-            );
-        end
-
-        if (ID_WIDTH < 1) begin
-            $fatal(
-                1,
-                "ID_WIDTH must be >= 1"
-            );
         end
 
     end

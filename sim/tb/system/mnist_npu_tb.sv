@@ -4,7 +4,7 @@ module mnist_npu_tb;
     localparam int unsigned DDR_IMAGE_BYTES = 26304;
     localparam int unsigned MAX_GOLD_BYTES = 6272;
     localparam int unsigned DESC_BASE = 25984;
-    localparam int unsigned FC_OUTPUT_BASE = 25744;
+    localparam int unsigned FC_OUTPUT_BASE = 25776;
     localparam int unsigned MAX_CYCLES = 10_000_000;
 
     logic clk;
@@ -32,7 +32,8 @@ module mnist_npu_tb;
     logic wvalid, wready, wlast;
     logic bvalid, bready;
 
-    logic [31:0] rdata, wdata;
+    logic [63:0] rdata;
+    logic [31:0] wdata;
     logic [3:0] wstrb;
 
     // ============================================================
@@ -64,6 +65,18 @@ module mnist_npu_tb;
     logic [31:0] write_transactions_q;
 
     string data_root;
+    int fuse_conv_pool = 0;
+    logic [15:0] run_desc_count = 16'd5;
+
+    // Only the in-memory descriptors are rewritten for this optional mode.
+    // The checked-in deployment image and golden tensors remain unchanged.
+    function automatic bit overlaps_conv_intermediate(
+        input logic [63:0] address,
+        input logic [63:0] bytes
+    );
+        return ((address < 64'd17936) && (address + bytes > 64'd11664)) ||
+               ((address < 64'd22640) && (address + bytes > 64'd19504));
+    endfunction
 
     // ============================================================
     // Performance Monitor V1
@@ -138,7 +151,7 @@ module mnist_npu_tb;
         .start(start),
 
         .desc_base(64'(DESC_BASE)),
-        .desc_count(16'd5),
+        .desc_count(run_desc_count),
 
         .busy(busy),
         .done(done),
@@ -216,7 +229,7 @@ module mnist_npu_tb;
     // ============================================================
     // Actual PE MAC Events
     //
-    // pe.sv:
+    // gemm_pe.sv:
     //   if (a_valid_in && b_valid_in) accumulator += product
     //
     // Count the same condition at the input of each PE.
@@ -230,20 +243,16 @@ module mnist_npu_tb;
             for (gc = 0; gc < 4; gc++) begin : gen_pe_col
 
                 assign pe_fire[gr*4 + gc] =
-                    u_dut.u_gemm_executor
-                         .u_gemm_core
-                         .u_matrix_engine
-                         .u_array
-                         .a_valid_wire[gr][gc] &&
+                    u_dut.u_npu_gemm_engine
+                         .u_gemm_tile_compute
+                         .u_gemm_array.array_a_valid[gr][gc] &&
 
-                    u_dut.u_gemm_executor
-                         .u_gemm_core
-                         .u_matrix_engine
-                         .u_array
-                         .b_valid_wire[gr][gc] &&
+                    u_dut.u_npu_gemm_engine
+                         .u_gemm_tile_compute
+                         .u_gemm_array.array_b_valid[gr][gc] &&
 
-                    !u_dut.u_gemm_executor
-                          .u_gemm_core.clear;
+                    !u_dut.u_npu_gemm_engine
+                          .u_gemm_tile_compute.matrix_clear;
 
             end
         end
@@ -275,11 +284,11 @@ module mnist_npu_tb;
         .layer_done(u_dut.frontend_exec_done),
 
         .matrix_start(
-            u_dut.u_gemm_executor.scheduler_matrix_start
+            u_dut.u_npu_gemm_engine.scheduler_matrix_start
         ),
 
         .matrix_done(
-            u_dut.u_gemm_executor.core_done
+            u_dut.u_npu_gemm_engine.core_done
         ),
 
         .pe_mac_fires(pe_mac_fires),
@@ -287,23 +296,23 @@ module mnist_npu_tb;
         .executor_busy(u_dut.executor_busy),
 
         .read_path_busy(
-            u_dut.u_gemm_executor.read_path_busy
+            u_dut.u_npu_gemm_engine.read_path_busy
         ),
 
         .a_compute_req(
-            u_dut.u_gemm_executor.scheduler_a_compute_req
+            u_dut.u_npu_gemm_engine.scheduler_a_compute_req
         ),
 
         .a_compute_grant(
-            u_dut.u_gemm_executor.scheduler_a_compute_grant
+            u_dut.u_npu_gemm_engine.scheduler_a_compute_grant
         ),
 
         .b_compute_req(
-            u_dut.u_gemm_executor.scheduler_b_compute_req
+            u_dut.u_npu_gemm_engine.scheduler_b_compute_req
         ),
 
         .b_compute_grant(
-            u_dut.u_gemm_executor.scheduler_b_compute_grant
+            u_dut.u_npu_gemm_engine.scheduler_b_compute_grant
         ),
 
         .matrix_cycles(perf2_matrix_cycles),
@@ -397,7 +406,7 @@ module mnist_npu_tb;
     assign rresp = 2'b00;
     assign rlast = (rd_left_q == 9'd1);
 
-    assign rdata = mem[int'(rd_addr_q >> 2)];
+    assign rdata = {mem[int'(rd_addr_q >> 2) + 1], mem[int'(rd_addr_q >> 2)]};
 
     always_ff @(posedge clk) begin
         if (reset) begin
@@ -413,12 +422,16 @@ module mnist_npu_tb;
 
             if (arvalid && arready) begin
 
+                if (fuse_conv_pool && overlaps_conv_intermediate(
+                    araddr, (64'(arlen)+64'd1)*64'd8))
+                    $fatal(1, "Fused MNIST read a Conv intermediate addr=0x%h", araddr);
+
                 if (
-                    arsize != 3'd2 ||
+                    arsize != 3'd3 ||
                     arburst != 2'b01 ||
-                    araddr[1:0] != 2'b00 ||
-                    (araddr >> 2) + 64'({1'b0, arlen})
-                        >= 64'(MEM_WORDS)
+                    araddr[2:0] != 3'b000 ||
+                    araddr + (64'({1'b0, arlen}) + 64'd1) * 64'd8
+                        > 64'(MEM_WORDS * 4)
                 ) begin
                     $fatal(
                         1,
@@ -443,7 +456,7 @@ module mnist_npu_tb;
                 if (rlast) begin
                     rd_active_q <= 1'b0;
                 end else begin
-                    rd_addr_q <= rd_addr_q + 64'd4;
+                    rd_addr_q <= rd_addr_q + 64'd8;
                     rd_left_q <= rd_left_q - 9'd1;
                 end
             end
@@ -478,6 +491,10 @@ module mnist_npu_tb;
         end else begin
 
             if (awvalid && awready) begin
+
+                if (fuse_conv_pool && overlaps_conv_intermediate(
+                    awaddr, (64'(awlen)+64'd1)*64'd4))
+                    $fatal(1, "Fused MNIST wrote a Conv intermediate addr=0x%h", awaddr);
 
                 if (
                     awsize != 3'd2 ||
@@ -595,6 +612,29 @@ module mnist_npu_tb;
             );
         end
 
+        run_desc_count = 16'd5;
+        if (fuse_conv_pool) begin
+            // Conv1 writes directly to Pool1's original destination.
+            init_mem[DESC_BASE/4] |= 32'h0000_8000;
+            init_mem[DESC_BASE/4+8] = init_mem[DESC_BASE/4+24];
+            init_mem[DESC_BASE/4+9] = init_mem[DESC_BASE/4+25];
+            // Move Conv2 over the removed Pool1 descriptor, retaining all
+            // original convolution geometry, parameters and input addresses.
+            for (int word_idx=0; word_idx<16; word_idx++)
+                init_mem[DESC_BASE/4+16+word_idx] =
+                    init_mem[DESC_BASE/4+32+word_idx];
+            init_mem[DESC_BASE/4+16] |= 32'h0000_8000;
+            init_mem[DESC_BASE/4+24] = init_mem[DESC_BASE/4+56];
+            init_mem[DESC_BASE/4+25] = init_mem[DESC_BASE/4+57];
+            // The FC descriptor is unchanged; its zero-padded input rows are
+            // still provided by the original deployment image.
+            for (int word_idx=0; word_idx<16; word_idx++)
+                init_mem[DESC_BASE/4+32+word_idx] =
+                    init_mem[DESC_BASE/4+64+word_idx];
+            run_desc_count = 16'd3;
+            $display("MNIST fusion enabled: Conv1+Pool1, Conv2+Pool2, FC (3 descriptors)");
+        end
+
         $display(
             "Loaded %s (%0d bytes), desc_base=0x%h",
             image_path,
@@ -676,6 +716,18 @@ module mnist_npu_tb;
             layer_name,
             byte_count
         );
+    endtask
+
+    task automatic check_untouched(
+        input int unsigned base_addr,
+        input int unsigned byte_count
+    );
+        for (int i=0; i<int'(byte_count); i++) begin
+            if (mem[(base_addr+i)>>2][8*((base_addr+i)%4)+:8] !==
+                init_mem[(base_addr+i)>>2][8*((base_addr+i)%4)+:8])
+                $fatal(1, "Fused intermediate changed addr=0x%h", base_addr+i);
+        end
+        $display("  bypassed Conv intermediate unchanged (%0d bytes)", byte_count);
     endtask
 
     // ============================================================
@@ -810,10 +862,18 @@ module mnist_npu_tb;
         // Golden Model Validation
         // ========================================================
 
-        check_layer(image_index, "conv1", 11632, 6272);
-        check_layer(image_index, "pool1", 17904, 1568);
-        check_layer(image_index, "conv2", 19472, 3136);
-        check_layer(image_index, "pool2", 22608, 784);
+        if (fuse_conv_pool) begin
+            check_untouched(11664, 6272);
+            check_untouched(19504, 3136);
+            if (perf_written_bytes != 64'd2544)
+                $fatal(1, "Fused MNIST expected 2544 output bytes, got %0d", perf_written_bytes);
+        end
+        if (!fuse_conv_pool)
+            check_layer(image_index, "conv1", 11664, 6272);
+        check_layer(image_index, "pool1", 17936, 1568);
+        if (!fuse_conv_pool)
+            check_layer(image_index, "conv2", 19504, 3136);
+        check_layer(image_index, "pool2", 22640, 784);
         check_layer(image_index, "fc", FC_OUTPUT_BASE, 192);
 
         // ========================================================
@@ -876,6 +936,9 @@ module mnist_npu_tb;
 
         if (!$value$plusargs("NPU_DATA_ROOT=%s", data_root))
             data_root = "artifacts/npu";
+        void'($value$plusargs("FUSE_CONV_POOL=%d", fuse_conv_pool));
+        if (fuse_conv_pool != 0 && fuse_conv_pool != 1)
+            $fatal(1, "+FUSE_CONV_POOL must be 0 or 1");
 
         if ($value$plusargs("IMAGE=%d", only_image)) begin
 

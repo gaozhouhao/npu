@@ -36,3 +36,11 @@ __pycache__/
 # One-time integration packages and source snapshots
 /resnet8_hw_v*.zip
 *.sv.before_*
+
+# Local VCS / Verdi / synthesis session outputs
+/default.svf
+/novas.conf
+/novas.rc
+/ucli.key
+/verdiLog/
+/vfastLog/

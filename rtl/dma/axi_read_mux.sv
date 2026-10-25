@@ -64,7 +64,6 @@ module axi_read_mux #(
     output logic                  m_axi_rready
 );
 
-
     // ============================================================
     // Current owner
     //
@@ -80,7 +79,6 @@ module axi_read_mux #(
 
     owner_t owner_q;
 
-
     // ============================================================
     // Combinational routing
     //
@@ -95,74 +93,51 @@ module axi_read_mux #(
         // Default upstream AR responses
         // --------------------------------------------------------
 
-        desc_arready =
-            1'b0;
+        desc_arready = 1'b0;
 
-        gemm_arready =
-            1'b0;
-
+        gemm_arready = 1'b0;
 
         // --------------------------------------------------------
         // Default upstream R responses
         // --------------------------------------------------------
 
-        desc_rid =
-            '0;
+        desc_rid = '0;
 
-        desc_rdata =
-            '0;
+        desc_rdata = '0;
 
-        desc_rresp =
-            2'b00;
+        desc_rresp = 2'b00;
 
-        desc_rlast =
-            1'b0;
+        desc_rlast = 1'b0;
 
-        desc_rvalid =
-            1'b0;
+        desc_rvalid = 1'b0;
 
+        gemm_rid = '0;
 
-        gemm_rid =
-            '0;
+        gemm_rdata = '0;
 
-        gemm_rdata =
-            '0;
+        gemm_rresp = 2'b00;
 
-        gemm_rresp =
-            2'b00;
+        gemm_rlast = 1'b0;
 
-        gemm_rlast =
-            1'b0;
-
-        gemm_rvalid =
-            1'b0;
-
+        gemm_rvalid = 1'b0;
 
         // --------------------------------------------------------
         // Default external AXI outputs
         // --------------------------------------------------------
 
-        m_axi_arid =
-            '0;
+        m_axi_arid = '0;
 
-        m_axi_araddr =
-            '0;
+        m_axi_araddr = '0;
 
-        m_axi_arlen =
-            '0;
+        m_axi_arlen = '0;
 
-        m_axi_arsize =
-            '0;
+        m_axi_arsize = '0;
 
-        m_axi_arburst =
-            '0;
+        m_axi_arburst = '0;
 
-        m_axi_arvalid =
-            1'b0;
+        m_axi_arvalid = 1'b0;
 
-        m_axi_rready =
-            1'b0;
-
+        m_axi_rready = 1'b0;
 
         case (owner_q)
 
@@ -178,54 +153,39 @@ module axi_read_mux #(
 
                 if (desc_arvalid) begin
 
-                    m_axi_arid =
-                        desc_arid;
+                    m_axi_arid = desc_arid;
 
-                    m_axi_araddr =
-                        desc_araddr;
+                    m_axi_araddr = desc_araddr;
 
-                    m_axi_arlen =
-                        desc_arlen;
+                    m_axi_arlen = desc_arlen;
 
-                    m_axi_arsize =
-                        desc_arsize;
+                    m_axi_arsize = desc_arsize;
 
-                    m_axi_arburst =
-                        desc_arburst;
+                    m_axi_arburst = desc_arburst;
 
-                    m_axi_arvalid =
-                        desc_arvalid;
+                    m_axi_arvalid = desc_arvalid;
 
-                    desc_arready =
-                        m_axi_arready;
+                    desc_arready = m_axi_arready;
 
                 end else if (gemm_arvalid) begin
 
-                    m_axi_arid =
-                        gemm_arid;
+                    m_axi_arid = gemm_arid;
 
-                    m_axi_araddr =
-                        gemm_araddr;
+                    m_axi_araddr = gemm_araddr;
 
-                    m_axi_arlen =
-                        gemm_arlen;
+                    m_axi_arlen = gemm_arlen;
 
-                    m_axi_arsize =
-                        gemm_arsize;
+                    m_axi_arsize = gemm_arsize;
 
-                    m_axi_arburst =
-                        gemm_arburst;
+                    m_axi_arburst = gemm_arburst;
 
-                    m_axi_arvalid =
-                        gemm_arvalid;
+                    m_axi_arvalid = gemm_arvalid;
 
-                    gemm_arready =
-                        m_axi_arready;
+                    gemm_arready = m_axi_arready;
 
                 end
 
             end
-
 
             // ====================================================
             // Descriptor owns R channel
@@ -233,26 +193,19 @@ module axi_read_mux #(
 
             OWNER_DESC: begin
 
-                desc_rid =
-                    m_axi_rid;
+                desc_rid = m_axi_rid;
 
-                desc_rdata =
-                    m_axi_rdata;
+                desc_rdata = m_axi_rdata;
 
-                desc_rresp =
-                    m_axi_rresp;
+                desc_rresp = m_axi_rresp;
 
-                desc_rlast =
-                    m_axi_rlast;
+                desc_rlast = m_axi_rlast;
 
-                desc_rvalid =
-                    m_axi_rvalid;
+                desc_rvalid = m_axi_rvalid;
 
-                m_axi_rready =
-                    desc_rready;
+                m_axi_rready = desc_rready;
 
             end
-
 
             // ====================================================
             // GEMM owns R channel
@@ -260,26 +213,19 @@ module axi_read_mux #(
 
             OWNER_GEMM: begin
 
-                gemm_rid =
-                    m_axi_rid;
+                gemm_rid = m_axi_rid;
 
-                gemm_rdata =
-                    m_axi_rdata;
+                gemm_rdata = m_axi_rdata;
 
-                gemm_rresp =
-                    m_axi_rresp;
+                gemm_rresp = m_axi_rresp;
 
-                gemm_rlast =
-                    m_axi_rlast;
+                gemm_rlast = m_axi_rlast;
 
-                gemm_rvalid =
-                    m_axi_rvalid;
+                gemm_rvalid = m_axi_rvalid;
 
-                m_axi_rready =
-                    gemm_rready;
+                m_axi_rready = gemm_rready;
 
             end
-
 
             default: begin
             end
@@ -287,7 +233,6 @@ module axi_read_mux #(
         endcase
 
     end
-
 
     // ============================================================
     // Owner tracking
@@ -297,8 +242,7 @@ module axi_read_mux #(
 
         if (reset) begin
 
-            owner_q <=
-                OWNER_NONE;
+            owner_q <= OWNER_NONE;
 
         end else begin
 
@@ -317,20 +261,17 @@ module axi_read_mux #(
 
                         if (desc_arvalid) begin
 
-                            owner_q <=
-                                OWNER_DESC;
+                            owner_q <= OWNER_DESC;
 
                         end else begin
 
-                            owner_q <=
-                                OWNER_GEMM;
+                            owner_q <= OWNER_GEMM;
 
                         end
 
                     end
 
                 end
-
 
                 // ------------------------------------------------
                 // Release descriptor ownership only on RLAST.
@@ -344,13 +285,11 @@ module axi_read_mux #(
                         m_axi_rlast
                     ) begin
 
-                        owner_q <=
-                            OWNER_NONE;
+                        owner_q <= OWNER_NONE;
 
                     end
 
                 end
-
 
                 // ------------------------------------------------
                 // Release GEMM ownership only on RLAST.
@@ -364,60 +303,20 @@ module axi_read_mux #(
                         m_axi_rlast
                     ) begin
 
-                        owner_q <=
-                            OWNER_NONE;
+                        owner_q <= OWNER_NONE;
 
                     end
 
                 end
 
-
                 default: begin
 
-                    owner_q <=
-                        OWNER_NONE;
+                    owner_q <= OWNER_NONE;
 
                 end
 
             endcase
 
-        end
-
-    end
-
-
-    // ============================================================
-    // Parameter checks
-    // ============================================================
-
-    initial begin
-
-        if (ADDR_WIDTH < 12) begin
-            $fatal(
-                1,
-                "ADDR_WIDTH must be >= 12"
-            );
-        end
-
-        if (DATA_WIDTH < 8) begin
-            $fatal(
-                1,
-                "DATA_WIDTH must be >= 8"
-            );
-        end
-
-        if ((DATA_WIDTH % 8) != 0) begin
-            $fatal(
-                1,
-                "DATA_WIDTH must be byte aligned"
-            );
-        end
-
-        if (ID_WIDTH < 1) begin
-            $fatal(
-                1,
-                "ID_WIDTH must be >= 1"
-            );
         end
 
     end

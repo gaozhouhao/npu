@@ -74,7 +74,7 @@ def tensor_shape(graph, tensor_id):
 
 
 def round_away(numerator, shift):
-    """Same rounding arithmetic as postprocess_unit.sv."""
+    """Same rounding arithmetic as gemm_postprocess.sv."""
     denominator = 1 << shift
     magnitude = abs(numerator)
 

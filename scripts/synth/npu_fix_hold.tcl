@@ -1,9 +1,9 @@
+source [file join [file dirname [info script]] .. technology.tcl]
+
 # 从 build/dc/npu_hold 运行，读取原始已映射设计。
-set stdcell_db "/home/ICer/eda/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/nldm/tcbn28hpcplusbwp40p140tt0p9v25c.db"
-set sram_db "/home/ICer/eda/pdk/tsmc28/Memory/macros/operand_32x64/ts5n28hpcpsvta32x64m2f_130a/NLDM/ts5n28hpcpsvta32x64m2f_130a_tt0p9v25c.db"
 set_app_var target_library [list $stdcell_db]
 set_app_var link_library [list "*" $stdcell_db $sram_db]
-read_ddc ../npu_20261018_133300/npu.ddc
+read_ddc [file join $build_root dc npu npu.ddc]
 current_design npu_top
 link
 

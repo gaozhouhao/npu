@@ -1,10 +1,10 @@
-# 从 build/dft/npu_scan_20261018 目录运行。
+source [file join [file dirname [info script]] .. technology.tcl]
+
+# 从 build/dft/npu_scan 目录运行。
 # 本脚本只插入普通扫描链，功能/shift 时序优化放到后续实验。
-set stdcell_db "/home/ICer/eda/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/nldm/tcbn28hpcplusbwp40p140tt0p9v25c.db"
-set sram_db "/home/ICer/eda/pdk/tsmc28/Memory/macros/operand_32x64/ts5n28hpcpsvta32x64m2f_130a/NLDM/ts5n28hpcpsvta32x64m2f_130a_tt0p9v25c.db"
 set_app_var target_library [list $stdcell_db]
 set_app_var link_library [list "*" $stdcell_db $sram_db]
-read_ddc ../npu_precheck_40mhz_20261018/npu_40mhz.ddc
+read_ddc [file join $build_root dft npu_precheck npu_40mhz.ddc]
 current_design npu_top
 link
 file mkdir reports

@@ -5,18 +5,18 @@
   "regions": {
     "conv1_weights": {
       "address": 0,
-      "bytes": 96,
+      "bytes": 128,
       "shape": [
         8,
-        12
+        16
       ],
       "dtype": "i1",
       "layout": "B_transpose[N][aligned_K]",
       "logical_k": 9,
-      "row_stride_bytes": 12
+      "row_stride_bytes": 16
     },
     "conv2_weights": {
-      "address": 96,
+      "address": 128,
       "bytes": 1152,
       "shape": [
         16,
@@ -28,7 +28,7 @@
       "row_stride_bytes": 72
     },
     "fc_weights": {
-      "address": 1248,
+      "address": 1280,
       "bytes": 9408,
       "shape": [
         12,
@@ -40,7 +40,7 @@
       "row_stride_bytes": 784
     },
     "conv1_params": {
-      "address": 10656,
+      "address": 10688,
       "bytes": 48,
       "shape": [
         12
@@ -49,7 +49,7 @@
       "layout": "header[4] + signed_bias[N]"
     },
     "conv2_params": {
-      "address": 10704,
+      "address": 10736,
       "bytes": 80,
       "shape": [
         20
@@ -58,7 +58,7 @@
       "layout": "header[4] + signed_bias[N]"
     },
     "fc_params": {
-      "address": 10784,
+      "address": 10816,
       "bytes": 64,
       "shape": [
         16
@@ -67,7 +67,7 @@
       "layout": "header[4] + signed_bias[N]"
     },
     "input": {
-      "address": 10848,
+      "address": 10880,
       "bytes": 784,
       "shape": [
         28,
@@ -78,7 +78,7 @@
       "layout": "HWC"
     },
     "conv1_output": {
-      "address": 11632,
+      "address": 11664,
       "bytes": 6272,
       "shape": [
         28,
@@ -89,7 +89,7 @@
       "layout": "HWC"
     },
     "pool1_output": {
-      "address": 17904,
+      "address": 17936,
       "bytes": 1568,
       "shape": [
         14,
@@ -100,7 +100,7 @@
       "layout": "HWC"
     },
     "conv2_output": {
-      "address": 19472,
+      "address": 19504,
       "bytes": 3136,
       "shape": [
         14,
@@ -111,7 +111,7 @@
       "layout": "HWC"
     },
     "pool2_output_fc_input": {
-      "address": 22608,
+      "address": 22640,
       "bytes": 3136,
       "shape": [
         4,
@@ -128,7 +128,7 @@
       "padding_bytes": 2352
     },
     "fc_output": {
-      "address": 25744,
+      "address": 25776,
       "bytes": 192,
       "shape": [
         4,
@@ -151,10 +151,10 @@
   "bundles": {
     "weights": {
       "address": 0,
-      "bytes": 10656
+      "bytes": 10688
     },
     "params": {
-      "address": 10656,
+      "address": 10688,
       "bytes": 192
     }
   },

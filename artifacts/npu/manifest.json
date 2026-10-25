@@ -3,7 +3,7 @@
   "files": {
     "commands.bin": {
       "bytes": 320,
-      "sha256": "56050e74f00d1398f5f05c9ddf0985b2ff671f05954f0583a71502ccda918981",
+      "sha256": "961871d9acc988d21143026b4f42c4cf3b5be183d807848614498cec790e8b97",
       "dtype": "<u4",
       "byte_order": "little",
       "layout": "descriptor words",
@@ -14,13 +14,13 @@
       "load_address": 25984
     },
     "weights.bin": {
-      "bytes": 10656,
-      "sha256": "2273e8f7e685bad10025b1ac68cbbfb2f9310631d5a79ad7949db2e98b760f53",
+      "bytes": 10688,
+      "sha256": "d364ee577a4b4c9da932eb89411308847a60f0ab8d9c1d436a04fc33be914595",
       "dtype": "|u1",
       "byte_order": "little",
       "layout": "see memory_map regions",
       "shape": [
-        10656
+        10688
       ],
       "load_address": 0
     },
@@ -33,11 +33,11 @@
       "shape": [
         192
       ],
-      "load_address": 10656
+      "load_address": 10688
     },
     "model.bin": {
       "bytes": 26352,
-      "sha256": "f73efdcbe85ae1998c5f2b58de4301c7e3ddcf2fc50bb663124b018477a88828",
+      "sha256": "1269a532c877638a153694c588bbf55266b555277f057504a7575970b53da1e0",
       "dtype": "|u1",
       "byte_order": "little",
       "layout": "48-byte NPUMV0 header + zero-input DDR template; parse header before loading"
@@ -53,11 +53,11 @@
         28,
         1
       ],
-      "load_address": 10848
+      "load_address": 10880
     },
     "ddr/image_0000.bin": {
       "bytes": 26304,
-      "sha256": "751bf36221a49f200b0de80ede397649a2cd73a453a101a0b4a1afc8d4511c95",
+      "sha256": "2a47f9328f27166dadd80e1320676743268ba93eda2e265686e7a75151a60c79",
       "dtype": "|u1",
       "byte_order": "little",
       "layout": "bytes",
@@ -101,7 +101,7 @@
         28,
         8
       ],
-      "load_address": 11632
+      "load_address": 11664
     },
     "golden/image_0000/pool1.bin": {
       "bytes": 1568,
@@ -114,7 +114,7 @@
         14,
         8
       ],
-      "load_address": 17904
+      "load_address": 17936
     },
     "golden/image_0000/conv2.mac.bin": {
       "bytes": 12544,
@@ -151,7 +151,7 @@
         14,
         16
       ],
-      "load_address": 19472
+      "load_address": 19504
     },
     "golden/image_0000/pool2.bin": {
       "bytes": 784,
@@ -164,7 +164,7 @@
         7,
         16
       ],
-      "load_address": 22608
+      "load_address": 22640
     },
     "golden/image_0000/fc.mac.bin": {
       "bytes": 192,
@@ -198,7 +198,7 @@
         4,
         12
       ],
-      "load_address": 25744
+      "load_address": 25776
     },
     "golden/image_0000/logits.bin": {
       "bytes": 40,
@@ -221,11 +221,11 @@
         28,
         1
       ],
-      "load_address": 10848
+      "load_address": 10880
     },
     "ddr/image_0001.bin": {
       "bytes": 26304,
-      "sha256": "77d770b8d0c8b213d32944f0b66d385e808b577f205a57c31d3c8df08883d93a",
+      "sha256": "d309d79b5854d32d959026a8e74d14e2820ef832f63be99b8cf75714c8282f08",
       "dtype": "|u1",
       "byte_order": "little",
       "layout": "bytes",
@@ -269,7 +269,7 @@
         28,
         8
       ],
-      "load_address": 11632
+      "load_address": 11664
     },
     "golden/image_0001/pool1.bin": {
       "bytes": 1568,
@@ -282,7 +282,7 @@
         14,
         8
       ],
-      "load_address": 17904
+      "load_address": 17936
     },
     "golden/image_0001/conv2.mac.bin": {
       "bytes": 12544,
@@ -319,7 +319,7 @@
         14,
         16
       ],
-      "load_address": 19472
+      "load_address": 19504
     },
     "golden/image_0001/pool2.bin": {
       "bytes": 784,
@@ -332,7 +332,7 @@
         7,
         16
       ],
-      "load_address": 22608
+      "load_address": 22640
     },
     "golden/image_0001/fc.mac.bin": {
       "bytes": 192,
@@ -366,7 +366,7 @@
         4,
         12
       ],
-      "load_address": 25744
+      "load_address": 25776
     },
     "golden/image_0001/logits.bin": {
       "bytes": 40,
@@ -389,11 +389,11 @@
         28,
         1
       ],
-      "load_address": 10848
+      "load_address": 10880
     },
     "ddr/image_0002.bin": {
       "bytes": 26304,
-      "sha256": "73476bf1352400b03cc5ce75490681fda560f028c98e9e5cb19687db8204cccd",
+      "sha256": "cca659a41b2bf4938b8d7fdb0909759923989754e0a1af9ac366b154a2938c66",
       "dtype": "|u1",
       "byte_order": "little",
       "layout": "bytes",
@@ -437,7 +437,7 @@
         28,
         8
       ],
-      "load_address": 11632
+      "load_address": 11664
     },
     "golden/image_0002/pool1.bin": {
       "bytes": 1568,
@@ -450,7 +450,7 @@
         14,
         8
       ],
-      "load_address": 17904
+      "load_address": 17936
     },
     "golden/image_0002/conv2.mac.bin": {
       "bytes": 12544,
@@ -487,7 +487,7 @@
         14,
         16
       ],
-      "load_address": 19472
+      "load_address": 19504
     },
     "golden/image_0002/pool2.bin": {
       "bytes": 784,
@@ -500,7 +500,7 @@
         7,
         16
       ],
-      "load_address": 22608
+      "load_address": 22640
     },
     "golden/image_0002/fc.mac.bin": {
       "bytes": 192,
@@ -534,7 +534,7 @@
         4,
         12
       ],
-      "load_address": 25744
+      "load_address": 25776
     },
     "golden/image_0002/logits.bin": {
       "bytes": 40,
@@ -557,11 +557,11 @@
         28,
         1
       ],
-      "load_address": 10848
+      "load_address": 10880
     },
     "ddr/image_0003.bin": {
       "bytes": 26304,
-      "sha256": "d870386fea011b93e4fefb0f61d8b24b10f36a6632151fd2aa5b7b632623cfc4",
+      "sha256": "152dd1a7aab79c4a5d5dc4526631ea3545e8c7644dda1c75a6e54b7c8fbae6c8",
       "dtype": "|u1",
       "byte_order": "little",
       "layout": "bytes",
@@ -605,7 +605,7 @@
         28,
         8
       ],
-      "load_address": 11632
+      "load_address": 11664
     },
     "golden/image_0003/pool1.bin": {
       "bytes": 1568,
@@ -618,7 +618,7 @@
         14,
         8
       ],
-      "load_address": 17904
+      "load_address": 17936
     },
     "golden/image_0003/conv2.mac.bin": {
       "bytes": 12544,
@@ -655,7 +655,7 @@
         14,
         16
       ],
-      "load_address": 19472
+      "load_address": 19504
     },
     "golden/image_0003/pool2.bin": {
       "bytes": 784,
@@ -668,7 +668,7 @@
         7,
         16
       ],
-      "load_address": 22608
+      "load_address": 22640
     },
     "golden/image_0003/fc.mac.bin": {
       "bytes": 192,
@@ -702,7 +702,7 @@
         4,
         12
       ],
-      "load_address": 25744
+      "load_address": 25776
     },
     "golden/image_0003/logits.bin": {
       "bytes": 40,
@@ -715,15 +715,15 @@
       ]
     },
     "memory_map.json": {
-      "bytes": 2947,
-      "sha256": "7e9264ff8c2f297d4e06bc5a9dec1c068865a7f8cb21961f6ac075bed0b90418",
+      "bytes": 2949,
+      "sha256": "24e913610f49a90c13f7996902a425d21b2b328a21fc6f9f3bc0c5a43501ae0b",
       "dtype": "|u1",
       "byte_order": "little",
       "layout": "JSON UTF-8"
     },
     "compilation_report.json": {
-      "bytes": 7309,
-      "sha256": "aca05128acb3ee67ce9db05b0ec5d1a9f13c54d2ae0793ef0c39b08f687fdbc9",
+      "bytes": 7739,
+      "sha256": "2cfc384bbac90a00389c457313c9eb421fbd7a3460083a1f74a7685d003140d0",
       "dtype": "|u1",
       "byte_order": "little",
       "layout": "JSON UTF-8"

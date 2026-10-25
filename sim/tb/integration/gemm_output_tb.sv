@@ -44,7 +44,7 @@ module gemm_output_tb;
 
     logic cmd_valid, cmd_ready, busy, done, error;
     logic signed [31:0] acc_out [4][4];
-    gemm_executor dut (
+    npu_gemm_engine dut (
         .clk(clk), .reset(reset), .cmd_valid(cmd_valid), .cmd_ready(cmd_ready),
         .cmd_m(32'd8), .cmd_n(32'd8), .cmd_k(32'(k_size)),
         .cmd_a_base(64'h1000), .cmd_b_base(64'h2000), .cmd_c_base(64'h3000),
@@ -57,7 +57,8 @@ module gemm_output_tb;
         .cmd_conv_pad_left(32'd0), .cmd_conv_output_w(32'd0), .cmd_conv_output_positions(32'd0),
         .cmd_bias_en(int8_mode != 0), .cmd_requant_en(int8_mode != 0),
         .cmd_relu_en(int8_mode != 0), .cmd_per_channel_en(int8_mode != 0),
-        .cmd_multi_k_a_reuse(a_reuse != 0), .cmd_b_stationary(1'b0), .cmd_param_base(64'h5000),
+        .cmd_multi_k_a_reuse(a_reuse != 0), .cmd_b_stationary(1'b0),
+        .cmd_fuse_maxpool(1'b0), .cmd_pool_config(32'd0), .cmd_param_base(64'h5000),
         .operand64_arid(m_axi_arid), .operand64_araddr(m_axi_araddr),
         .operand64_arlen(m_axi_arlen), .operand64_arsize(m_axi_arsize),
         .operand64_arburst(m_axi_arburst), .operand64_arvalid(m_axi_arvalid),

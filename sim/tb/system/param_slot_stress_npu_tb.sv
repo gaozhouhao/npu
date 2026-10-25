@@ -1,6 +1,6 @@
 `timescale 1ns/1ps
 
-// Per-channel requant + C-PSUM slot stress test.
+// Per-channel requantization and output-slot reuse with runtime A reuse.
 // 8x32x32 GEMM, K_TILE_SIZE=16: 2 M tiles x 8 N tiles x 2 K tiles.
 // 16 final output tiles must reuse 4 C/parameter slots.
 module param_slot_stress_npu_tb;
@@ -55,7 +55,7 @@ module param_slot_stress_npu_tb;
     logic wready;
     logic bvalid;
     logic bready;
-    logic [31:0] rdata;
+    logic [63:0] rdata;
     logic [31:0] wdata;
     logic [3:0] wstrb;
 
@@ -82,6 +82,7 @@ module param_slot_stress_npu_tb;
     int unsigned matrix_starts_q;
     int unsigned matrix_finals_q;
     int unsigned psum_writes_q;
+    int a_reuse = 0;
     int unsigned retire_per_slot_q [0:3];
 
     initial clk = 1'b0;
@@ -133,13 +134,14 @@ module param_slot_stress_npu_tb;
     );
 
     // ------------------------------------------------------------
-    // DDR AXI read model, 32-bit incrementing bursts.
+    // DDR AXI read model, native 64-bit incrementing bursts.
     // ------------------------------------------------------------
 
     assign arready = !rd_active_q;
     assign rid = rd_id_q;
     assign rvalid = rd_active_q;
-    assign rdata = mem[int'(rd_addr_q >> 2)];
+    assign rdata = {mem[int'(rd_addr_q >> 2) + 1],
+                    mem[int'(rd_addr_q >> 2)]};
     assign rresp = 2'b00;
     assign rlast = rd_left_q == 9'd1;
 
@@ -154,9 +156,9 @@ module param_slot_stress_npu_tb;
             param_beats_q <= 0;
         end else begin
             if (arvalid && arready) begin
-                if (arsize != 3'd2 || arburst != 2'b01 ||
-                    araddr[1:0] != 2'b00 ||
-                    araddr + (64'(arlen) + 64'd1) * 64'd4 >
+                if (arsize != 3'd3 || arburst != 2'b01 ||
+                    araddr[2:0] != 3'b000 ||
+                    araddr + (64'(arlen) + 64'd1) * 64'd8 >
                         64'(MEM_WORDS * 4))
                     $fatal(1, "Bad AXI read request addr=%h len=%0d",
                            araddr, arlen);
@@ -168,7 +170,7 @@ module param_slot_stress_npu_tb;
 
                 if (araddr >= 64'(PARAM_BASE + 16) &&
                     araddr < (64'(PARAM_BASE) + 64'd16 + 64'(N) * 64'd12)) begin
-                    if (arlen != 8'd11)
+                    if (arlen != 8'd5)
                         $fatal(1, "Unexpected parameter burst length %0d", arlen);
                     param_requests_q <= param_requests_q + 1;
                 end
@@ -181,7 +183,7 @@ module param_slot_stress_npu_tb;
                 if (rlast) begin
                     rd_active_q <= 1'b0;
                 end else begin
-                    rd_addr_q <= rd_addr_q + 64'd4;
+                    rd_addr_q <= rd_addr_q + 64'd8;
                     rd_left_q <= rd_left_q - 9'd1;
                 end
             end
@@ -325,48 +327,52 @@ module param_slot_stress_npu_tb;
             for (int s = 0; s < 4; s++)
                 retire_per_slot_q[s] <= 0;
         end else begin
-            if (u_dut.u_gemm_executor.scheduler_matrix_start) begin
+            if (u_dut.u_npu_gemm_engine.scheduler_matrix_start) begin
                 matrix_starts_q <= matrix_starts_q + 1;
-                if (u_dut.u_gemm_executor.scheduler_writeback_en)
+                if (u_dut.u_npu_gemm_engine.scheduler_writeback_en)
                     matrix_finals_q <= matrix_finals_q + 1;
             end
 
-            if (u_dut.u_gemm_executor.psum_wr_en)
+            if (u_dut.u_npu_gemm_engine.psum_wr_en)
                 psum_writes_q <= psum_writes_q + 1;
 
-            if (u_dut.u_gemm_executor.bias_load_done) begin
-                if (!u_dut.u_gemm_executor.param_bank_fill_ready)
+            if (u_dut.u_npu_gemm_engine.bias_load_done) begin
+                if (!u_dut.u_npu_gemm_engine.param_bank_fill_ready)
                     $fatal(1, "Parameter fill attempted on an occupied slot");
                 fill_count_q <= fill_count_q + 1;
             end
 
-            if (u_dut.u_gemm_executor.c_write_tile_accept) begin
-                if (!u_dut.u_gemm_executor.param_bank_read_hit)
-                    $fatal(1, "No matching parameters at output writeback");
+            if (a_reuse != 0
+                ? u_dut.u_npu_gemm_engine.c_write_tile_accept
+                : u_dut.u_npu_gemm_engine.snapshot_start) begin
+                if (!u_dut.u_npu_gemm_engine.param_bank_read_hit)
+                    $fatal(1, "No matching parameters when applying the epilogue");
 
                 final_accepts_q <= final_accepts_q + 1;
                 for (int lane = 0; lane < int'(COLS); lane++) begin
                     oc = int'($unsigned(
-                        u_dut.u_gemm_executor.compute_n_tile_idx
+                        u_dut.u_npu_gemm_engine.compute_n_tile_idx
                     )) * int'(COLS) + lane;
 
-                    if (u_dut.u_gemm_executor.bank_bias[lane] !==
+                    if (u_dut.u_npu_gemm_engine.bank_bias[lane] !==
                         32'(biasval(int'(oc))) ||
-                        u_dut.u_gemm_executor.bank_multiplier[lane] !==
+                        u_dut.u_npu_gemm_engine.bank_multiplier[lane] !==
                         32'(multiplier_val(int'(oc))) ||
-                        u_dut.u_gemm_executor.bank_shift[lane] !==
+                        u_dut.u_npu_gemm_engine.bank_shift[lane] !==
                         6'(shift_val(int'(oc))))
                         $fatal(1, "Slot data mismatch N=%0d lane=%0d",
                                oc / int'(COLS), lane);
                 end
             end
 
-            if (u_dut.u_gemm_executor.c_write_done) begin
-                if (!u_dut.u_gemm_executor.param_bank_retire_hit)
+            if (a_reuse != 0
+                ? u_dut.u_npu_gemm_engine.c_write_done
+                : u_dut.u_npu_gemm_engine.snapshot_done) begin
+                if (!u_dut.u_npu_gemm_engine.param_bank_retire_hit)
                     $fatal(1, "Parameter slot retired with wrong N tag");
 
                 retire_count_q <= retire_count_q + 1;
-                slot_idx = u_dut.u_gemm_executor.psum_target_slot;
+                slot_idx = u_dut.u_npu_gemm_engine.psum_target_slot;
                 retire_per_slot_q[slot_idx] <=
                     retire_per_slot_q[slot_idx] + 1;
             end
@@ -382,6 +388,7 @@ module param_slot_stress_npu_tb;
         int signed exp;
         logic [7:0] actual;
 
+        void'($value$plusargs("A_REUSE=%d", a_reuse));
         reset = 1'b1;
         start = 1'b0;
 
@@ -412,7 +419,8 @@ module param_slot_stress_npu_tb;
 
         // GEMM opcode=1; flags bit0 Bias, bit1 Requant,
         // bit3 Per-channel; bit2 ReLU disabled to test signed INT8.
-        init_mem[DESC_BASE / 4 + 0] = 32'h0000_0b01;
+        init_mem[DESC_BASE / 4 + 0] = 32'h0000_0b01 |
+            (a_reuse != 0 ? 32'h0000_2000 : 32'd0);
         init_mem[DESC_BASE / 4 + 1] = 32'(M);
         init_mem[DESC_BASE / 4 + 2] = 32'(N);
         init_mem[DESC_BASE / 4 + 3] = 32'(K);
@@ -462,7 +470,7 @@ module param_slot_stress_npu_tb;
             retire_count_q != FINAL_TILES ||
             fill_count_q != FINAL_TILES ||
             param_requests_q != FINAL_TILES ||
-            param_beats_q != FINAL_TILES * 3 * COLS)
+            param_beats_q != FINAL_TILES * 3 * COLS / 2)
             $fatal(1,
                 "Coverage mismatch: W=%0d matrix=%0d finals=%0d accepts=%0d fills=%0d retires=%0d param_req=%0d param_beats=%0d",
                 write_beats_q, matrix_starts_q, matrix_finals_q,
@@ -474,13 +482,10 @@ module param_slot_stress_npu_tb;
                 $fatal(1, "Slot %0d reuse coverage=%0d expected=%0d",
                        s, retire_per_slot_q[s], FINAL_TILES / 4);
 
-`ifdef NPU_PSUM_EXPERIMENT
-        if (psum_writes_q == 0)
-            $fatal(1, "Expected C SRAM PSUM writes");
-`else
-        if (psum_writes_q != 0)
-            $fatal(1, "Unexpected C SRAM PSUM writes");
-`endif
+        if (a_reuse != 0 && psum_writes_q == 0)
+            $fatal(1, "A reuse must preserve partial sums in C SRAM");
+        if (a_reuse == 0 && psum_writes_q != 0)
+            $fatal(1, "Default dataflow must accumulate inside the array");
 
         $display(
             "PARAM SLOT STRESS PASS: cycles=%0d reads=%0d writes=%0d fills=%0d retires=%0d psum_rows=%0d acc00=%0d busy=%0b",

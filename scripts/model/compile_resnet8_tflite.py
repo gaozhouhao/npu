@@ -25,6 +25,10 @@ Environment alternative:
     NPU_DATAFLOW=a|b|auto
 
 The NPU arithmetic is not bit-exact TFLite arithmetic.
+
+Batch-1 FC is issued with complete array rows/columns. Physical input rows
+repeat the one runtime vector (A stride 0); classification uses only the
+logical classes in output row 0. Manifest fields describe both layouts.
 """
 
 import argparse
@@ -32,6 +36,7 @@ import json
 import math
 import os
 import struct
+import sys
 from pathlib import Path
 
 import numpy as np
@@ -54,9 +59,14 @@ DESC_WORDS = 16
 FLAG_MULTI_K_A_REUSE = 1 << 5
 FLAG_B_STATIONARY = 1 << 6
 
-PE_ROWS = 4
-PE_COLS = 4
-K_TILE_SIZE = 256
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'compiler'))
+from target import hardware_defaults
+from fc_layout import plan_fc_layout, pack_fc_weights, pack_fc_params
+
+HARDWARE = hardware_defaults()
+PE_ROWS = HARDWARE['pe_rows']
+PE_COLS = HARDWARE['pe_cols']
+K_TILE_SIZE = HARDWARE['k_tile_size']
 
 
 def align(v, a):
@@ -265,6 +275,7 @@ class Compiler:
         self.address = {}
         self.desc = []
         self.layers = []
+        self.fc_layouts = {}
         self.dataflow = dataflow
 
         self.input_tid = int(self.graph.Inputs(0))
@@ -286,7 +297,7 @@ class Compiler:
         )
 
         self.address[self.input_tid] = self.mem.put(
-            bytes([input_zp & 0xff]) * input_length
+            bytes([input_zp & 0xff]) * align(input_length, 8)
         )
 
         self.logits_tid = None
@@ -328,7 +339,8 @@ class Compiler:
         )
 
         addr = self.mem.reserve(
-            align(actual_bytes, 4)
+            # Operand DMA may fetch a complete 64-bit beat at a logical tail.
+            align(actual_bytes, 8)
         )
 
         self.address[tid] = addr
@@ -448,6 +460,12 @@ class Compiler:
                 op, tflite.Conv2DOptions
             )
 
+            if (int(opts.DilationHFactor()) != 1
+                    or int(opts.DilationWFactor()) != 1):
+                raise NotImplementedError(
+                    "Dilated CONV is not supported by the hardware"
+                )
+
             sh = int(opts.StrideH())
             sw = int(opts.StrideW())
             padtype = int(opts.Padding())
@@ -538,7 +556,11 @@ class Compiler:
 
             n = int(ws[0])
             k = int(ws[1])
-            m = 1
+            fc_layout = plan_fc_layout(
+                1, n, k, rows=PE_ROWS, cols=PE_COLS,
+                output_element_bytes=1,
+            )
+            m = fc_layout['physical_m']
 
             if (
                 int(np.prod(tensor_shape(tx)))
@@ -547,6 +569,8 @@ class Compiler:
                 raise ValueError(
                     "FC K inconsistent"
                 )
+            if int(np.prod(tensor_shape(ty))) != n:
+                raise ValueError("FC output element count inconsistent")
 
             flags = 1 | 2 | 8
 
@@ -555,16 +579,15 @@ class Compiler:
             ):
                 flags |= 4
 
-            sa = align(k, 8)
-            sb = align(k, 8)
-            sc = align(n, 4)
+            # The batch-1 vector is produced at runtime, commonly by GAP.
+            # A zero row stride makes every physical lane read that same real
+            # vector. Only output row 0 is logically visible; no fake input
+            # row or runtime copy is needed.
+            sa = 0
+            sb = fc_layout['b_stride_bytes']
+            sc = fc_layout['c_stride_bytes']
 
             opcode = OP_GEMM
-
-        if m % 4 != 0 and kind == "conv":
-            raise ValueError(
-                "CONV output positions must multiple of 4"
-            )
 
         sweight, zweight = qscale(tw)
 
@@ -593,77 +616,65 @@ class Compiler:
                 n, dtype=np.int64
             )
 
-        qweights = weight.reshape(
-            n, k
-        ).astype(np.int64)
-
-        folded_bias = (
-            bias
-            - int(input_zp)
-            * qweights.sum(axis=1)
-        )
-
-        if np.any(
-            (folded_bias < -2147483648)
-            | (folded_bias > 2147483647)
-        ):
-            raise OverflowError(
-                "Folded INT32 bias overflow"
-            )
-
-        padded_n = align(n, 4)
+        padded_n = align(n, PE_COLS)
         row_stride = align(k, 8)
+        weight_data = weight.reshape(n, k).tobytes()
 
-        weightbuf = bytearray(
-            padded_n * row_stride
-        )
+        if kind == "fc":
+            padded_n = fc_layout['physical_n']
+            weightbuf = pack_fc_weights(weight_data, fc_layout)
+            requant = [quant_mr(
+                input_scale * sweight[c if len(sweight) > 1 else 0]
+                / out_scale
+            ) for c in range(n)]
+            parambuf = pack_fc_params(
+                weight_data, bias.tolist(), fc_layout,
+                input_zero_point=int(input_zp),
+                output_zero_point=int(out_zp), requant=requant,
+            )
+        else:
+            qweights = weight.reshape(n, k).astype(np.int64)
+            folded_bias = bias - int(input_zp) * qweights.sum(axis=1)
+            if np.any((folded_bias < -2147483648) |
+                      (folded_bias > 2147483647)):
+                raise OverflowError("Folded INT32 bias overflow")
+            weightbuf = bytearray(padded_n * row_stride)
+            for c in range(n):
+                begin = c * row_stride
+                weightbuf[begin:begin + k] = weight.reshape(n, k)[c].tobytes()
 
-        for c in range(n):
-            row = weight.reshape(
-                n, k
-            )[c].tobytes()
-
-            begin = c * row_stride
-
-            weightbuf[
-                begin:begin + k
-            ] = row
+            parambuf = bytearray(words(0, 0, input_zp, out_zp))
+            for c in range(padded_n):
+                if c < n:
+                    r = (input_scale
+                         * sweight[c if len(sweight) > 1 else 0]
+                         / out_scale)
+                    mul, shift = quant_mr(r)
+                    biasc = int(folded_bias[c])
+                else:
+                    mul, shift, biasc = 0, 0, 0
+                parambuf += words(biasc, mul, shift)
 
         baddr = self.mem.put(weightbuf)
-
-        parambuf = bytearray(
-            words(0, 0, input_zp, out_zp)
-        )
-
-        for c in range(padded_n):
-            if c < n:
-                r = (
-                    input_scale
-                    * sweight[
-                        c if len(sweight) > 1 else 0
-                    ]
-                    / out_scale
-                )
-
-                mul, shift = quant_mr(r)
-                biasc = int(folded_bias[c])
-
-            else:
-                mul = 0
-                shift = 0
-                biasc = 0
-
-            parambuf += words(
-                biasc, mul, shift
-            )
-
         paddr = self.mem.put(parambuf)
-        caddr = self.output_addr(output_id)
+        if kind == "fc":
+            if output_id in self.address:
+                raise ValueError(f"Output tensor {output_id} already allocated")
+            caddr = self.mem.reserve(fc_layout['c_bytes'])
+            self.address[output_id] = caddr
+            self.fc_layouts[output_id] = fc_layout
+        else:
+            caddr = self.output_addr(output_id)
 
+        # Conv activations are tightly packed logical HWC tensors. The native
+        # tail masks handle partial M/N tiles; declaring padded N here would
+        # change the pixel stride and overwrite the logical output allocation.
+        # FC retains its published physical row/column layout and extraction.
+        descriptor_n = padded_n if kind == "fc" else n
         dataflow, dataflow_flag = (
             self.select_dataflow(
                 m,
-                padded_n,
+                descriptor_n,
                 k,
                 self.dataflow,
             )
@@ -675,7 +686,7 @@ class Compiler:
             opcode,
             flags,
             m,
-            padded_n,
+            descriptor_n,
             k,
             self.address[src],
             baddr,
@@ -686,7 +697,7 @@ class Compiler:
             paddr,
         )
 
-        self.layers.append({
+        layer = {
             "opcode": kind.upper(),
             "input": src,
             "output": output_id,
@@ -699,7 +710,18 @@ class Compiler:
             "dataflow": dataflow,
             "input_zp": input_zp,
             "output_zp": out_zp,
-        })
+        }
+        if kind == "fc":
+            layer.update(
+                fc_layout=fc_layout,
+                input_row_policy="repeat_logical_row",
+                actual_a_stride_bytes=sa,
+                input_read_span_bytes=align(k, 8),
+                logical_output_bytes=n,
+                physical_output_bytes=fc_layout['c_bytes'],
+                c_stride_bytes=sc,
+            )
+        self.layers.append(layer)
 
     def compile_add(self, op):
         a = int(op.Inputs(0))
@@ -831,8 +853,10 @@ class Compiler:
 
         if (
             len(shape) != 4
+            or shape[0] != 1
             or len(shape_out) != 4
             or shape_out[:3] != [1, 1, 1]
+            or shape_out[3] != shape[3]
         ):
             raise ValueError(
                 "Only global average pool supported"
@@ -844,6 +868,27 @@ class Compiler:
             )
 
         _, h, w, c = shape
+
+        opts = options(op, tflite.Pool2DOptions)
+        kh, kw = int(opts.FilterHeight()), int(opts.FilterWidth())
+        sh, sw = int(opts.StrideH()), int(opts.StrideW())
+        padding = int(opts.Padding())
+        if (h <= 0 or w <= 0 or kh != h or kw != w
+                or sh <= 0 or sw <= 0):
+            raise ValueError(
+                "Global average pool must cover the complete input height/width"
+            )
+        if padding == int(tflite.Padding.SAME):
+            # SAME is equivalent to global averaging only when its single
+            # output window covers the complete input without padded samples.
+            if (h+sh-1)//sh != 1 or (w+sw-1)//sw != 1:
+                raise ValueError("Average pool geometry is not global")
+        elif padding != int(tflite.Padding.VALID):
+            raise ValueError("Unknown average pool padding")
+        if int(opts.FusedActivationFunction()) != 0:
+            raise NotImplementedError(
+                "Global average pool fused activation is not supported"
+            )
 
         if c % 4:
             raise ValueError(
@@ -934,6 +979,8 @@ class Compiler:
                     )
 
                 self.address[b] = self.address[a]
+                if a in self.fc_layouts:
+                    self.fc_layouts[b] = self.fc_layouts[a]
 
                 self.layers.append({
                     "opcode": "RESHAPE_ALIAS",
@@ -1014,6 +1061,15 @@ class Compiler:
             "memory_size": len(raw),
             "layers": self.layers,
         }
+        if self.logits_tid in self.fc_layouts:
+            manifest['logits_layout'] = self.fc_layouts[self.logits_tid]
+            manifest['logits_logical_bytes'] = int(np.prod(
+                tensor_shape(self.tensors[self.logits_tid])
+            ))
+            manifest['logits_read_policy'] = (
+                'Read only the logical classes from physical row 0; '
+                'ignore padded columns and all additional physical rows'
+            )
 
         (outdir / "manifest.json").write_text(
             json.dumps(manifest, indent=2)

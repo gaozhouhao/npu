@@ -1,155 +1,67 @@
 # INT8 NPU
 
-SystemVerilog 4x4 INT8 systolic-array NPU with Verilator and VCS simulation. The
-current execution path supports tiled GEMM/Conv2D, bias and per-channel
-requantization, pooling/global average pooling, residual ADD, and fully
-connected layers. The repository also retains the PSUM and multi-K A-reuse
-experiments and their focused regressions.
+这是一个由 DDR 描述符驱动的 SystemVerilog NPU。默认 4×4 脉动阵列，执行 GEMM、Conv2D、MaxPool、全局平均池化和残差 ADD；全连接层使用 GEMM。矩阵运算支持 Bias、逐通道重定量和 ReLU。
 
-## Repository layout
+项目的完整阅读入口是 [架构与模块说明](docs/architecture.md)，包括逻辑框图、实际实例树、模块职责和输入输出、参数传播、数据布局及接口时序。[接口索引](docs/module_interfaces.md) 说明当前 38 个模块的接口。[验证记录](docs/validation.md) 说明当前已验证的范围。
+
+[层间流式结构路线图](docs/streaming_roadmap.md) 对照当前局部融合与通用层间流水的差距，说明双缓冲、行缓冲、重排、DDR 出口及单阵列复用的关系，并给出下一步改造和验收顺序。
+
+卷积—池化融合通过描述符 flags bit7 选择，word15 定义窗口高宽和纵横步长，零配置兼容原 `2×2 / stride 2`。后处理结果经结果双缓冲送入池化原始输入行缓冲，窗口回放后再求最大值，只写回池化结果；全部通道状态放不下时按通道块复用缓冲，只有最小通道块仍放不下才回退到独立 Conv/Pool。通道分块可能增加卷积输入读取，需同时比较总流量与周期。融合目前只支持不补边，独立池化支持软件配置四侧补边，越界位置不读取、不参与最大值比较。描述符与状态机见 [最大池化补边](docs/maxpool_padding.md)，融合约束和对照记录见 [卷积—池化融合](docs/conv_pool_fusion.md)。
+
+全连接也可按软件显式指定的高、宽、通道重排后流入同一池化模块。坐标转换只接收真实样本的输出，过滤为4行阵列补齐的其他行。该模式使用扩展参数头，支持单样本、INT8、不补边且完整池化状态可放入缓冲的配置；普通全连接和卷积描述符不变。运行 `make fc-pool-check`，接口和软件生成方式见 [全连接池化融合](docs/fc_pool_fusion.md)。
+
+[NVIDIA 参考模型适配记录](docs/nvidia_reference_model.md)给出已下载 ResNet-50 的实际算子与逐层形状。通用尾块、池化补边和ONNX图编译已实现；真实网络可准备成72条命令，原SmallCNN/ResNet8入口保留。运行 `make resnet50-prepare`、`make compiler-check`，见[编译器说明](compiler/README.md)。匹配的量化参数、ImageNet精度与整网运行仍待完成，已有官方校准材料的适用边界见[来源核查](docs/resnet50_quantization_sources.md)。
+
+[分类层软件对齐](docs/fc_alignment.md)说明原TFLite入口的1×1001到物理4×1004布局，已通过真实分类层尺寸的整数硬件用例。新增ONNX入口使用尾块支持直接提交逻辑1×1001，保留同一硬件ABI。
+
+## 从哪里开始
 
 ```text
-rtl/compute/   PE array, matrix engine, postprocess and pooling
-rtl/core/      command, scheduling, GEMM execution and performance monitor
-rtl/dma/       AXI masters and operand/parameter/writeback data paths
-rtl/memory/    scratchpads, operand buffers and PSUM SRAM
-sim/tb/unit/   unit tests grouped by compute/core/memory/dma
-sim/tb/integration/ GEMM, tiling and operand-path tests
-sim/tb/system/ end-to-end NPU and network tests
-sim/tb/support/ reusable verification monitors
-sim/filelists/ shared RTL list and per-test VCS input lists
-sim/verdi/     Verdi command scripts
-sim/golden/    small software golden models
-compiler/      MNIST model compiler and artifact verification
-scripts/sim/   simulation entrypoints
-scripts/model/ model compilation, quantization and verification
-scripts/analysis/ performance reports
-docs/          EDA notes, repair report and layout reference
-artifacts/     checked-in MNIST deployment images and golden tensors
-models/        local pretrained model inputs (binary models are ignored)
-build/         generated Verilator outputs, logs, dumps and waveforms
+rtl/npu_top.sv                 整机接口与层分发，硬件参数入口
+rtl/control/npu_gemm_engine.sv 一层矩阵任务的调度、搬运、计算与写回
+rtl/compute/gemm_tile_compute.sv 一个本地 tile 的实际计算和存储
+rtl/compute/gemm_array.sv      输入错拍与 PE 网格
+rtl/dma/                      AXI、矩阵与卷积读取、量化参数、结果写回
+rtl/memory/                   操作数 bank、PSUM、参数与结果缓存
 ```
 
-Generated build products, logs, waveforms, local datasets, Python virtual
-environments and pretrained binary models are intentionally excluded from
-Git. `make clean` removes only object/dependency files; it preserves logs, executables,
-source snapshots and waveforms.
+`sim/tb/` 分为 unit、integration、system 和 support。仿真与综合共用 `sim/filelists/rtl.f`。`compiler/` 包含共享描述符后端、ONNX与MNIST部署入口，`scripts/model/` 包含TFLite及模型检查工具，`scripts/analysis/` 处理性能日志。综合、DFT、ATPG、MBIST 的工具配置采用 Tcl；常用操作统一由根 Makefile 调用。生成文件都放在 `build/`。
 
-## Main regressions
+学习 UVM 可以从 [单个 PE 的 UVM 入门实验](docs/uvm_pe_tutorial.md) 开始。`sim/uvm/pe/` 提供一个固定 8 位输入、32 位累加器的最小完整框架，先用定向输入理解 sequence、driver、monitor 和 scoreboard 的连接，再逐步扩展。
 
-The default regression compiles with Verilator `-Wall` and runs the top-level,
-Conv patch, Conv2D and Conv+Pool tests:
+## 运行
+
+默认仿真器为 VCS，`make` 显示帮助。
 
 ```bash
 make regression
+make parameter-check
+make stress
+make mnist-all
+make mnist-fused
+make fusion-check
+make wave
+make uvm-pe
+make list-tests
+make test TEST=gemm_tile_compute_tb
+make test TEST=npu_top_tb CONFIG=small PARAMS="K_TILE_SIZE=16 PSUM_SLOT_COUNT=2 A_REUSE_BLOCK_SIZE=2 CONV_CACHE_LINES=32 CONV_MAX_REQUEST_BEATS=8"
 ```
 
-The parameter-slot/PSUM/A-reuse stress test runs all three configurations:
+使用 `SIM=verilator` 切换仿真器。`PARAMS` 覆盖所选 testbench 暴露的参数，`RUN_ARGS` 传递 plusargs，`DEFINES` 增加宏，`CONFIG` 区分输出目录。日志位于 `build/<SIM>/<TEST>/<CONFIG>/`。
+
+## 配置与部署
+
+可变硬件参数集中在 `rtl/npu_top.sv`，下层容量与索引位宽自动推导。模型工具通过 `compiler/target.py` 读取顶层默认值。模型的描述符、地址、padding 和物理 stride 必须与目标配置匹配，修改阵列形状后应重新生成部署数据。
+
+完整模型 ABI 为 INT8 输入、INT32 累加/参数、64 位 AXI 读和 32 位 AXI 写。局部计算模块支持其他位宽，测试覆盖 INT4/ACC24 和 INT16/ACC48。工艺 SRAM 宏为固定 32×64 规格，选用不同存储容量时需要匹配的工艺宏。
+
+仓库提供四张 MNIST 的完整部署镜像与逐层黄金张量，预测分别为 7、2、1、0。部署格式和编译命令见 [compiler/README.md](compiler/README.md)。ResNet-8 需要本地 TFLite 模型和 Python3 依赖：
 
 ```bash
-bash scripts/sim/run_param_slot_stress.sh
+make resnet8 MODEL=models/resnet8/pretrainedResnet_quant.tflite
+make resnet8-perf MODEL=models/resnet8/pretrainedResnet_quant.tflite
 ```
 
-Additional focused testbenches under `sim/tb/` cover the PE, matrix engine,
-GEMM core/executor, DMA path, scheduler, postprocess, pooling, per-channel
-parameters and experimental dataflows. They are independent verification
-entrypoints even when they are not part of the default Make target.
+EDA 入口包括 `make synth`、`make synth DESIGN=gemm_pe`、`make dft-precheck`、`make dft`、`make atpg` 和 `make mbist`，依赖本机工具与工艺库。`scripts/technology.tcl` 集中管理工艺路径；Makefile 可通过 `PDK_ROOT` 和 `BUILD_DIR` 指定位置。
 
-## ResNet-8 end-to-end flow
-
-Place the quantized model at
-`models/resnet8/pretrainedResnet_quant.tflite`, then run:
-
-```bash
-bash scripts/sim/run_resnet8.sh
-```
-
-The compiler emits the DDR image and descriptor manifest below `build/`, and
-the testbench executes the complete quantized graph: Conv, residual ADD,
-global average pooling and FC. It can also dump final DDR for layer-by-layer
-comparison with TFLite.
-
-For the performance regression:
-
-```bash
-bash scripts/sim/run_resnet8_perf.sh
-python3 scripts/analysis/report_resnet8_perf.py
-```
-
-`NPU_PERF_ENABLE` connects the synthesizable total/layer and AXI counters and
-enables testbench-only PE utilization and core/DMA overlap probes. Performance
-reports are generated from `build/resnet8_perf/perf.log`; the reporting script
-does not alter RTL behavior.
-
-The current reference input produces:
-
-| Metric | Baseline |
-|---|---:|
-| Top-1 | 0 |
-| Total cycles | 1,828,229 |
-| Matrix tiles | 6,659 |
-| Executed MACs | 12,504,064 |
-| AXI read beats | 1,279,718 |
-| AXI write beats | 28,700 |
-
-These values are regression guards for accidental behavior changes, not a
-constraint on deliberate future optimization.
-
-## Model and quantization tools
-
-- `scripts/model/compile_resnet8_tflite.py` compiles the supported quantized TFLite
-  graph into descriptors, weights, parameters and a DDR image.
-- `scripts/model/verify_resnet8.py`, `verify_resnet8_layers.py` and
-  `verify_resnet8_cifar10.py` compare RTL results with the TFLite reference.
-- `scripts/model/audit_resnet8_quant.py`, `check_tflite_kernel.py` and
-  `experiment_requant_precision.py` are standalone quantization/debug tools.
-- `compiler/` contains the earlier MNIST compiler, contract checks and Python
-  regression suite; see `compiler/README.md` for its artifact ABI.
-
-The ResNet-8 flow requires Python packages `numpy` and `tflite`; scripts that
-compare against a live TFLite interpreter additionally require TensorFlow.
-
-## VCS learning and repair regression
-
-Run these commands from the repository root:
-
-```bash
-make vcs-pe
-make vcs-pe-wave
-bash scripts/sim/run_vcs.sh gemm_core_tb
-make vcs-regression
-```
-
-`run_vcs.sh` reads the selected test's filelist, compiles it, then runs `simv`.
-For example, `gemm_core_tb` uses `sim/filelists/vcs/gemm_core_tb.f`. Shared RTL
-is listed in `sim/filelists/rtl.f`; the PE and GEMM Core examples list their
-smaller inputs directly. PE waveform options and Verdi PLI paths are in
-`sim/filelists/vcs/pe_wave_tb.f`.
-
-Each run writes `compile.log` and `simulation.log` under
-`build/vcs/<top>/<YYYYMMDD_HHMMSS>/`. Read the testbench's results in
-`simulation.log`. Optional arguments after the top name are passed to VCS,
-for example `-pvalue+gemm_core_tb.ROWS=2`.
-
-The current GEMM datapath supports signed INT8 inputs and INT32 accumulators;
-unsupported width overrides fail explicitly. Rectangular arrays and independent
-A/B buffer counts have focused tests, while the model compiler remains restricted
-to its audited default NPU configuration.
-
-See [layout and naming](docs/reference/project_layout.md),
-[path migration map](docs/reference/path_migration.json),
-[retired scripts](docs/reference/retired_scripts.md),
-[repair status](docs/code_audit.md), and
-[EDA learning notes](docs/eda_learning_notes.md). Historical results under `build/`
-are retained; their recorded source paths describe the original run.
-
-## Output-buffer experiment
-
-The output result buffer uses a fixed ping-pong order with two bank pointers,
-without a separate ready FIFO or free-bank search. Its 103-line implementation
-keeps the earlier double-buffer cycle counts in the measured cases.
-See [the performance comparison and manual commands](docs/validation/output_buffer_comparison.md).
-
-`sim/tb/integration/gemm_output_tb.sv` provides an 8x8 self-checking workload
-with runtime K, output-format, A-reuse and write-delay controls. These are
-simulator arguments; the VCS runner remains unchanged.
+历史审计、迁移和旧实验测量存放在 `docs/history/`。EDA 学习笔记保存实验背景，实际命令与目录以本说明和 Makefile 为准。

@@ -49,7 +49,7 @@ module mn_tiling_tb;
     logic signed [ACC_WIDTH-1:0]
         acc_out [ROWS][COLS];
 
-    gemm_core #(
+    gemm_tile_compute #(
         .ROWS         (ROWS),
         .COLS         (COLS),
         .DATA_WIDTH   (DATA_WIDTH),

@@ -1,6 +1,12 @@
 `timescale 1ns/1ps
 
-module npu_top_tb;
+module npu_top_tb #(
+    parameter int unsigned K_TILE_SIZE = 256,
+    parameter int unsigned PSUM_SLOT_COUNT = 4,
+    parameter int unsigned A_REUSE_BLOCK_SIZE = 4,
+    parameter int unsigned CONV_CACHE_LINES = 256,
+    parameter int unsigned CONV_MAX_REQUEST_BEATS = 64
+);
 
     localparam int unsigned ADDR_WIDTH       = 64;
     localparam int unsigned DESC_COUNT_WIDTH = 16;
@@ -14,7 +20,6 @@ module npu_top_tb;
     localparam int unsigned MEM_WORD_WIDTH   = 32;
 
     localparam int unsigned ID_WIDTH         = 1;
-    localparam int unsigned K_TILE_SIZE      = 256;
 
     localparam int unsigned A_BUFFER_COUNT   = 2;
     localparam int unsigned B_BUFFER_COUNT   = 2;
@@ -33,6 +38,10 @@ module npu_top_tb;
     localparam int unsigned K_TOTAL =
         260;
 
+
+    localparam int unsigned EXPECTED_OPERAND_AR =
+        3 * ((M_TOTAL + ROWS - 1) / ROWS) * ((N_TOTAL + COLS - 1) / COLS) *
+        ((K_TOTAL + K_TILE_SIZE - 1) / K_TILE_SIZE) * (ROWS + COLS);
 
     localparam int unsigned WORD_BYTES =
         MEM_WORD_WIDTH / 8;
@@ -180,7 +189,7 @@ module npu_top_tb;
         if (!reset && npu_error)
             $fatal(1, "NPU error: unsupported=%b executor=%b read_path=%b",
                    u_dut.unsupported_pending_q, u_dut.executor_error,
-                   u_dut.u_gemm_executor.read_path_error);
+                   u_dut.u_npu_gemm_engine.read_path_error);
     end
 
 
@@ -384,7 +393,11 @@ module npu_top_tb;
         .K_TILE_SIZE      (K_TILE_SIZE),
 
         .A_BUFFER_COUNT   (A_BUFFER_COUNT),
-        .B_BUFFER_COUNT   (B_BUFFER_COUNT)
+        .B_BUFFER_COUNT   (B_BUFFER_COUNT),
+        .PSUM_SLOT_COUNT  (PSUM_SLOT_COUNT),
+        .A_REUSE_BLOCK_SIZE(A_REUSE_BLOCK_SIZE),
+        .CONV_CACHE_LINES(CONV_CACHE_LINES),
+        .CONV_MAX_REQUEST_BEATS(CONV_MAX_REQUEST_BEATS)
     ) u_dut (
         .clk           (clk),
         .reset         (reset),
@@ -2196,10 +2209,10 @@ module npu_top_tb;
 
         // Request counts are checked at the external AXI64 boundary. The wider
         // bus changes physical beat counts, not these baseline request counts.
-        if (operand_ar_count != 192 || global_param_ar_count != 1 || bias_ar_count != 8)
+        if (operand_ar_count != EXPECTED_OPERAND_AR || global_param_ar_count != 1 || bias_ar_count != 8)
             $fatal(1, "Read traffic mismatch operand=%0d M/R=%0d bias=%0d",
                    operand_ar_count, global_param_ar_count, bias_ar_count);
-        if (total_ar_count != 249 ||
+        if (total_ar_count != 48 + EXPECTED_OPERAND_AR + 1 + 8 ||
             total_ar_count != descriptor_ar_count + operand_ar_count +
                               global_param_ar_count + bias_ar_count)
             $fatal(1, "Read request accounting mismatch");

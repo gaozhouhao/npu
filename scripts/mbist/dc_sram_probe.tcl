@@ -1,7 +1,7 @@
+source [file join [file dirname [info script]] .. technology.tcl]
+
 # Elaborate and name the APG before linking the SRAM probe.
 # Run from a new directory under build/mbist.
-set stdcell_db /home/ICer/eda/pdk/tsmc28/logic/tcbn28hpcplusbwp40p140_180b/nldm/tcbn28hpcplusbwp40p140tt0p9v25c.db
-set sram_db /home/ICer/eda/pdk/tsmc28/Memory/macros/operand_32x64/ts5n28hpcpsvta32x64m2f_130a/NLDM/ts5n28hpcpsvta32x64m2f_130a_tt0p9v25c.db
 set mbist_lib /home/synopsys/syn/O-2018.06-SP1/libraries/syn/dft_mbist.sldb
 set dw_lib /home/synopsys/syn/O-2018.06-SP1/libraries/syn/dw_foundation.sldb
 set_app_var target_library [list $stdcell_db]
@@ -14,7 +14,7 @@ analyze -format vhdl /home/synopsys/syn/O-2018.06-SP1/dw/dw04/src/DW_mbist_apg_r
 # registered_io=2 matches the SRAM's clocked input sampling.
 elaborate DW_mbist_apg -architecture rtl -parameters "addr_width=5,data_width=64,num_ports=1,registered_io=2,mem_end_addr=31"
 rename_design [current_design] dw_mbist_apg_32x64
-analyze -format sverilog [list ../../../sim/mbist/dw_mbist_controller_probe.sv ../../../sim/mbist/dw_mbist_sram_probe.sv]
+analyze -format sverilog [list [file join $project_root sim mbist dw_mbist_controller_probe.sv] [file join $project_root sim mbist dw_mbist_sram_probe.sv]]
 elaborate dw_mbist_sram_probe
 current_design dw_mbist_sram_probe
 if {[link] == 0} {exit 1}

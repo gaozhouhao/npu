@@ -56,7 +56,7 @@ module cnn_pool_per_channel_npu_tb;
     logic bvalid;
     logic bready;
 
-    logic [31:0] rdata;
+    logic [63:0] rdata;
     logic [31:0] wdata;
     logic [3:0] wstrb;
 
@@ -142,7 +142,8 @@ module cnn_pool_per_channel_npu_tb;
 
     assign rid = rd_id_q;
     assign rvalid = rd_active_q;
-    assign rdata = mem[int'(rd_addr_q >> 2)];
+    assign rdata = {mem[int'(rd_addr_q >> 2) + 1],
+                    mem[int'(rd_addr_q >> 2)]};
     assign rresp = 2'b00;
     assign rlast = (rd_left_q == 9'd1);
 
@@ -161,9 +162,9 @@ module cnn_pool_per_channel_npu_tb;
             if (arvalid && arready) begin
 
                 if (
-                    arsize != 3'd2 ||
+                    arsize != 3'd3 ||
                     arburst != 2'b01 ||
-                    araddr[1:0] != 2'b00 ||
+                    araddr[2:0] != 3'b000 ||
                     araddr >= 64'(MEM_WORDS * 4)
                 ) begin
                     $fatal(1, "Invalid AXI read request");
@@ -184,7 +185,7 @@ module cnn_pool_per_channel_npu_tb;
 
                 end else begin
 
-                    rd_addr_q <= rd_addr_q + 64'd4;
+                    rd_addr_q <= rd_addr_q + 64'd8;
                     rd_left_q <= rd_left_q - 9'd1;
 
                 end

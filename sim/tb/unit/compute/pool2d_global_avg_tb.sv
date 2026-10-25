@@ -37,13 +37,15 @@ module pool2d_global_avg_tb;
     initial clk = 1'b0;
     always #5 clk = ~clk;
 
-    pool2d_engine dut (
+    npu_pool_engine dut (
         .clk(clk),
         .reset(reset),
 
         .cmd_valid(cmd_valid),
         .cmd_ready(cmd_ready),
         .cmd_global_avg(cmd_global_avg),
+        .cmd_pool_config(32'd0),
+        .cmd_pool_padding(32'd0),
 
         .cmd_input_base(cmd_input_base),
         .cmd_output_base(cmd_output_base),
@@ -125,7 +127,7 @@ module pool2d_global_avg_tb;
     assign bresp = 2'b00;
     assign bvalid = response_pending_q;
 
-    always_ff @(posedge clk) begin
+    always @(posedge clk) begin
         if (reset) begin
             read_pending_q <= 1'b0;
             read_word_q <= '0;

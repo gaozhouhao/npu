@@ -237,7 +237,7 @@ module resnet8_npu_tb;
 
 `ifdef NPU_PERF_ENABLE
 
-    // Completed-layer values are registered by npu_perf_monitor.
+    // Completed-layer values are registered by npu_perf_counters.
     // Observe at falling edge, after nonblocking assignments.
     always @(negedge clk) begin
         if (!reset && p_layer_done_pulse) begin
@@ -296,12 +296,12 @@ module resnet8_npu_tb;
 
             assign perf_pe_fire[r*4+c] =
                 !reset &&
-                !u_dut.u_gemm_executor.u_gemm_core
-                    .u_matrix_engine.u_array.clear &&
-                u_dut.u_gemm_executor.u_gemm_core
-                    .u_matrix_engine.u_array.a_valid_wire[r][c] &&
-                u_dut.u_gemm_executor.u_gemm_core
-                    .u_matrix_engine.u_array.b_valid_wire[r][c];
+                !u_dut.u_npu_gemm_engine.u_gemm_tile_compute
+                    .u_gemm_array.clear &&
+                u_dut.u_npu_gemm_engine.u_gemm_tile_compute
+                    .u_gemm_array.array_a_valid[r][c] &&
+                u_dut.u_npu_gemm_engine.u_gemm_tile_compute
+                    .u_gemm_array.array_b_valid[r][c];
 
         end
     end
@@ -366,11 +366,11 @@ module resnet8_npu_tb;
                     perf_active_cycles_total <=
                         perf_active_cycles_total + 64'd1;
 
-                if (u_dut.u_gemm_executor.scheduler_matrix_start)
+                if (u_dut.u_npu_gemm_engine.scheduler_matrix_start)
                     perf_tile_starts_total <=
                         perf_tile_starts_total + 64'd1;
 
-                if (u_dut.u_gemm_executor.core_done)
+                if (u_dut.u_npu_gemm_engine.core_done)
                     perf_tile_dones_total <=
                         perf_tile_dones_total + 64'd1;
             end
@@ -392,11 +392,11 @@ module resnet8_npu_tb;
                     perf_active_cycles_layer <=
                         perf_active_cycles_layer + 64'd1;
 
-                if (u_dut.u_gemm_executor.scheduler_matrix_start)
+                if (u_dut.u_npu_gemm_engine.scheduler_matrix_start)
                     perf_tile_starts_layer <=
                         perf_tile_starts_layer + 64'd1;
 
-                if (u_dut.u_gemm_executor.core_done)
+                if (u_dut.u_npu_gemm_engine.core_done)
                     perf_tile_dones_layer <=
                         perf_tile_dones_layer + 64'd1;
 
@@ -473,10 +473,10 @@ module resnet8_npu_tb;
     logic [63:0] mem_layer_overlap_sum;
 
     wire mem_core_event =
-        u_dut.u_gemm_executor.core_busy;
+        u_dut.u_npu_gemm_engine.core_busy;
 
     wire mem_dma_event =
-        u_dut.u_gemm_executor.read_path_busy;
+        u_dut.u_npu_gemm_engine.read_path_busy;
 
     wire mem_overlap_event =
         mem_core_event && mem_dma_event;
@@ -485,20 +485,20 @@ module resnet8_npu_tb;
         mem_core_event && rvalid && rready;
 
     wire mem_a_compute_wait_event =
-        u_dut.u_gemm_executor.scheduler_a_compute_req &&
-        !u_dut.u_gemm_executor.scheduler_a_compute_grant;
+        u_dut.u_npu_gemm_engine.scheduler_a_compute_req &&
+        !u_dut.u_npu_gemm_engine.scheduler_a_compute_grant;
 
     wire mem_b_compute_wait_event =
-        u_dut.u_gemm_executor.scheduler_b_compute_req &&
-        !u_dut.u_gemm_executor.scheduler_b_compute_grant;
+        u_dut.u_npu_gemm_engine.scheduler_b_compute_req &&
+        !u_dut.u_npu_gemm_engine.scheduler_b_compute_grant;
 
     wire mem_a_load_wait_event =
-        u_dut.u_gemm_executor.a_bank_load_req &&
-        !u_dut.u_gemm_executor.a_bank_load_grant;
+        u_dut.u_npu_gemm_engine.a_bank_load_req &&
+        !u_dut.u_npu_gemm_engine.a_bank_load_grant;
 
     wire mem_b_load_wait_event =
-        u_dut.u_gemm_executor.b_bank_load_req &&
-        !u_dut.u_gemm_executor.b_bank_load_grant;
+        u_dut.u_npu_gemm_engine.b_bank_load_req &&
+        !u_dut.u_npu_gemm_engine.b_bank_load_grant;
 
     always @(posedge clk) begin
         if (reset) begin
@@ -704,35 +704,35 @@ module resnet8_npu_tb;
     // 6: axi_first_wait
     assign v2_event[6] = v2_read_first_pending && !(rvalid && rready);
     // 7: core_only
-    assign v2_event[7] = u_dut.u_gemm_executor.core_busy && !u_dut.u_gemm_executor.read_path_busy;
+    assign v2_event[7] = u_dut.u_npu_gemm_engine.core_busy && !u_dut.u_npu_gemm_engine.read_path_busy;
     // 8: dma_only
-    assign v2_event[8] = u_dut.u_gemm_executor.read_path_busy && !u_dut.u_gemm_executor.core_busy;
+    assign v2_event[8] = u_dut.u_npu_gemm_engine.read_path_busy && !u_dut.u_npu_gemm_engine.core_busy;
     // 9: core_dma
-    assign v2_event[9] = u_dut.u_gemm_executor.core_busy && u_dut.u_gemm_executor.read_path_busy;
+    assign v2_event[9] = u_dut.u_npu_gemm_engine.core_busy && u_dut.u_npu_gemm_engine.read_path_busy;
     // 10: a_load_accept
-    assign v2_event[10] = u_dut.u_gemm_executor.scheduler_a_load_accept;
+    assign v2_event[10] = u_dut.u_npu_gemm_engine.scheduler_a_load_accept;
     // 11: b_load_accept
-    assign v2_event[11] = u_dut.u_gemm_executor.scheduler_b_load_accept;
+    assign v2_event[11] = u_dut.u_npu_gemm_engine.scheduler_b_load_accept;
     // 12: a_sram_write
-    assign v2_event[12] = u_dut.u_gemm_executor.a_wen;
+    assign v2_event[12] = u_dut.u_npu_gemm_engine.a_wen;
     // 13: b_sram_write
-    assign v2_event[13] = u_dut.u_gemm_executor.b_wen;
+    assign v2_event[13] = u_dut.u_npu_gemm_engine.b_wen;
     // 14: c_sram_read
-    assign v2_event[14] = u_dut.u_gemm_executor.c_ren;
+    assign v2_event[14] = u_dut.u_npu_gemm_engine.c_ren;
     // 15: psum_busy
-    assign v2_event[15] = u_dut.u_gemm_executor.psum_busy;
+    assign v2_event[15] = u_dut.u_npu_gemm_engine.psum_busy;
     // 16: writeback_busy
-    assign v2_event[16] = u_dut.u_gemm_executor.c_write_busy;
+    assign v2_event[16] = u_dut.u_npu_gemm_engine.c_write_busy;
     // 17: param_busy
-    assign v2_event[17] = u_dut.u_gemm_executor.param_loader_busy;
+    assign v2_event[17] = u_dut.u_npu_gemm_engine.param_loader_busy;
     // 18: a_compute_wait
-    assign v2_event[18] = u_dut.u_gemm_executor.scheduler_a_compute_req && !u_dut.u_gemm_executor.scheduler_a_compute_grant;
+    assign v2_event[18] = u_dut.u_npu_gemm_engine.scheduler_a_compute_req && !u_dut.u_npu_gemm_engine.scheduler_a_compute_grant;
     // 19: b_compute_wait
-    assign v2_event[19] = u_dut.u_gemm_executor.scheduler_b_compute_req && !u_dut.u_gemm_executor.scheduler_b_compute_grant;
+    assign v2_event[19] = u_dut.u_npu_gemm_engine.scheduler_b_compute_req && !u_dut.u_npu_gemm_engine.scheduler_b_compute_grant;
     // 20: a_load_wait
-    assign v2_event[20] = u_dut.u_gemm_executor.a_bank_load_req && !u_dut.u_gemm_executor.a_bank_load_grant;
+    assign v2_event[20] = u_dut.u_npu_gemm_engine.a_bank_load_req && !u_dut.u_npu_gemm_engine.a_bank_load_grant;
     // 21: b_load_wait
-    assign v2_event[21] = u_dut.u_gemm_executor.b_bank_load_req && !u_dut.u_gemm_executor.b_bank_load_grant;
+    assign v2_event[21] = u_dut.u_npu_gemm_engine.b_bank_load_req && !u_dut.u_npu_gemm_engine.b_bank_load_grant;
 
     always @(posedge clk) begin
         if (reset) begin
@@ -836,18 +836,18 @@ module resnet8_npu_tb;
     logic pipe_running;
     logic pipe_layer_active;
 
-    assign pipe_event[0] = u_dut.u_gemm_executor.scheduler_a_load_req;
-    assign pipe_event[1] = u_dut.u_gemm_executor.scheduler_a_load_accept;
-    assign pipe_event[2] = u_dut.u_gemm_executor.scheduler_a_load_done;
-    assign pipe_event[3] = u_dut.u_gemm_executor.scheduler_b_load_req;
-    assign pipe_event[4] = u_dut.u_gemm_executor.scheduler_b_load_accept;
-    assign pipe_event[5] = u_dut.u_gemm_executor.scheduler_b_load_done;
-    assign pipe_event[6] = u_dut.u_gemm_executor.scheduler_matrix_start;
-    assign pipe_event[7] = u_dut.u_gemm_executor.matrix_done_effective;
-    assign pipe_event[8] = u_dut.u_gemm_executor.scheduler_a_load_req && !u_dut.u_gemm_executor.scheduler_a_load_accept;
-    assign pipe_event[9] = u_dut.u_gemm_executor.scheduler_b_load_req && !u_dut.u_gemm_executor.scheduler_b_load_accept;
-    assign pipe_event[10] = u_dut.u_gemm_executor.read_path_busy && !u_dut.u_gemm_executor.core_busy;
-    assign pipe_event[11] = u_dut.u_gemm_executor.read_path_busy && u_dut.u_gemm_executor.core_busy;
+    assign pipe_event[0] = u_dut.u_npu_gemm_engine.scheduler_a_load_req;
+    assign pipe_event[1] = u_dut.u_npu_gemm_engine.scheduler_a_load_accept;
+    assign pipe_event[2] = u_dut.u_npu_gemm_engine.scheduler_a_load_done;
+    assign pipe_event[3] = u_dut.u_npu_gemm_engine.scheduler_b_load_req;
+    assign pipe_event[4] = u_dut.u_npu_gemm_engine.scheduler_b_load_accept;
+    assign pipe_event[5] = u_dut.u_npu_gemm_engine.scheduler_b_load_done;
+    assign pipe_event[6] = u_dut.u_npu_gemm_engine.scheduler_matrix_start;
+    assign pipe_event[7] = u_dut.u_npu_gemm_engine.matrix_done_effective;
+    assign pipe_event[8] = u_dut.u_npu_gemm_engine.scheduler_a_load_req && !u_dut.u_npu_gemm_engine.scheduler_a_load_accept;
+    assign pipe_event[9] = u_dut.u_npu_gemm_engine.scheduler_b_load_req && !u_dut.u_npu_gemm_engine.scheduler_b_load_accept;
+    assign pipe_event[10] = u_dut.u_npu_gemm_engine.read_path_busy && !u_dut.u_npu_gemm_engine.core_busy;
+    assign pipe_event[11] = u_dut.u_npu_gemm_engine.read_path_busy && u_dut.u_npu_gemm_engine.core_busy;
 
     always @(posedge clk) begin
         if (reset) begin
@@ -963,22 +963,22 @@ module resnet8_npu_tb;
                 $fatal(1, "TRACE_CYCLES cannot be zero");
 
             $dumpfile(
-                "build/resnet8_perf/resnet8_window.vcd"
+                "resnet8_window.vcd"
             );
 
             $dumpvars(
                 0,
-                u_dut.u_gemm_executor.u_tile_scheduler
+                u_dut.u_npu_gemm_engine.u_gemm_tile_scheduler
             );
 
             $dumpvars(
                 0,
-                u_dut.u_gemm_executor.u_read_path
+                u_dut.u_npu_gemm_engine.u_read_path
             );
 
             $dumpvars(
                 1,
-                u_dut.u_gemm_executor
+                u_dut.u_npu_gemm_engine
             );
 
             $dumpoff;

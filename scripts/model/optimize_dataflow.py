@@ -26,6 +26,7 @@ import json
 import math
 import os
 import struct
+import sys
 from pathlib import Path
 
 
@@ -37,9 +38,13 @@ OP_ADD = 5
 FLAG_MULTI_K_A_REUSE = 1 << 5
 FLAG_B_STATIONARY = 1 << 6
 
-ROWS = 4
-COLS = 4
-K_TILE_SIZE = 256
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'compiler'))
+from target import hardware_defaults
+
+HARDWARE = hardware_defaults()
+ROWS = HARDWARE['pe_rows']
+COLS = HARDWARE['pe_cols']
+K_TILE_SIZE = HARDWARE['k_tile_size']
 
 DESC_WORDS = 16
 DESC_BYTES = DESC_WORDS * 4
