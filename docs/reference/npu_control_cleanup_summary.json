@@ -1,0 +1,3087 @@
+{
+  "artifacts": {
+    "resnet8_results": {
+      "path": "build/npu-control-cleanup/validation/resnet8-results.json",
+      "sha256": "fd8a3876f8680de882e4e814842506319acc90ae68675f59540387f0b7b9f14c"
+    }
+  },
+  "baseline_commit": "61b2e6516d6c513e99ba0d7915e6a916b3f9d0df",
+  "cross_layer_feature_cache": false,
+  "dataset_accuracy_measured": false,
+  "date": "2026-10-26",
+  "equivalent_commit_tree_sha": "a116c1c1f8a001d68fa6e4a39d46a2c911e4148c",
+  "measured_local_current_commit": "7c58e5cd734c474561645cf5184c867da9f1e27d",
+  "mnist": {
+    "fused": {
+      "baseline": {
+        "images": [
+          {
+            "acc00": -10992,
+            "cycles": 51318,
+            "image": 0,
+            "prediction": 7,
+            "read_beats": 14070,
+            "read_bytes": 112560,
+            "read_transactions": 1610,
+            "write_beats": 636,
+            "write_bytes": 2544,
+            "write_transactions": 600
+          },
+          {
+            "acc00": -5766,
+            "cycles": 51318,
+            "image": 1,
+            "prediction": 2,
+            "read_beats": 14070,
+            "read_bytes": 112560,
+            "read_transactions": 1610,
+            "write_beats": 636,
+            "write_bytes": 2544,
+            "write_transactions": 600
+          },
+          {
+            "acc00": -4630,
+            "cycles": 51318,
+            "image": 2,
+            "prediction": 1,
+            "read_beats": 14070,
+            "read_bytes": 112560,
+            "read_transactions": 1610,
+            "write_beats": 636,
+            "write_bytes": 2544,
+            "write_transactions": 600
+          },
+          {
+            "acc00": -19504,
+            "cycles": 51318,
+            "image": 3,
+            "prediction": 0,
+            "read_beats": 14070,
+            "read_bytes": 112560,
+            "read_transactions": 1610,
+            "write_beats": 636,
+            "write_bytes": 2544,
+            "write_transactions": 600
+          }
+        ],
+        "simulation_log": {
+          "path": "build/npu-control-cleanup/validation/mnist-baseline-fused.log",
+          "sha256": "ebccc9fb56ecc1ac0bd154370b25f78dcbbbcbd12b2bf2eb0a85e69cf0f1efc1"
+        }
+      },
+      "current": {
+        "images": [
+          {
+            "acc00": -10992,
+            "cycles": 54805,
+            "image": 0,
+            "prediction": 7,
+            "read_beats": 18164,
+            "read_bytes": 145312,
+            "read_transactions": 4186,
+            "write_beats": 636,
+            "write_bytes": 2544,
+            "write_transactions": 600
+          },
+          {
+            "acc00": -5766,
+            "cycles": 54805,
+            "image": 1,
+            "prediction": 2,
+            "read_beats": 18164,
+            "read_bytes": 145312,
+            "read_transactions": 4186,
+            "write_beats": 636,
+            "write_bytes": 2544,
+            "write_transactions": 600
+          },
+          {
+            "acc00": -4630,
+            "cycles": 54805,
+            "image": 2,
+            "prediction": 1,
+            "read_beats": 18164,
+            "read_bytes": 145312,
+            "read_transactions": 4186,
+            "write_beats": 636,
+            "write_bytes": 2544,
+            "write_transactions": 600
+          },
+          {
+            "acc00": -19504,
+            "cycles": 54805,
+            "image": 3,
+            "prediction": 0,
+            "read_beats": 18164,
+            "read_bytes": 145312,
+            "read_transactions": 4186,
+            "write_beats": 636,
+            "write_bytes": 2544,
+            "write_transactions": 600
+          }
+        ],
+        "simulation_log": {
+          "path": "build/npu-control-cleanup/validation/mnist-current-fused.log",
+          "sha256": "9c581740dda09fb05b4530a928d3f1b2eabec8269da2ed1558f117dc64c0bc4b"
+        }
+      },
+      "cycle_change_pct": 6.794886784364161,
+      "per_image_cycles_saved": -3487
+    },
+    "ordinary": {
+      "baseline": {
+        "images": [
+          {
+            "acc00": -10992,
+            "cycles": 68542,
+            "image": 0,
+            "prediction": 7,
+            "read_beats": 16454,
+            "read_bytes": 131632,
+            "read_transactions": 3994,
+            "write_beats": 2988,
+            "write_bytes": 11952,
+            "write_transactions": 2952
+          },
+          {
+            "acc00": -5766,
+            "cycles": 68542,
+            "image": 1,
+            "prediction": 2,
+            "read_beats": 16454,
+            "read_bytes": 131632,
+            "read_transactions": 3994,
+            "write_beats": 2988,
+            "write_bytes": 11952,
+            "write_transactions": 2952
+          },
+          {
+            "acc00": -4630,
+            "cycles": 68542,
+            "image": 2,
+            "prediction": 1,
+            "read_beats": 16454,
+            "read_bytes": 131632,
+            "read_transactions": 3994,
+            "write_beats": 2988,
+            "write_bytes": 11952,
+            "write_transactions": 2952
+          },
+          {
+            "acc00": -19504,
+            "cycles": 68542,
+            "image": 3,
+            "prediction": 0,
+            "read_beats": 16454,
+            "read_bytes": 131632,
+            "read_transactions": 3994,
+            "write_beats": 2988,
+            "write_bytes": 11952,
+            "write_transactions": 2952
+          }
+        ],
+        "simulation_log": {
+          "path": "build/npu-control-cleanup/validation/mnist-baseline-ordinary.log",
+          "sha256": "4dd90195ce082c09742d528eb21235ab4039649fb12818490522356465f26778"
+        }
+      },
+      "current": {
+        "images": [
+          {
+            "acc00": -10992,
+            "cycles": 72029,
+            "image": 0,
+            "prediction": 7,
+            "read_beats": 20548,
+            "read_bytes": 164384,
+            "read_transactions": 6570,
+            "write_beats": 2988,
+            "write_bytes": 11952,
+            "write_transactions": 2952
+          },
+          {
+            "acc00": -5766,
+            "cycles": 72029,
+            "image": 1,
+            "prediction": 2,
+            "read_beats": 20548,
+            "read_bytes": 164384,
+            "read_transactions": 6570,
+            "write_beats": 2988,
+            "write_bytes": 11952,
+            "write_transactions": 2952
+          },
+          {
+            "acc00": -4630,
+            "cycles": 72029,
+            "image": 2,
+            "prediction": 1,
+            "read_beats": 20548,
+            "read_bytes": 164384,
+            "read_transactions": 6570,
+            "write_beats": 2988,
+            "write_bytes": 11952,
+            "write_transactions": 2952
+          },
+          {
+            "acc00": -19504,
+            "cycles": 72029,
+            "image": 3,
+            "prediction": 0,
+            "read_beats": 20548,
+            "read_bytes": 164384,
+            "read_transactions": 6570,
+            "write_beats": 2988,
+            "write_bytes": 11952,
+            "write_transactions": 2952
+          }
+        ],
+        "simulation_log": {
+          "path": "build/npu-control-cleanup/validation/mnist-current-ordinary.log",
+          "sha256": "a73dec8a00020ad03ca99997d36ed6362659580d89d0ccf67e323bf423901482"
+        }
+      },
+      "cycle_change_pct": 5.087391672259344,
+      "per_image_cycles_saved": -3487
+    }
+  },
+  "native_operand_bits": 64,
+  "published_equivalent_current_commit": "34358ce46fb3df5d925a9e95910f0c7b179b7679",
+  "purpose": "production_control_cleanup",
+  "resnet50": {
+    "artifacts": {
+      "baseline-per_layer.csv": {
+        "path": "build/npu-control-cleanup/resnet50/baseline-per_layer.csv",
+        "sha256": "5358f2750c262e3ad6893e60f463787097905af0e6390c3205106ceaf9581d75"
+      },
+      "baseline-report.json": {
+        "path": "build/npu-control-cleanup/resnet50/baseline-report.json",
+        "sha256": "eb8bdbbfffeee728a6463c160e632b5537c9d6d983c3bb9af1dd80a820ced30f"
+      },
+      "comparison.json": {
+        "path": "build/npu-control-cleanup/resnet50/comparison.json",
+        "sha256": "7ae07f9fec43b0c63ed37826ecc6ac14cc1361485081851ff8de8100644d2983"
+      },
+      "current-per_layer.csv": {
+        "path": "build/npu-control-cleanup/resnet50/current-per_layer.csv",
+        "sha256": "aa416f9680b024ea9dba49c9b02c3355158dbccca0d30cdc21a4b89f876d1473"
+      },
+      "current-report.json": {
+        "path": "build/npu-control-cleanup/resnet50/current-report.json",
+        "sha256": "12c274b2efeb5ed66fbdc937af38d85eebfabf20f654ad3117d124fee1be1d48"
+      },
+      "reference.json": {
+        "path": "build/npu-control-cleanup/resnet50/reference.json",
+        "sha256": "ea365b420aff2ad88a332981ec2c7e5aa3a35b1e3a1c9a200eade84a99196b42"
+      }
+    },
+    "baseline": {
+      "cycles_outside_layers": 30025,
+      "effective_useful_mac_utilization": 0.4905675152983207,
+      "executor_cycles": 419654327,
+      "external_bytes": 1175636793,
+      "nominal_macs": 4089186304,
+      "pool_cycles": 12964496,
+      "read_beats": 144849962,
+      "read_bytes": 1158799696,
+      "read_transactions": 10112780,
+      "testbench_cycles": 503021224,
+      "top1": 419,
+      "total_cycles": 503021224,
+      "useful_macs": 3948253952,
+      "write_beats": 4209275,
+      "write_bytes": 16837097,
+      "write_transactions": 4209275
+    },
+    "calibrated": false,
+    "checked_full_ddr_bytes_per_run": 29404672,
+    "checked_layer_output_bytes_per_run": 16837097,
+    "checked_layers_per_run": 72,
+    "comparison": {
+      "baseline_commit": "61b2e6516d6c513e99ba0d7915e6a916b3f9d0df",
+      "baseline_cycles": 503021224,
+      "baseline_effective_useful_mac_utilization": 0.4905675152983207,
+      "baseline_read_bytes": 1158799696,
+      "baseline_write_bytes": 16837097,
+      "checked_full_ddr_bytes": 29404672,
+      "checked_layers": 72,
+      "current_commit": "7c58e5cd734c474561645cf5184c867da9f1e27d",
+      "current_cycles": 489351345,
+      "current_effective_useful_mac_utilization": 0.5042713676407694,
+      "current_read_bytes": 1278406224,
+      "current_write_bytes": 16837097,
+      "cycle_reduction_pct": 2.7175551145332983,
+      "cycles_saved": 13669879,
+      "dataset_accuracy_measured": false,
+      "full_ddr_identical": true,
+      "interpretation": "Matched-model simulated performance; accuracy not measured",
+      "layers": [
+        {
+          "baseline_cycles": 33500589,
+          "current_cycles": 41144525,
+          "cycles_saved": -7643936,
+          "index": 0,
+          "operation": "Conv",
+          "read_bytes_saved": -31366656,
+          "tensor": "resnet_model/Relu:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 12309649,
+          "current_cycles": 12309649,
+          "cycles_saved": 0,
+          "index": 1,
+          "operation": "MaxPool",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/max_pooling2d/MaxPool:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 2585077,
+          "current_cycles": 2133463,
+          "cycles_saved": 451614,
+          "index": 2,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_1:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10440393,
+          "current_cycles": 11907445,
+          "cycles_saved": -1467052,
+          "index": 3,
+          "operation": "Conv",
+          "read_bytes_saved": -6459392,
+          "tensor": "resnet_model/Relu_2:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10339972,
+          "current_cycles": 8533510,
+          "cycles_saved": 1806462,
+          "index": 4,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_4/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10339972,
+          "current_cycles": 8533510,
+          "cycles_saved": 1806462,
+          "index": 5,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_1/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10235934,
+          "current_cycles": 10235934,
+          "cycles_saved": 0,
+          "index": 6,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_3:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4756900,
+          "current_cycles": 3540121,
+          "cycles_saved": 1216779,
+          "index": 7,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_4:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10426533,
+          "current_cycles": 11891990,
+          "cycles_saved": -1465457,
+          "index": 8,
+          "operation": "Conv",
+          "read_bytes_saved": -6459392,
+          "tensor": "resnet_model/Relu_5:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10339972,
+          "current_cycles": 8533510,
+          "cycles_saved": 1806462,
+          "index": 9,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_7/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10235934,
+          "current_cycles": 10235934,
+          "cycles_saved": 0,
+          "index": 10,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_6:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4756900,
+          "current_cycles": 3540121,
+          "cycles_saved": 1216779,
+          "index": 11,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_7:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10412421,
+          "current_cycles": 11877163,
+          "cycles_saved": -1464742,
+          "index": 12,
+          "operation": "Conv",
+          "read_bytes_saved": -6459392,
+          "tensor": "resnet_model/Relu_8:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10339972,
+          "current_cycles": 8533510,
+          "cycles_saved": 1806462,
+          "index": 13,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_10/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10235934,
+          "current_cycles": 10235934,
+          "cycles_saved": 0,
+          "index": 14,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_9:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 9527608,
+          "current_cycles": 7079953,
+          "cycles_saved": 2447655,
+          "index": 15,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_10:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10396898,
+          "current_cycles": 10329145,
+          "cycles_saved": 67753,
+          "index": 16,
+          "operation": "Conv",
+          "read_bytes_saved": -3087616,
+          "tensor": "resnet_model/Relu_11:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 6583572,
+          "current_cycles": 5085442,
+          "cycles_saved": 1498130,
+          "index": 17,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_14/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 9531544,
+          "current_cycles": 7094473,
+          "cycles_saved": 2437071,
+          "index": 18,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_11/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 5117982,
+          "current_cycles": 5117982,
+          "cycles_saved": 0,
+          "index": 19,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_12:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4122420,
+          "current_cycles": 4309155,
+          "cycles_saved": -186735,
+          "index": 20,
+          "operation": "Conv",
+          "read_bytes_saved": -2809856,
+          "tensor": "resnet_model/Relu_13:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 9979598,
+          "current_cycles": 10447297,
+          "cycles_saved": -467699,
+          "index": 21,
+          "operation": "Conv",
+          "read_bytes_saved": -5430272,
+          "tensor": "resnet_model/Relu_14:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 6583942,
+          "current_cycles": 5082306,
+          "cycles_saved": 1501636,
+          "index": 22,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_17/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 5117982,
+          "current_cycles": 5117982,
+          "cycles_saved": 0,
+          "index": 23,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_15:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4122420,
+          "current_cycles": 4309155,
+          "cycles_saved": -186735,
+          "index": 24,
+          "operation": "Conv",
+          "read_bytes_saved": -2809856,
+          "tensor": "resnet_model/Relu_16:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 9979598,
+          "current_cycles": 10447297,
+          "cycles_saved": -467699,
+          "index": 25,
+          "operation": "Conv",
+          "read_bytes_saved": -5430272,
+          "tensor": "resnet_model/Relu_17:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 6583570,
+          "current_cycles": 5085442,
+          "cycles_saved": 1498128,
+          "index": 26,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_20/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 5117982,
+          "current_cycles": 5117982,
+          "cycles_saved": 0,
+          "index": 27,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_18:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4122399,
+          "current_cycles": 4309134,
+          "cycles_saved": -186735,
+          "index": 28,
+          "operation": "Conv",
+          "read_bytes_saved": -2809856,
+          "tensor": "resnet_model/Relu_19:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 9979598,
+          "current_cycles": 10460905,
+          "cycles_saved": -481307,
+          "index": 29,
+          "operation": "Conv",
+          "read_bytes_saved": -5430272,
+          "tensor": "resnet_model/Relu_20:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 6584368,
+          "current_cycles": 5078834,
+          "cycles_saved": 1505534,
+          "index": 30,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_23/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 5117982,
+          "current_cycles": 5117982,
+          "cycles_saved": 0,
+          "index": 31,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_21:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 8155295,
+          "current_cycles": 8617998,
+          "cycles_saved": -462703,
+          "index": 32,
+          "operation": "Conv",
+          "read_bytes_saved": -6021120,
+          "tensor": "resnet_model/Relu_22:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10469897,
+          "current_cycles": 9867305,
+          "cycles_saved": 602592,
+          "index": 33,
+          "operation": "Conv",
+          "read_bytes_saved": -1515520,
+          "tensor": "resnet_model/Relu_23:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 3543028,
+          "current_cycles": 3548551,
+          "cycles_saved": -5523,
+          "index": 34,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_27/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 9495935,
+          "current_cycles": 8617998,
+          "cycles_saved": 877937,
+          "index": 35,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_24/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 2559006,
+          "current_cycles": 2559006,
+          "cycles_saved": 0,
+          "index": 36,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_24:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4721375,
+          "current_cycles": 4282478,
+          "cycles_saved": 438897,
+          "index": 37,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_25:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10241603,
+          "current_cycles": 10126505,
+          "cycles_saved": 115098,
+          "index": 38,
+          "operation": "Conv",
+          "read_bytes_saved": -3495424,
+          "tensor": "resnet_model/Relu_26:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 3543028,
+          "current_cycles": 3548551,
+          "cycles_saved": -5523,
+          "index": 39,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_30/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 2559006,
+          "current_cycles": 2559006,
+          "cycles_saved": 0,
+          "index": 40,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_27:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4721375,
+          "current_cycles": 4282478,
+          "cycles_saved": 438897,
+          "index": 41,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_28:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10241603,
+          "current_cycles": 10126934,
+          "cycles_saved": 114669,
+          "index": 42,
+          "operation": "Conv",
+          "read_bytes_saved": -3495424,
+          "tensor": "resnet_model/Relu_29:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 3543028,
+          "current_cycles": 3548551,
+          "cycles_saved": -5523,
+          "index": 43,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_33/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 2559006,
+          "current_cycles": 2559006,
+          "cycles_saved": 0,
+          "index": 44,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_30:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4721375,
+          "current_cycles": 4282478,
+          "cycles_saved": 438897,
+          "index": 45,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_31:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10241603,
+          "current_cycles": 10126505,
+          "cycles_saved": 115098,
+          "index": 46,
+          "operation": "Conv",
+          "read_bytes_saved": -3495424,
+          "tensor": "resnet_model/Relu_32:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 3543028,
+          "current_cycles": 3548551,
+          "cycles_saved": -5523,
+          "index": 47,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_36/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 2559006,
+          "current_cycles": 2559006,
+          "cycles_saved": 0,
+          "index": 48,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_33:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4721375,
+          "current_cycles": 4282478,
+          "cycles_saved": 438897,
+          "index": 49,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_34:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10241603,
+          "current_cycles": 10126505,
+          "cycles_saved": 115098,
+          "index": 50,
+          "operation": "Conv",
+          "read_bytes_saved": -3495424,
+          "tensor": "resnet_model/Relu_35:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 3543028,
+          "current_cycles": 3548551,
+          "cycles_saved": -5523,
+          "index": 51,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_39/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 2559006,
+          "current_cycles": 2559006,
+          "cycles_saved": 0,
+          "index": 52,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_36:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4721375,
+          "current_cycles": 4282478,
+          "cycles_saved": 438897,
+          "index": 53,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_37:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10241603,
+          "current_cycles": 10126505,
+          "cycles_saved": 115098,
+          "index": 54,
+          "operation": "Conv",
+          "read_bytes_saved": -3495424,
+          "tensor": "resnet_model/Relu_38:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 3543028,
+          "current_cycles": 3548551,
+          "cycles_saved": -5523,
+          "index": 55,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/batch_normalization_42/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 2559006,
+          "current_cycles": 2559006,
+          "cycles_saved": 0,
+          "index": 56,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_39:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 9442623,
+          "current_cycles": 8564686,
+          "cycles_saved": 877937,
+          "index": 57,
+          "operation": "Conv",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_40:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 11790204,
+          "current_cycles": 11044362,
+          "cycles_saved": 745842,
+          "index": 58,
+          "operation": "Conv",
+          "read_bytes_saved": -654848,
+          "tensor": "resnet_model/Relu_41:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4449474,
+          "current_cycles": 4720767,
+          "cycles_saved": -271293,
+          "index": 59,
+          "operation": "Conv",
+          "read_bytes_saved": -3186176,
+          "tensor": "resnet_model/batch_normalization_46/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 10237908,
+          "current_cycles": 9390463,
+          "cycles_saved": 847445,
+          "index": 60,
+          "operation": "Conv",
+          "read_bytes_saved": -130048,
+          "tensor": "resnet_model/batch_normalization_43/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 1279518,
+          "current_cycles": 1279518,
+          "cycles_saved": 0,
+          "index": 61,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_42:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 5106648,
+          "current_cycles": 4682655,
+          "cycles_saved": 423993,
+          "index": 62,
+          "operation": "Conv",
+          "read_bytes_saved": -63488,
+          "tensor": "resnet_model/Relu_43:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 11725318,
+          "current_cycles": 11543572,
+          "cycles_saved": 181746,
+          "index": 63,
+          "operation": "Conv",
+          "read_bytes_saved": -2784768,
+          "tensor": "resnet_model/Relu_44:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4449494,
+          "current_cycles": 4720787,
+          "cycles_saved": -271293,
+          "index": 64,
+          "operation": "Conv",
+          "read_bytes_saved": -3186176,
+          "tensor": "resnet_model/batch_normalization_49/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 1279518,
+          "current_cycles": 1279518,
+          "cycles_saved": 0,
+          "index": 65,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_45:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 5106648,
+          "current_cycles": 4682655,
+          "cycles_saved": 423993,
+          "index": 66,
+          "operation": "Conv",
+          "read_bytes_saved": -63488,
+          "tensor": "resnet_model/Relu_46:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 11725308,
+          "current_cycles": 11543562,
+          "cycles_saved": 181746,
+          "index": 67,
+          "operation": "Conv",
+          "read_bytes_saved": -2784768,
+          "tensor": "resnet_model/Relu_47:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 4449494,
+          "current_cycles": 4720787,
+          "cycles_saved": -271293,
+          "index": 68,
+          "operation": "Conv",
+          "read_bytes_saved": -3186176,
+          "tensor": "resnet_model/batch_normalization_52/FusedBatchNorm:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 1279518,
+          "current_cycles": 1279518,
+          "cycles_saved": 0,
+          "index": 69,
+          "operation": "Add",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Relu_48:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 654849,
+          "current_cycles": 654849,
+          "cycles_saved": 0,
+          "index": 70,
+          "operation": "GlobalAveragePool",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/Mean:0",
+          "write_bytes_saved": 0
+        },
+        {
+          "baseline_cycles": 640841,
+          "current_cycles": 642849,
+          "cycles_saved": -2008,
+          "index": 71,
+          "operation": "FullyConnected",
+          "read_bytes_saved": 0,
+          "tensor": "resnet_model/dense/BiasAdd:0",
+          "write_bytes_saved": 0
+        }
+      ],
+      "model_sha256": "358c5906f4057cfff3506a63bcf7b502e69e566bdaa9ea598466fe002c3bd3fa",
+      "nominal_macs": 4089186304,
+      "read_latency_cycles": 20,
+      "speedup": 1.0279346917908236,
+      "status": "PASS",
+      "useful_macs": 3948253952,
+      "write_latency_cycles": 0
+    },
+    "current": {
+      "cycles_outside_layers": 30025,
+      "effective_useful_mac_utilization": 0.5042713676407694,
+      "executor_cycles": 405984448,
+      "external_bytes": 1295243321,
+      "nominal_macs": 4089186304,
+      "pool_cycles": 12964496,
+      "read_beats": 159800778,
+      "read_bytes": 1278406224,
+      "read_transactions": 11065013,
+      "testbench_cycles": 489351345,
+      "top1": 419,
+      "total_cycles": 489351345,
+      "useful_macs": 3948253952,
+      "write_beats": 4209275,
+      "write_bytes": 16837097,
+      "write_transactions": 4209275
+    },
+    "full_ddr_sha256": "2c20633f1688bd23f1686548b8d1f4729b92a6863aa97f3cec1e056cf83e4f86",
+    "layers": [
+      {
+        "baseline": {
+          "cycles": 33500589,
+          "read_bytes": 9690128,
+          "write_bytes": 802816
+        },
+        "current": {
+          "cycles": 41144525,
+          "read_bytes": 41056784,
+          "write_bytes": 802816
+        },
+        "index": 0,
+        "logical_bytes": 802816,
+        "nominal_macs": 118013952,
+        "operation": "Conv",
+        "sha256": "d9c77851f0e8dc528408cfebe1cf5ab0b0a2c9a4379c8f9ff4e98e2910c8f575",
+        "tensor": "resnet_model/Relu:0",
+        "useful_macs": 116214528
+      },
+      {
+        "baseline": {
+          "cycles": 12309649,
+          "read_bytes": 3569792,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 12309649,
+          "read_bytes": 3569792,
+          "write_bytes": 200704
+        },
+        "index": 1,
+        "logical_bytes": 200704,
+        "nominal_macs": 0,
+        "operation": "MaxPool",
+        "sha256": "4e85259d30cc1a0554694d4a3f7283c8a8ac1389747c169c84b7ffe618fbb681",
+        "tensor": "resnet_model/max_pooling2d/MaxPool:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 2585077,
+          "read_bytes": 3817488,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 2133463,
+          "read_bytes": 3817488,
+          "write_bytes": 200704
+        },
+        "index": 2,
+        "logical_bytes": 200704,
+        "nominal_macs": 12845056,
+        "operation": "Conv",
+        "sha256": "004603d50ede3ef86075820de83190de752221dff24addeb4de0aff6498f4036",
+        "tensor": "resnet_model/Relu_1:0",
+        "useful_macs": 12845056
+      },
+      {
+        "baseline": {
+          "cycles": 10440393,
+          "read_bytes": 30098448,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 11907445,
+          "read_bytes": 36557840,
+          "write_bytes": 200704
+        },
+        "index": 3,
+        "logical_bytes": 200704,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "13d414ec42962d112ecc021ca6075a5e733c63a635d6ce7ca0a796041ec1af41",
+        "tensor": "resnet_model/Relu_2:0",
+        "useful_macs": 112869376
+      },
+      {
+        "baseline": {
+          "cycles": 10339972,
+          "read_bytes": 15269904,
+          "write_bytes": 802816
+        },
+        "current": {
+          "cycles": 8533510,
+          "read_bytes": 15269904,
+          "write_bytes": 802816
+        },
+        "index": 4,
+        "logical_bytes": 802816,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "a243efb3443ed52e4e96d91aecba04f2efbe2648edb065446c12b8facd7cbe1d",
+        "tensor": "resnet_model/batch_normalization_4/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10339972,
+          "read_bytes": 15269904,
+          "write_bytes": 802816
+        },
+        "current": {
+          "cycles": 8533510,
+          "read_bytes": 15269904,
+          "write_bytes": 802816
+        },
+        "index": 5,
+        "logical_bytes": 802816,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "d241c2a96059d483ae22cc27db7dd9d84e0647bfaf8154efe1be61f7ac4c7136",
+        "tensor": "resnet_model/batch_normalization_1/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10235934,
+          "read_bytes": 3211288,
+          "write_bytes": 802816
+        },
+        "current": {
+          "cycles": 10235934,
+          "read_bytes": 3211288,
+          "write_bytes": 802816
+        },
+        "index": 6,
+        "logical_bytes": 802816,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "84e2d202d6229eb1cbe382f4d11dad2466e71b240abe98123f16e973e04c58cd",
+        "tensor": "resnet_model/Relu_3:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 4756900,
+          "read_bytes": 13463568,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 3540121,
+          "read_bytes": 13463568,
+          "write_bytes": 200704
+        },
+        "index": 7,
+        "logical_bytes": 200704,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "003ae9e361783a23d1c539a84044be2ce1f94239b4320472a9ea06ac0f03903e",
+        "tensor": "resnet_model/Relu_4:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10426533,
+          "read_bytes": 30098448,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 11891990,
+          "read_bytes": 36557840,
+          "write_bytes": 200704
+        },
+        "index": 8,
+        "logical_bytes": 200704,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "5526d7002840390eff24377633125afd590227636bf1a5964104b922ee62dad8",
+        "tensor": "resnet_model/Relu_5:0",
+        "useful_macs": 112869376
+      },
+      {
+        "baseline": {
+          "cycles": 10339972,
+          "read_bytes": 15269904,
+          "write_bytes": 802816
+        },
+        "current": {
+          "cycles": 8533510,
+          "read_bytes": 15269904,
+          "write_bytes": 802816
+        },
+        "index": 9,
+        "logical_bytes": 802816,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "d22fe65f6c8f37baa452c326b0db3b621c28a9deb496af2adea2291b68093e31",
+        "tensor": "resnet_model/batch_normalization_7/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10235934,
+          "read_bytes": 3211288,
+          "write_bytes": 802816
+        },
+        "current": {
+          "cycles": 10235934,
+          "read_bytes": 3211288,
+          "write_bytes": 802816
+        },
+        "index": 10,
+        "logical_bytes": 802816,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "d51d63255ba1566fce3292ef770216c2ce74635a2a77c173603e162278b46d27",
+        "tensor": "resnet_model/Relu_6:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 4756900,
+          "read_bytes": 13463568,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 3540121,
+          "read_bytes": 13463568,
+          "write_bytes": 200704
+        },
+        "index": 11,
+        "logical_bytes": 200704,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "251895881a0cf6630c6338d71c175219162cc0aa8e680bda2be98641991c591d",
+        "tensor": "resnet_model/Relu_7:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10412421,
+          "read_bytes": 30098448,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 11877163,
+          "read_bytes": 36557840,
+          "write_bytes": 200704
+        },
+        "index": 12,
+        "logical_bytes": 200704,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "9434afb33cfbe91f8fd59015d1637cf7ed3b8d96862173c0258d2439d18292d1",
+        "tensor": "resnet_model/Relu_8:0",
+        "useful_macs": 112869376
+      },
+      {
+        "baseline": {
+          "cycles": 10339972,
+          "read_bytes": 15269904,
+          "write_bytes": 802816
+        },
+        "current": {
+          "cycles": 8533510,
+          "read_bytes": 15269904,
+          "write_bytes": 802816
+        },
+        "index": 13,
+        "logical_bytes": 802816,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "20d79f8f29ce7e1f008410262919e87a1b7ddb6a84e481f5c72752f6a71b70dc",
+        "tensor": "resnet_model/batch_normalization_10/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10235934,
+          "read_bytes": 3211288,
+          "write_bytes": 802816
+        },
+        "current": {
+          "cycles": 10235934,
+          "read_bytes": 3211288,
+          "write_bytes": 802816
+        },
+        "index": 14,
+        "logical_bytes": 802816,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "4a4616dc71e62ae9e4872c0a3c5b7b0b8dcea61dfb3358ac1c75b77467d92e67",
+        "tensor": "resnet_model/Relu_9:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 9527608,
+          "read_bytes": 26927120,
+          "write_bytes": 401408
+        },
+        "current": {
+          "cycles": 7079953,
+          "read_bytes": 26927120,
+          "write_bytes": 401408
+        },
+        "index": 15,
+        "logical_bytes": 401408,
+        "nominal_macs": 102760448,
+        "operation": "Conv",
+        "sha256": "f66c2d123e134aa7d197f8031f7f82e453534bed2b2064740767a31f8a1adf64",
+        "tensor": "resnet_model/Relu_10:0",
+        "useful_macs": 102760448
+      },
+      {
+        "baseline": {
+          "cycles": 10396898,
+          "read_bytes": 33169168,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 10329145,
+          "read_bytes": 36256784,
+          "write_bytes": 100352
+        },
+        "index": 16,
+        "logical_bytes": 100352,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "5f8b178fdc80b4ce54049ba41662c63bdaaa4646d6639f20a9c406e45656bde3",
+        "tensor": "resnet_model/Relu_11:0",
+        "useful_macs": 112869376
+      },
+      {
+        "baseline": {
+          "cycles": 6583572,
+          "read_bytes": 14114832,
+          "write_bytes": 401408
+        },
+        "current": {
+          "cycles": 5085442,
+          "read_bytes": 14114832,
+          "write_bytes": 401408
+        },
+        "index": 17,
+        "logical_bytes": 401408,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "4714d0ac46553a010eb6a2c26837086ccceb506237ed5f9da9ba0bba5809aae4",
+        "tensor": "resnet_model/batch_normalization_14/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 9531544,
+          "read_bytes": 27025424,
+          "write_bytes": 401408
+        },
+        "current": {
+          "cycles": 7094473,
+          "read_bytes": 27025424,
+          "write_bytes": 401408
+        },
+        "index": 18,
+        "logical_bytes": 401408,
+        "nominal_macs": 102760448,
+        "operation": "Conv",
+        "sha256": "090b52631d5beac9c1ce3d3fb7ee2a775128f9cd377fe0abd8639db82e0530ad",
+        "tensor": "resnet_model/batch_normalization_11/FusedBatchNorm:0",
+        "useful_macs": 102760448
+      },
+      {
+        "baseline": {
+          "cycles": 5117982,
+          "read_bytes": 1605656,
+          "write_bytes": 401408
+        },
+        "current": {
+          "cycles": 5117982,
+          "read_bytes": 1605656,
+          "write_bytes": 401408
+        },
+        "index": 19,
+        "logical_bytes": 401408,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "739a193aaff50a182f09dadcfce032f9dd4531038d61623724e3089d5c7ff60b",
+        "tensor": "resnet_model/Relu_12:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 4122420,
+          "read_bytes": 13547536,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 4309155,
+          "read_bytes": 16357392,
+          "write_bytes": 100352
+        },
+        "index": 20,
+        "logical_bytes": 100352,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "504bbaad8ecd86e860f2eb48cdf7309a84c6fe04ce45f837005d02fcd80081d9",
+        "tensor": "resnet_model/Relu_13:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 9979598,
+          "read_bytes": 30657552,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 10447297,
+          "read_bytes": 36087824,
+          "write_bytes": 100352
+        },
+        "index": 21,
+        "logical_bytes": 100352,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "7d28bfdd0004d3de6e06cfaa9b7ab284fac5aa8c95ef81e57e31f9fbb8646566",
+        "tensor": "resnet_model/Relu_14:0",
+        "useful_macs": 110166016
+      },
+      {
+        "baseline": {
+          "cycles": 6583942,
+          "read_bytes": 14114832,
+          "write_bytes": 401408
+        },
+        "current": {
+          "cycles": 5082306,
+          "read_bytes": 14114832,
+          "write_bytes": 401408
+        },
+        "index": 22,
+        "logical_bytes": 401408,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "e0f40cc9c38314ab757d28b45c16670cfc6d71fdf0b95311469dd5e149060d05",
+        "tensor": "resnet_model/batch_normalization_17/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 5117982,
+          "read_bytes": 1605656,
+          "write_bytes": 401408
+        },
+        "current": {
+          "cycles": 5117982,
+          "read_bytes": 1605656,
+          "write_bytes": 401408
+        },
+        "index": 23,
+        "logical_bytes": 401408,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "14356992f18c68f9d8f885c62d37c89a88be2a9087dd5a651ed93a2fcc2e80a0",
+        "tensor": "resnet_model/Relu_15:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 4122420,
+          "read_bytes": 13547536,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 4309155,
+          "read_bytes": 16357392,
+          "write_bytes": 100352
+        },
+        "index": 24,
+        "logical_bytes": 100352,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "37f5f94828d7ac92377aa92102872d6f9dd7b6d6ea53012e15ab5ba47da5ac9a",
+        "tensor": "resnet_model/Relu_16:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 9979598,
+          "read_bytes": 30657552,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 10447297,
+          "read_bytes": 36087824,
+          "write_bytes": 100352
+        },
+        "index": 25,
+        "logical_bytes": 100352,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "e186dbecb7c0536b995c61467a1baaf1335ed2120bd39c00f0d2392857a55e98",
+        "tensor": "resnet_model/Relu_17:0",
+        "useful_macs": 110166016
+      },
+      {
+        "baseline": {
+          "cycles": 6583570,
+          "read_bytes": 14114832,
+          "write_bytes": 401408
+        },
+        "current": {
+          "cycles": 5085442,
+          "read_bytes": 14114832,
+          "write_bytes": 401408
+        },
+        "index": 26,
+        "logical_bytes": 401408,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "f3b4dfc49ee98ed0c17539a463e7b481842c3664c37699c90f8b65271a8c3210",
+        "tensor": "resnet_model/batch_normalization_20/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 5117982,
+          "read_bytes": 1605656,
+          "write_bytes": 401408
+        },
+        "current": {
+          "cycles": 5117982,
+          "read_bytes": 1605656,
+          "write_bytes": 401408
+        },
+        "index": 27,
+        "logical_bytes": 401408,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "7d660c2d6ca8f5adf7973ceef441e4ce8ee7d8b5a1d5f431e3bb825cf1834f21",
+        "tensor": "resnet_model/Relu_18:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 4122399,
+          "read_bytes": 13547536,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 4309134,
+          "read_bytes": 16357392,
+          "write_bytes": 100352
+        },
+        "index": 28,
+        "logical_bytes": 100352,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "b567fc4927513da2021741b3ab3c32875e6b45a0fad9a66ea7466a9dadb48f9c",
+        "tensor": "resnet_model/Relu_19:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 9979598,
+          "read_bytes": 30657552,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 10460905,
+          "read_bytes": 36087824,
+          "write_bytes": 100352
+        },
+        "index": 29,
+        "logical_bytes": 100352,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "067c08c53b27c0766c907bbb00737884ac008baba6ac2875debd560966351d00",
+        "tensor": "resnet_model/Relu_20:0",
+        "useful_macs": 110166016
+      },
+      {
+        "baseline": {
+          "cycles": 6584368,
+          "read_bytes": 14114832,
+          "write_bytes": 401408
+        },
+        "current": {
+          "cycles": 5078834,
+          "read_bytes": 14114832,
+          "write_bytes": 401408
+        },
+        "index": 30,
+        "logical_bytes": 401408,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "4902f8f9c673958c9eda972866554b14634793a852fe76653ec489a5d91f688f",
+        "tensor": "resnet_model/batch_normalization_23/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 5117982,
+          "read_bytes": 1605656,
+          "write_bytes": 401408
+        },
+        "current": {
+          "cycles": 5117982,
+          "read_bytes": 1605656,
+          "write_bytes": 401408
+        },
+        "index": 31,
+        "logical_bytes": 401408,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "dc3e71a3b737916db85663922e19192e229cacf39859f5b3ff278f2bc492b215",
+        "tensor": "resnet_model/Relu_21:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 8155295,
+          "read_bytes": 26693648,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 8617998,
+          "read_bytes": 32714768,
+          "write_bytes": 200704
+        },
+        "index": 32,
+        "logical_bytes": 200704,
+        "nominal_macs": 102760448,
+        "operation": "Conv",
+        "sha256": "02f14dc2fe648105135b802fb82b2b1b6116cc0166a3c36d557470540fc1332e",
+        "tensor": "resnet_model/Relu_22:0",
+        "useful_macs": 102760448
+      },
+      {
+        "baseline": {
+          "cycles": 10469897,
+          "read_bytes": 34421776,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 9867305,
+          "read_bytes": 35937296,
+          "write_bytes": 50176
+        },
+        "index": 33,
+        "logical_bytes": 50176,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "5597145d6911a31a9c90e8ff3a70a6703d6f06391b534d8ed4e451ebb87ae0f5",
+        "tensor": "resnet_model/Relu_23:0",
+        "useful_macs": 110166016
+      },
+      {
+        "baseline": {
+          "cycles": 3543028,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 3548551,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "index": 34,
+        "logical_bytes": 200704,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "9b7f6aca262cae88f5f292ab6a6432cfabf9456a1d1a930bf81d43457597192f",
+        "tensor": "resnet_model/batch_normalization_27/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 9495935,
+          "read_bytes": 32714768,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 8617998,
+          "read_bytes": 32714768,
+          "write_bytes": 200704
+        },
+        "index": 35,
+        "logical_bytes": 200704,
+        "nominal_macs": 102760448,
+        "operation": "Conv",
+        "sha256": "8054c0b230ca3ea4f918da15cd62a87c3fdb30805a257894ea442e1421a69869",
+        "tensor": "resnet_model/batch_normalization_24/FusedBatchNorm:0",
+        "useful_macs": 102760448
+      },
+      {
+        "baseline": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "index": 36,
+        "logical_bytes": 200704,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "72adc0dd4fa7c3f54b2a536acb699c0b871cefdb16f0e8806834f8f7c33b8d51",
+        "tensor": "resnet_model/Relu_24:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 4721375,
+          "read_bytes": 16206864,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 4282478,
+          "read_bytes": 16206864,
+          "write_bytes": 50176
+        },
+        "index": 37,
+        "logical_bytes": 50176,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "b254cc2c3ce41e91af14424bcdc4f01d1a2d6f9f33193be40665fa0914443314",
+        "tensor": "resnet_model/Relu_25:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10241603,
+          "read_bytes": 32110096,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 10126505,
+          "read_bytes": 35605520,
+          "write_bytes": 50176
+        },
+        "index": 38,
+        "logical_bytes": 50176,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "1296afe0b32ce3a043a9a93148c9512b5553fde583cbc639f20774db307f9725",
+        "tensor": "resnet_model/Relu_26:0",
+        "useful_macs": 104857600
+      },
+      {
+        "baseline": {
+          "cycles": 3543028,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 3548551,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "index": 39,
+        "logical_bytes": 200704,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "6cbb16a6c3a524df6fd34e0210ea99957767c9ac017e8efdc396b06fe0603f20",
+        "tensor": "resnet_model/batch_normalization_30/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "index": 40,
+        "logical_bytes": 200704,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "8cfd8d15c6f27f3bb2702ea59d61fe8e7f077a663e6ac53434da2910e8d24928",
+        "tensor": "resnet_model/Relu_27:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 4721375,
+          "read_bytes": 16206864,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 4282478,
+          "read_bytes": 16206864,
+          "write_bytes": 50176
+        },
+        "index": 41,
+        "logical_bytes": 50176,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "6fa8401d9f5d223796edc4274c5a1d188e5a71c4c13f3389bf836829b670894c",
+        "tensor": "resnet_model/Relu_28:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10241603,
+          "read_bytes": 32110096,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 10126934,
+          "read_bytes": 35605520,
+          "write_bytes": 50176
+        },
+        "index": 42,
+        "logical_bytes": 50176,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "b7adf29925b114a9e79b43090690f72fd396596a4c4b6965c2c2f70354a3158b",
+        "tensor": "resnet_model/Relu_29:0",
+        "useful_macs": 104857600
+      },
+      {
+        "baseline": {
+          "cycles": 3543028,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 3548551,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "index": 43,
+        "logical_bytes": 200704,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "42a84607c592331c96a161636b36942f53de95a5cf2cdec9869804c19406c8ba",
+        "tensor": "resnet_model/batch_normalization_33/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "index": 44,
+        "logical_bytes": 200704,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "f006d071fa9ac0eeee9ef2e7854f9f33549878d0f7c1cd3659a86ae2a7944cba",
+        "tensor": "resnet_model/Relu_30:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 4721375,
+          "read_bytes": 16206864,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 4282478,
+          "read_bytes": 16206864,
+          "write_bytes": 50176
+        },
+        "index": 45,
+        "logical_bytes": 50176,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "036c3bd64b23f441ef59e321129cf7154f89c361bb24e051978fad585e6dddb0",
+        "tensor": "resnet_model/Relu_31:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10241603,
+          "read_bytes": 32110096,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 10126505,
+          "read_bytes": 35605520,
+          "write_bytes": 50176
+        },
+        "index": 46,
+        "logical_bytes": 50176,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "0dc14bb8b1691941f52ab7defbdbff43afd6309942b7e8850b9a3bce3c7c61b6",
+        "tensor": "resnet_model/Relu_32:0",
+        "useful_macs": 104857600
+      },
+      {
+        "baseline": {
+          "cycles": 3543028,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 3548551,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "index": 47,
+        "logical_bytes": 200704,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "3450a858f325e5cb440167b53fbf9b7140329fbc7d89b57e9808e86a4b5c6512",
+        "tensor": "resnet_model/batch_normalization_36/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "index": 48,
+        "logical_bytes": 200704,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "4f0b2a4a0c216604b53a976782d818dd4d433c0fff9303f58f7ecf5ddc8de28e",
+        "tensor": "resnet_model/Relu_33:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 4721375,
+          "read_bytes": 16206864,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 4282478,
+          "read_bytes": 16206864,
+          "write_bytes": 50176
+        },
+        "index": 49,
+        "logical_bytes": 50176,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "c52ad4fe0acd25c415a9cb2bbe96a01f0990dc716f83ffff77f5fa5c8f0f7677",
+        "tensor": "resnet_model/Relu_34:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10241603,
+          "read_bytes": 32110096,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 10126505,
+          "read_bytes": 35605520,
+          "write_bytes": 50176
+        },
+        "index": 50,
+        "logical_bytes": 50176,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "7c76ade9459fcc7bd6c55318a707c69714716440d55f8b2fb9f05ae9428c6d09",
+        "tensor": "resnet_model/Relu_35:0",
+        "useful_macs": 104857600
+      },
+      {
+        "baseline": {
+          "cycles": 3543028,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 3548551,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "index": 51,
+        "logical_bytes": 200704,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "482ce896a7dba148bed976be5d7f167c904c13c80225d034ef8a190311699647",
+        "tensor": "resnet_model/batch_normalization_39/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "index": 52,
+        "logical_bytes": 200704,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "14f3a334837fba3500b698fea45586c97d3c96220041c65294e9893d603f8748",
+        "tensor": "resnet_model/Relu_36:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 4721375,
+          "read_bytes": 16206864,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 4282478,
+          "read_bytes": 16206864,
+          "write_bytes": 50176
+        },
+        "index": 53,
+        "logical_bytes": 50176,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "afbcebb633d5ea3b9e71582fb35191fc4ac9d980c73da9c7298884112dba5f33",
+        "tensor": "resnet_model/Relu_37:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10241603,
+          "read_bytes": 32110096,
+          "write_bytes": 50176
+        },
+        "current": {
+          "cycles": 10126505,
+          "read_bytes": 35605520,
+          "write_bytes": 50176
+        },
+        "index": 54,
+        "logical_bytes": 50176,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "57d72388f06673ae7ceb5baeb229324bfdc0487b64e6ac7ae58d0d8675a556f2",
+        "tensor": "resnet_model/Relu_38:0",
+        "useful_macs": 104857600
+      },
+      {
+        "baseline": {
+          "cycles": 3543028,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 3548551,
+          "read_bytes": 13497360,
+          "write_bytes": 200704
+        },
+        "index": 55,
+        "logical_bytes": 200704,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "683e7ff4fdc04699a30249961b2474593068134ad8207ed7af4a8e817f7658af",
+        "tensor": "resnet_model/batch_normalization_42/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "current": {
+          "cycles": 2559006,
+          "read_bytes": 802840,
+          "write_bytes": 200704
+        },
+        "index": 56,
+        "logical_bytes": 200704,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "4263df7f9d80ada591345462ae2c632defb0ee753490649afee3ae801b494d42",
+        "tensor": "resnet_model/Relu_39:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 9442623,
+          "read_bytes": 32413712,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 8564686,
+          "read_bytes": 32413712,
+          "write_bytes": 100352
+        },
+        "index": 57,
+        "logical_bytes": 100352,
+        "nominal_macs": 102760448,
+        "operation": "Conv",
+        "sha256": "412d4801909f3b615e98118e19ec39a89aa884e65a167172a46f4f0467308431",
+        "tensor": "resnet_model/Relu_40:0",
+        "useful_macs": 102760448
+      },
+      {
+        "baseline": {
+          "cycles": 11790204,
+          "read_bytes": 36649488,
+          "write_bytes": 25088
+        },
+        "current": {
+          "cycles": 11044362,
+          "read_bytes": 37304336,
+          "write_bytes": 25088
+        },
+        "index": 58,
+        "logical_bytes": 25088,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "03eefd6cd9bd68c7dc2d6455350ca1feb5793b9260caf2040f58fcfc9739f64f",
+        "tensor": "resnet_model/Relu_41:0",
+        "useful_macs": 104857600
+      },
+      {
+        "baseline": {
+          "cycles": 4449474,
+          "read_bytes": 13976080,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 4720767,
+          "read_bytes": 17162256,
+          "write_bytes": 100352
+        },
+        "index": 59,
+        "logical_bytes": 100352,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "4bd518fc022979f89d68130576549a25afb1c0896073550ad2ff3d4e659ccc9f",
+        "tensor": "resnet_model/batch_normalization_46/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 10237908,
+          "read_bytes": 33874960,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 9390463,
+          "read_bytes": 34005008,
+          "write_bytes": 100352
+        },
+        "index": 60,
+        "logical_bytes": 100352,
+        "nominal_macs": 102760448,
+        "operation": "Conv",
+        "sha256": "6d5eeec866f39f06730b2fd3f989461ce06b91a2dd839aa59af9e8a99a566c6b",
+        "tensor": "resnet_model/batch_normalization_43/FusedBatchNorm:0",
+        "useful_macs": 102760448
+      },
+      {
+        "baseline": {
+          "cycles": 1279518,
+          "read_bytes": 401432,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 1279518,
+          "read_bytes": 401432,
+          "write_bytes": 100352
+        },
+        "index": 61,
+        "logical_bytes": 100352,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "8be23a4c7a739a1a99019cbc6f7ddcd982c7353cb7a7af36e08e643224d071dd",
+        "tensor": "resnet_model/Relu_42:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 5106648,
+          "read_bytes": 16859152,
+          "write_bytes": 25088
+        },
+        "current": {
+          "cycles": 4682655,
+          "read_bytes": 16922640,
+          "write_bytes": 25088
+        },
+        "index": 62,
+        "logical_bytes": 25088,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "282484c79c9dccd7c6bf3202edf0350d60ce468f1336b0d2c95f9db2fba3bcf0",
+        "tensor": "resnet_model/Relu_43:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 11725318,
+          "read_bytes": 33880592,
+          "write_bytes": 25088
+        },
+        "current": {
+          "cycles": 11543572,
+          "read_bytes": 36665360,
+          "write_bytes": 25088
+        },
+        "index": 63,
+        "logical_bytes": 25088,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "b7a7654636763ff3e27a829a424c08c93b7d705606328cc9e20d954ad4aee59b",
+        "tensor": "resnet_model/Relu_44:0",
+        "useful_macs": 94633984
+      },
+      {
+        "baseline": {
+          "cycles": 4449494,
+          "read_bytes": 13976080,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 4720787,
+          "read_bytes": 17162256,
+          "write_bytes": 100352
+        },
+        "index": 64,
+        "logical_bytes": 100352,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "073b3b24959825d98c8cd263be722ccc1b2172cf07793599e9bf8bdfd927d0d0",
+        "tensor": "resnet_model/batch_normalization_49/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 1279518,
+          "read_bytes": 401432,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 1279518,
+          "read_bytes": 401432,
+          "write_bytes": 100352
+        },
+        "index": 65,
+        "logical_bytes": 100352,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "ef878d98d566693c2b4ab64438d2ba49332e413762b7543eab421fea4ece6add",
+        "tensor": "resnet_model/Relu_45:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 5106648,
+          "read_bytes": 16859152,
+          "write_bytes": 25088
+        },
+        "current": {
+          "cycles": 4682655,
+          "read_bytes": 16922640,
+          "write_bytes": 25088
+        },
+        "index": 66,
+        "logical_bytes": 25088,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "72a9f60398e5330c6c8ba0d0c6feeba37782c7ed5301b6c594873c87e0223c77",
+        "tensor": "resnet_model/Relu_46:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 11725308,
+          "read_bytes": 33880592,
+          "write_bytes": 25088
+        },
+        "current": {
+          "cycles": 11543562,
+          "read_bytes": 36665360,
+          "write_bytes": 25088
+        },
+        "index": 67,
+        "logical_bytes": 25088,
+        "nominal_macs": 115605504,
+        "operation": "Conv",
+        "sha256": "c63339aec3be08e408214b383af096b098097cc5d9a2da0feb9638bb33ceaa17",
+        "tensor": "resnet_model/Relu_47:0",
+        "useful_macs": 94633984
+      },
+      {
+        "baseline": {
+          "cycles": 4449494,
+          "read_bytes": 13976080,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 4720787,
+          "read_bytes": 17162256,
+          "write_bytes": 100352
+        },
+        "index": 68,
+        "logical_bytes": 100352,
+        "nominal_macs": 51380224,
+        "operation": "Conv",
+        "sha256": "8fe08d1601b4d2ba0d135003a23d08f974fdd8643f57ec4d3523f33e8e48e15f",
+        "tensor": "resnet_model/batch_normalization_52/FusedBatchNorm:0",
+        "useful_macs": 51380224
+      },
+      {
+        "baseline": {
+          "cycles": 1279518,
+          "read_bytes": 401432,
+          "write_bytes": 100352
+        },
+        "current": {
+          "cycles": 1279518,
+          "read_bytes": 401432,
+          "write_bytes": 100352
+        },
+        "index": 69,
+        "logical_bytes": 100352,
+        "nominal_macs": 0,
+        "operation": "Add",
+        "sha256": "553fab5c53213678de77a675c15407ba6d6910badbdbe6d70528f244a8380144",
+        "tensor": "resnet_model/Relu_48:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 654849,
+          "read_bytes": 200704,
+          "write_bytes": 2048
+        },
+        "current": {
+          "cycles": 654849,
+          "read_bytes": 200704,
+          "write_bytes": 2048
+        },
+        "index": 70,
+        "logical_bytes": 2048,
+        "nominal_macs": 0,
+        "operation": "GlobalAveragePool",
+        "sha256": "bd89db97dd1612b2679a1ff572c4c917f11353ea82e2805ae467bab54c8654dc",
+        "tensor": "resnet_model/Mean:0",
+        "useful_macs": 0
+      },
+      {
+        "baseline": {
+          "cycles": 640841,
+          "read_bytes": 2191104,
+          "write_bytes": 1001
+        },
+        "current": {
+          "cycles": 642849,
+          "read_bytes": 2191104,
+          "write_bytes": 1001
+        },
+        "index": 71,
+        "logical_bytes": 1001,
+        "nominal_macs": 2050048,
+        "operation": "FullyConnected",
+        "sha256": "77974086b26a4ec031f4cc39df41130e9e1e0b5834ad309434451babf2caded4",
+        "tensor": "resnet_model/dense/BiasAdd:0",
+        "useful_macs": 2050048
+      }
+    ],
+    "provenance": {
+      "baseline": {
+        "checker_sha256": "2e01665b03ba62862e9af1856ff712d53e671e7a65ffa76d7c9178a0ab448049",
+        "model_sha256": "358c5906f4057cfff3506a63bcf7b502e69e566bdaa9ea598466fe002c3bd3fa",
+        "package_sha256": {
+          "ddr.bin": "72b1b3cdd201f1239d7afd8cc225099e45d350ca7fea38a911a1021b61db6b85",
+          "descriptors.bin": "06aa6187ce954d81e02e1102eef9fb02d314675f36371806234bc2a3b4bdd6bb",
+          "manifest.json": "767650ad4906dc57299d9b66e9a1ce362ad30a0ba905c5edd227edf6aefff216"
+        },
+        "simulation_log_sha256": "3003871de5fc5641892b67283500fab9f31a19211d99cafdd846f3a31eb387b3",
+        "source": {
+          "command": [
+            "make",
+            "--no-print-directory",
+            "test",
+            "TEST=graph_model_npu_tb",
+            "DEFINES=NPU_PERF_ENABLE",
+            "RUN_DIR=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl",
+            "RTL_SRCS=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/gemm_array.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/gemm_pe.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/npu_pool_engine.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/stream_maxpool2x2.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/pool_window_buffer.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/pool_max_reducer.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/pool_coordinate_mapper.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/gemm_postprocess.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/control/npu_command_reader.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/gemm_tile_compute.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/control/npu_gemm_engine.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/gemm_cycle_controller.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/control/npu_perf_counters.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/npu_top.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/memory/result_param_buffer.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/gemm_psum_accumulator.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/compute/npu_add_engine.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/control/gemm_tile_order.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/control/gemm_tile_scheduler.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/axi_read_width_adapter.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/axi_read_master.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/axi_read_mux.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/axi_write_master.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/result_write_dma.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/pool_result_dma.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/conv_patch_reader.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/conv_word_cache.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/operand_fetch.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/matrix_operand_reader.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/quant_param_loader.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/operand_request_arbiter.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/dma/strided_axi_reader.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/memory/operand_bank_controller.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/memory/result_tile_buffer.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/memory/operand_sram.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/memory/operand_banks.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/memory/operand_packer.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/memory/psum_sram.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/rtl/memory/sync_sram.sv",
+            "TB_SRC=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/sim/tb/system/graph_model_npu_tb.sv",
+            "SUPPORT_SRCS=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/sim/tb/support/axi_memory_model.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/source/sim/tb/support/npu_perf_v2_monitor.sv",
+            "PARAMS=MEM_WORDS=7351168 MAX_LAYER_WORDS=200704",
+            "RUN_ARGS=+DDR_HEX=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/input.hex +IMAGE_WORDS=7351168 +DESC_BASE=100 +DESC_COUNT=72 +LOGITS_BASE=18a5a00 +LOGITS_COUNT=1001 +MAX_CYCLES=4000000000 +DDR_RD_LATENCY=20 +DDR_WR_LATENCY=0 +LAYER_CHECKS=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/layers.txt +DDR_DUMP=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/baseline-rtl/ddr.hex"
+          ],
+          "makefile_sha256": "7c68a77b36d719a5d3de664f7b2a0f83269d65534c59fcbb9a488e572fde28cd",
+          "max_cycles": 4000000000,
+          "package_sha256": {
+            "ddr.bin": "72b1b3cdd201f1239d7afd8cc225099e45d350ca7fea38a911a1021b61db6b85",
+            "descriptors.bin": "06aa6187ce954d81e02e1102eef9fb02d314675f36371806234bc2a3b4bdd6bb",
+            "manifest.json": "767650ad4906dc57299d9b66e9a1ce362ad30a0ba905c5edd227edf6aefff216"
+          },
+          "read_latency_cycles": 20,
+          "reference_sha256": "ea365b420aff2ad88a332981ec2c7e5aa3a35b1e3a1c9a200eade84a99196b42",
+          "resolved_commit": "61b2e6516d6c513e99ba0d7915e6a916b3f9d0df",
+          "returncode": 0,
+          "runner_sha256": "2e01665b03ba62862e9af1856ff712d53e671e7a65ffa76d7c9178a0ab448049",
+          "simulation_wall_seconds": 1868.4649527670117,
+          "source_ref": "61b2e6516d6c513e99ba0d7915e6a916b3f9d0df",
+          "source_set_sha256": "f0a298993932c48ec8c767174a52dd1b94d99c04f305a10bed057b95031bc6ea",
+          "source_sha256": {
+            "rtl/compute/gemm_array.sv": "73ae6f3cbc58a0f63c68937329e95af8ec68a93ccbaaa37b3af10a16e9750d9a",
+            "rtl/compute/gemm_cycle_controller.sv": "6e5ba5c93c0a60949105513d92b3d43a0480571616f6d361612a9b0174df6d13",
+            "rtl/compute/gemm_pe.sv": "7e27d4955432ae8554f314875d366b4b4bb3c29b2fa5c8a1db80e75e30bfa70a",
+            "rtl/compute/gemm_postprocess.sv": "9475665b460b78674c571df495598618266791ec3da0b46b32b73433fd12603c",
+            "rtl/compute/gemm_psum_accumulator.sv": "ffc9994e5476a0b886576d7e1569a14668a23daa0c366c47841b137faf3e0d1c",
+            "rtl/compute/gemm_tile_compute.sv": "1f3a1a1b08904838a77a16008162c43cd670f0d746734d34f626b35e6700ba0d",
+            "rtl/compute/npu_add_engine.sv": "1539a2879d2e2bf38dd524c0957c2568e484c4194534b95754432bb943b114bb",
+            "rtl/compute/npu_pool_engine.sv": "0f1935cefce7180e4c414ff7bb8dbc1e887b96508bff5640bd2bb8e9da4a42d4",
+            "rtl/compute/pool_coordinate_mapper.sv": "5fda3944f2692e9d9060a2cec255191f1230b95a5bc0fe72e2a1c9858d3b3c05",
+            "rtl/compute/pool_max_reducer.sv": "c364bd985edfdc1806d4ca0236899612cfd2fc02fc46b2544b6cb4b32a2f5276",
+            "rtl/compute/pool_window_buffer.sv": "9a88c7cc0748cb9beea43c4955e565fdffc2f02d55ef233496d2f0f29cd12905",
+            "rtl/compute/stream_maxpool2x2.sv": "94603da64d0a51f1ab710b5599d2b7458fbbb0e6583d66e0e59344ab476e2ad9",
+            "rtl/control/gemm_tile_order.sv": "5bbba190759be7e8ae1064090d0e4d5d53dd6b86bb6e0b07350722c0747f0fdb",
+            "rtl/control/gemm_tile_scheduler.sv": "6354cddfd72a3c8d5a57682dab70267cb2ebb73b6b4d5bc6ce64c8599152d924",
+            "rtl/control/npu_command_reader.sv": "eabc32d553b1dded43fe080b707616609c08a6fd025e97a648eb5664b4f39800",
+            "rtl/control/npu_gemm_engine.sv": "2ffb08c4a2bd2366baa3543c70df1524e8774a2ac8a4419a025398cb7dc5bcca",
+            "rtl/control/npu_perf_counters.sv": "37add1fea34e2db07317a5d2bafadb619d877934bf77625b412a8b758debb53f",
+            "rtl/dma/axi_read_master.sv": "8702d5227e52750f8e83fe2718c8767f66f09d1a481272bdad93548724372ebc",
+            "rtl/dma/axi_read_mux.sv": "15b560cdb1b7131951fb2184033336f4dd14aafa3babd28ad9f6a6d73ca7655b",
+            "rtl/dma/axi_read_width_adapter.sv": "02f0d02caf333a389ca4fb1d1eb45057851a00ccdf67ca672193d1c27173db1d",
+            "rtl/dma/axi_write_master.sv": "9a6d54908dba73c4bcc3bff89d23877a74420248a243d7e27e99ec9322fa28e2",
+            "rtl/dma/conv_patch_reader.sv": "8f9e09838fea0dd1b59c725e144f17d144b9bc59ca2e33811caa5e82a7ed412d",
+            "rtl/dma/conv_word_cache.sv": "3f2d31e31daf36aacbcb5930017be1238bfe7bb75d48f4171bd3ad9a33dd126c",
+            "rtl/dma/matrix_operand_reader.sv": "4d1d1a2fdf0aa4687bbd6069ce2e5e9c0d0d27a5e6585987a7437f4a744c188f",
+            "rtl/dma/operand_fetch.sv": "67b9a0afec1e5561448f18918f558bcd258acb2ac1939529c5fe133b17d5e042",
+            "rtl/dma/operand_request_arbiter.sv": "48afadc89cf7cf1ff82d516dfeaf0fef764570d68abc0d45f4e148b0e2642933",
+            "rtl/dma/pool_result_dma.sv": "d642903f45dc6706b9153dddab8b47aa4f816be8476559dfe724eb01eae15f51",
+            "rtl/dma/quant_param_loader.sv": "ea465b2ba8d310f713f9ec547ee1b79d40b9f2a36b9ec2fbe57a16b1f20844a7",
+            "rtl/dma/result_write_dma.sv": "d5232ecfdba54ce0fe7200c9dff2cb65c82d9836fec0621ab8ddd39fdb33c1fd",
+            "rtl/dma/strided_axi_reader.sv": "3affaa67de6019a5816d6da5f10d4217caab69598182c19ba1d44294ee9af348",
+            "rtl/memory/operand_bank_controller.sv": "89fb164eb1b16128a2422b094b677b802005ddc541cf17fa8acacab4d5b7af5e",
+            "rtl/memory/operand_banks.sv": "d3717e509b61299667a1833949e32f42eee0563f826ba679cf99acad5b60c9d8",
+            "rtl/memory/operand_packer.sv": "cdca286bd007c64ff6abde6675fabb05dd129a0cf9563bb2dba730e6b76211c0",
+            "rtl/memory/operand_sram.sv": "2417c41cee376d3e8c298c8f8733fb27d3866271884b40d79cbc4cbf9794cbcf",
+            "rtl/memory/psum_sram.sv": "6f09d6a1494061e6302774d8ba1194b3b650341c1decf79c3cd6d2b3dc33fc0d",
+            "rtl/memory/result_param_buffer.sv": "b2ea715340054818c363e12094e9b26eaef70aa292108c6df3b59e55dede6e52",
+            "rtl/memory/result_tile_buffer.sv": "8e329ce5dce8e58e0a44de87c7bf2556940fe96b020081f10854a91c33bb4d37",
+            "rtl/memory/sync_sram.sv": "cf4989ff1b3eded4898eba86cb7e9c6e6ca10d9f929ca6deb79ca3a8bfa10176",
+            "rtl/npu_top.sv": "cfcaedc22a3984f4df48d9c730ba782bb8ff594c12ddbcabc08b1c7b29fc45a1",
+            "sim/filelists/rtl.f": "e2f45ebeefce4e47659dfc08d66ddb61030e3073f84dd1a66451a37c6a1333f7",
+            "sim/tb/support/axi_memory_model.sv": "518440c63f03b795ca60f930c7131e57284acd9202e163a63be54b38c5ff383f",
+            "sim/tb/support/npu_perf_v2_monitor.sv": "8f02830b96eaf8cc318b3becfec87024701e4ec1e4d61e8d93f0bfba61b53db7",
+            "sim/tb/system/graph_model_npu_tb.sv": "ac5a551651c06b017d0a1fe268d2c7db58d1bff7362534fedb818e8a7c5b9d27"
+          },
+          "status": "FINISHED",
+          "write_latency_cycles": 0
+        }
+      },
+      "current": {
+        "checker_sha256": "2e01665b03ba62862e9af1856ff712d53e671e7a65ffa76d7c9178a0ab448049",
+        "model_sha256": "358c5906f4057cfff3506a63bcf7b502e69e566bdaa9ea598466fe002c3bd3fa",
+        "package_sha256": {
+          "ddr.bin": "72b1b3cdd201f1239d7afd8cc225099e45d350ca7fea38a911a1021b61db6b85",
+          "descriptors.bin": "06aa6187ce954d81e02e1102eef9fb02d314675f36371806234bc2a3b4bdd6bb",
+          "manifest.json": "767650ad4906dc57299d9b66e9a1ce362ad30a0ba905c5edd227edf6aefff216"
+        },
+        "simulation_log_sha256": "9dacd93a8b082c6be0670217b40340730dfdc00287f7d272e86f00994c36bd54",
+        "source": {
+          "command": [
+            "make",
+            "--no-print-directory",
+            "test",
+            "TEST=graph_model_npu_tb",
+            "DEFINES=NPU_PERF_ENABLE",
+            "RUN_DIR=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl",
+            "RTL_SRCS=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/gemm_array.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/gemm_pe.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/npu_pool_engine.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/stream_maxpool2x2.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/pool_window_buffer.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/pool_max_reducer.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/pool_coordinate_mapper.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/gemm_postprocess.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/control/npu_command_reader.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/gemm_tile_compute.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/control/npu_gemm_engine.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/gemm_cycle_controller.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/control/npu_perf_counters.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/npu_top.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/memory/result_param_buffer.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/gemm_psum_accumulator.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/compute/npu_add_engine.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/control/gemm_tile_order.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/control/gemm_tile_scheduler.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/axi_read_width_adapter.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/axi_read_master.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/axi_read_mux.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/axi_write_master.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/result_write_dma.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/pool_result_dma.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/conv_patch_reader.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/operand_fetch.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/matrix_operand_reader.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/quant_param_loader.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/operand_request_arbiter.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/dma/strided_axi_reader.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/memory/operand_bank_controller.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/memory/result_tile_buffer.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/memory/operand_sram.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/memory/operand_banks.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/memory/operand_packer.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/memory/psum_sram.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/rtl/memory/sync_sram.sv",
+            "TB_SRC=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/sim/tb/system/graph_model_npu_tb.sv",
+            "SUPPORT_SRCS=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/sim/tb/support/axi_memory_model.sv /home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/source/sim/tb/support/npu_perf_v2_monitor.sv",
+            "PARAMS=MEM_WORDS=7351168 MAX_LAYER_WORDS=200704",
+            "RUN_ARGS=+DDR_HEX=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/input.hex +IMAGE_WORDS=7351168 +DESC_BASE=100 +DESC_COUNT=72 +LOGITS_BASE=18a5a00 +LOGITS_COUNT=1001 +MAX_CYCLES=4000000000 +DDR_RD_LATENCY=20 +DDR_WR_LATENCY=0 +LAYER_CHECKS=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/layers.txt +DDR_DUMP=/home/ICer/eda/npu-vcs-learning/build/npu-control-cleanup/resnet50/current-rtl/ddr.hex"
+          ],
+          "makefile_sha256": "7c68a77b36d719a5d3de664f7b2a0f83269d65534c59fcbb9a488e572fde28cd",
+          "max_cycles": 4000000000,
+          "package_sha256": {
+            "ddr.bin": "72b1b3cdd201f1239d7afd8cc225099e45d350ca7fea38a911a1021b61db6b85",
+            "descriptors.bin": "06aa6187ce954d81e02e1102eef9fb02d314675f36371806234bc2a3b4bdd6bb",
+            "manifest.json": "767650ad4906dc57299d9b66e9a1ce362ad30a0ba905c5edd227edf6aefff216"
+          },
+          "read_latency_cycles": 20,
+          "reference_sha256": "ea365b420aff2ad88a332981ec2c7e5aa3a35b1e3a1c9a200eade84a99196b42",
+          "resolved_commit": "7c58e5cd734c474561645cf5184c867da9f1e27d",
+          "returncode": 0,
+          "runner_sha256": "2e01665b03ba62862e9af1856ff712d53e671e7a65ffa76d7c9178a0ab448049",
+          "simulation_wall_seconds": 1889.7713198130368,
+          "source_ref": "7c58e5cd734c474561645cf5184c867da9f1e27d",
+          "source_set_sha256": "9fd61c8a980846de4be26614530949a6fa47d2e2e5937b0264372eb211d5bf43",
+          "source_sha256": {
+            "rtl/compute/gemm_array.sv": "73ae6f3cbc58a0f63c68937329e95af8ec68a93ccbaaa37b3af10a16e9750d9a",
+            "rtl/compute/gemm_cycle_controller.sv": "6e5ba5c93c0a60949105513d92b3d43a0480571616f6d361612a9b0174df6d13",
+            "rtl/compute/gemm_pe.sv": "7e27d4955432ae8554f314875d366b4b4bb3c29b2fa5c8a1db80e75e30bfa70a",
+            "rtl/compute/gemm_postprocess.sv": "9475665b460b78674c571df495598618266791ec3da0b46b32b73433fd12603c",
+            "rtl/compute/gemm_psum_accumulator.sv": "ffc9994e5476a0b886576d7e1569a14668a23daa0c366c47841b137faf3e0d1c",
+            "rtl/compute/gemm_tile_compute.sv": "1f3a1a1b08904838a77a16008162c43cd670f0d746734d34f626b35e6700ba0d",
+            "rtl/compute/npu_add_engine.sv": "1539a2879d2e2bf38dd524c0957c2568e484c4194534b95754432bb943b114bb",
+            "rtl/compute/npu_pool_engine.sv": "0f1935cefce7180e4c414ff7bb8dbc1e887b96508bff5640bd2bb8e9da4a42d4",
+            "rtl/compute/pool_coordinate_mapper.sv": "5fda3944f2692e9d9060a2cec255191f1230b95a5bc0fe72e2a1c9858d3b3c05",
+            "rtl/compute/pool_max_reducer.sv": "c364bd985edfdc1806d4ca0236899612cfd2fc02fc46b2544b6cb4b32a2f5276",
+            "rtl/compute/pool_window_buffer.sv": "9a88c7cc0748cb9beea43c4955e565fdffc2f02d55ef233496d2f0f29cd12905",
+            "rtl/compute/stream_maxpool2x2.sv": "94603da64d0a51f1ab710b5599d2b7458fbbb0e6583d66e0e59344ab476e2ad9",
+            "rtl/control/gemm_tile_order.sv": "5bbba190759be7e8ae1064090d0e4d5d53dd6b86bb6e0b07350722c0747f0fdb",
+            "rtl/control/gemm_tile_scheduler.sv": "d512f0ce88422fea44a52310edd3ae9fad71bebd885cbd194a145ac93ba66760",
+            "rtl/control/npu_command_reader.sv": "eabc32d553b1dded43fe080b707616609c08a6fd025e97a648eb5664b4f39800",
+            "rtl/control/npu_gemm_engine.sv": "57efc84e3394086aee77a9efd87d609000f0fad3f318060bc4cfb2537e59d8a9",
+            "rtl/control/npu_perf_counters.sv": "37add1fea34e2db07317a5d2bafadb619d877934bf77625b412a8b758debb53f",
+            "rtl/dma/axi_read_master.sv": "8702d5227e52750f8e83fe2718c8767f66f09d1a481272bdad93548724372ebc",
+            "rtl/dma/axi_read_mux.sv": "15b560cdb1b7131951fb2184033336f4dd14aafa3babd28ad9f6a6d73ca7655b",
+            "rtl/dma/axi_read_width_adapter.sv": "02f0d02caf333a389ca4fb1d1eb45057851a00ccdf67ca672193d1c27173db1d",
+            "rtl/dma/axi_write_master.sv": "9a6d54908dba73c4bcc3bff89d23877a74420248a243d7e27e99ec9322fa28e2",
+            "rtl/dma/conv_patch_reader.sv": "fb0ab97c53bd1fddbc8624c130b3dab005c5f26d62fdc90c7f1b8f536e64c1f0",
+            "rtl/dma/matrix_operand_reader.sv": "4d1d1a2fdf0aa4687bbd6069ce2e5e9c0d0d27a5e6585987a7437f4a744c188f",
+            "rtl/dma/operand_fetch.sv": "5fe12ddb9c121c36ada24c92bbaec391767f4e0ce78c12f2bb7437618f1a5916",
+            "rtl/dma/operand_request_arbiter.sv": "48afadc89cf7cf1ff82d516dfeaf0fef764570d68abc0d45f4e148b0e2642933",
+            "rtl/dma/pool_result_dma.sv": "d642903f45dc6706b9153dddab8b47aa4f816be8476559dfe724eb01eae15f51",
+            "rtl/dma/quant_param_loader.sv": "ea465b2ba8d310f713f9ec547ee1b79d40b9f2a36b9ec2fbe57a16b1f20844a7",
+            "rtl/dma/result_write_dma.sv": "d5232ecfdba54ce0fe7200c9dff2cb65c82d9836fec0621ab8ddd39fdb33c1fd",
+            "rtl/dma/strided_axi_reader.sv": "3affaa67de6019a5816d6da5f10d4217caab69598182c19ba1d44294ee9af348",
+            "rtl/memory/operand_bank_controller.sv": "89fb164eb1b16128a2422b094b677b802005ddc541cf17fa8acacab4d5b7af5e",
+            "rtl/memory/operand_banks.sv": "d3717e509b61299667a1833949e32f42eee0563f826ba679cf99acad5b60c9d8",
+            "rtl/memory/operand_packer.sv": "cdca286bd007c64ff6abde6675fabb05dd129a0cf9563bb2dba730e6b76211c0",
+            "rtl/memory/operand_sram.sv": "2417c41cee376d3e8c298c8f8733fb27d3866271884b40d79cbc4cbf9794cbcf",
+            "rtl/memory/psum_sram.sv": "6f09d6a1494061e6302774d8ba1194b3b650341c1decf79c3cd6d2b3dc33fc0d",
+            "rtl/memory/result_param_buffer.sv": "b2ea715340054818c363e12094e9b26eaef70aa292108c6df3b59e55dede6e52",
+            "rtl/memory/result_tile_buffer.sv": "8e329ce5dce8e58e0a44de87c7bf2556940fe96b020081f10854a91c33bb4d37",
+            "rtl/memory/sync_sram.sv": "cf4989ff1b3eded4898eba86cb7e9c6e6ca10d9f929ca6deb79ca3a8bfa10176",
+            "rtl/npu_top.sv": "26ddb8772fef1caa488cb0aed8a6b79dc17c6b445c3ce4864ccf9de41b88cb39",
+            "sim/filelists/rtl.f": "ae29ce849b5fda7d1d637187902152cd42d7c2fb504c52cc190ac111117fc589",
+            "sim/tb/support/axi_memory_model.sv": "518440c63f03b795ca60f930c7131e57284acd9202e163a63be54b38c5ff383f",
+            "sim/tb/support/npu_perf_v2_monitor.sv": "8f02830b96eaf8cc318b3becfec87024701e4ec1e4d61e8d93f0bfba61b53db7",
+            "sim/tb/system/graph_model_npu_tb.sv": "ac5a551651c06b017d0a1fe268d2c7db58d1bff7362534fedb818e8a7c5b9d27"
+          },
+          "status": "FINISHED",
+          "write_latency_cycles": 0
+        }
+      }
+    },
+    "purpose": "integer_performance"
+  },
+  "resnet8": {
+    "comparison": {
+      "nonzero": {
+        "baseline_cycles": 1735928,
+        "baseline_read_bytes": 3608696,
+        "baseline_write_bytes": 114800,
+        "current_cycles": 1984411,
+        "current_read_bytes": 4227752,
+        "current_write_bytes": 114800,
+        "cycle_reduction_pct": -14.314130539976313,
+        "cycles_saved": -248483,
+        "full_ddr_identical": true,
+        "read_bytes_saved": -619056,
+        "speedup": 0.8747824921349459,
+        "write_bytes_saved": 0
+      },
+      "zero": {
+        "baseline_cycles": 1735928,
+        "baseline_read_bytes": 3608696,
+        "baseline_write_bytes": 114800,
+        "current_cycles": 1984411,
+        "current_read_bytes": 4227752,
+        "current_write_bytes": 114800,
+        "cycle_reduction_pct": -14.314130539976313,
+        "cycles_saved": -248483,
+        "full_ddr_identical": true,
+        "read_bytes_saved": -619056,
+        "speedup": 0.8747824921349459,
+        "write_bytes_saved": 0
+      }
+    },
+    "comparison_sha256": "172d30eec11adf8dd75f6db0b43c1de162547fa92709975ac2a7552a145eb0c5",
+    "config_sha256": "5bc1b8384ebd9a78c817aaffc0ca9bfed2a7f1f0ffa2a8574e48e76da08de6e8",
+    "inputs": [
+      {
+        "hashes": {
+          "ddr.bin": "0a31c75dec534944d94b9869e0f05dac456dc62f703ff94df8f83e0f3b159150",
+          "ddr.hex": "47d07c06adac1fefb04b360b370ed09da75e2fd94503f718758a27441dfa9ff7",
+          "descriptors.bin": "34052146dc29c6ef3e9af708f8508af293d61e34f7a84c1b723d4e4e7c883288",
+          "manifest.json": "9a8034761d9a03e93154c718932cbabfd5fad16441264117e80453d0d2b8e6fd"
+        },
+        "input_byte_count": 3072,
+        "input_distinct_values": 1,
+        "input_sha256": "753412db29fc2970bed80a0cefed2d3caf17b282ed5b9b8707b5c39929a27fce",
+        "label": "zero",
+        "maxpool_descriptor_count": 0,
+        "original_directory": "/home/ICer/eda/npu-vcs-learning/build/resnet8-compat/zero"
+      },
+      {
+        "hashes": {
+          "ddr.bin": "78b354434fa37d82003fc330d37e8118a11aad9728fd0d3850f7f7f3babc196d",
+          "ddr.hex": "754564c09c3147e618b00818c339b5d8cf1d4c3b3648afecfd4c1d21d242a72d",
+          "descriptors.bin": "34052146dc29c6ef3e9af708f8508af293d61e34f7a84c1b723d4e4e7c883288",
+          "manifest.json": "9a8034761d9a03e93154c718932cbabfd5fad16441264117e80453d0d2b8e6fd"
+        },
+        "input_byte_count": 3072,
+        "input_distinct_values": 256,
+        "input_sha256": "3b034985e5ee1d9c0bbdea4179c09e5a45341a3a51246640478d5557629d9934",
+        "label": "nonzero",
+        "maxpool_descriptor_count": 0,
+        "original_directory": "/home/ICer/eda/npu-vcs-learning/build/resnet8-compat/nonzero"
+      }
+    ],
+    "model_sha256": "3c002613d1b2475eb51dd78dfb85a546c8ae658dee71cf6ade43b022fe205415",
+    "provenance_sha256": "af07945cf14fc3562cef02b0dfc5fd8e35fb5d2d11dc95394ad93da939144403",
+    "python_validation": {
+      "analysis": {
+        "log_path": "build/npu-control-cleanup/validation/python-analysis.log",
+        "log_sha256": "74c03fc16fde9a2dfeff03db0ec8f472a5a8dfed04e9e982a912b4b7f64faee3",
+        "status": "PASS",
+        "tests": 7
+      },
+      "compiler": {
+        "log_path": "build/npu-control-cleanup/validation/python-compiler.log",
+        "log_sha256": "38c7a3b523a00d838d218ec4440e2810d5bd0f26f59dfe9e979e63d5e8544af8",
+        "status": "PASS",
+        "tests": 145
+      },
+      "model": {
+        "log_path": "build/npu-control-cleanup/validation/python-model.log",
+        "log_sha256": "a51f67f955e72148c8277957bfc1a143de82c8723c53bc7b7837252c0ec1967d",
+        "status": "PASS",
+        "tests": 38
+      }
+    },
+    "revisions": {
+      "baseline": {
+        "commit": "61b2e6516d6c513e99ba0d7915e6a916b3f9d0df",
+        "source_set_sha256": "9291988b7b6976a059514271b10b64c6f7a6bfbfb38c5122af2ea5cbc254fa60"
+      },
+      "current": {
+        "commit": "7c58e5cd734c474561645cf5184c867da9f1e27d",
+        "source_set_sha256": "9ec329dcd854ae48b3d8f4f0f919045f21f42479c8226847c26edb8962a67b87"
+      }
+    },
+    "runs": {
+      "baseline": {
+        "nonzero": {
+          "checked_full_ddr_bytes": 1048576,
+          "checked_layers": 14,
+          "checked_model_bytes": 266880,
+          "checked_zero_tail_bytes": 781696,
+          "full_ddr_sha256": "cabbdada35f3cb61fc6ca8ee9d1e5de40df36504d405801426a4d78104a98433",
+          "logits": [
+            -98,
+            -25,
+            -6,
+            11,
+            -128,
+            -79,
+            45,
+            -125,
+            -17,
+            -115
+          ],
+          "simulation_log_sha256": "371a4f9d97d8cc3d059b80123001c4248c4878e7cb74932b765d71e845203c7a",
+          "summary": {
+            "cycles_outside_layers": 5838,
+            "executor_cycles": 1337717,
+            "external_bytes": 3723496,
+            "pool_cycles": 26704,
+            "read_beats": 451087,
+            "read_bytes": 3608696,
+            "read_bytes_outside_layers": 1792,
+            "read_transactions": 39075,
+            "testbench_cycles": 1735928,
+            "top1": 6,
+            "total_cycles": 1735928,
+            "write_beats": 28700,
+            "write_bytes": 114800,
+            "write_transactions": 28700
+          },
+          "top1": 6
+        },
+        "zero": {
+          "checked_full_ddr_bytes": 1048576,
+          "checked_layers": 14,
+          "checked_model_bytes": 266880,
+          "checked_zero_tail_bytes": 781696,
+          "full_ddr_sha256": "8e7ca6c3e8f97ae1bf65e7c511fa076e3d33bd3e1f1a2af305bf384023eea82f",
+          "logits": [
+            33,
+            3,
+            7,
+            25,
+            33,
+            9,
+            31,
+            14,
+            22,
+            8
+          ],
+          "simulation_log_sha256": "9a019e3e1364dec9363dacf3b24d77f8b2643e4cdba2173350542829f9cea334",
+          "summary": {
+            "cycles_outside_layers": 5838,
+            "executor_cycles": 1337717,
+            "external_bytes": 3723496,
+            "pool_cycles": 26704,
+            "read_beats": 451087,
+            "read_bytes": 3608696,
+            "read_bytes_outside_layers": 1792,
+            "read_transactions": 39075,
+            "testbench_cycles": 1735928,
+            "top1": 0,
+            "total_cycles": 1735928,
+            "write_beats": 28700,
+            "write_bytes": 114800,
+            "write_transactions": 28700
+          },
+          "top1": 0
+        }
+      },
+      "current": {
+        "nonzero": {
+          "checked_full_ddr_bytes": 1048576,
+          "checked_layers": 14,
+          "checked_model_bytes": 266880,
+          "checked_zero_tail_bytes": 781696,
+          "full_ddr_sha256": "cabbdada35f3cb61fc6ca8ee9d1e5de40df36504d405801426a4d78104a98433",
+          "logits": [
+            -98,
+            -25,
+            -6,
+            11,
+            -128,
+            -79,
+            45,
+            -125,
+            -17,
+            -115
+          ],
+          "simulation_log_sha256": "046929727f2f6c88cdcb1d5c0070ff19421b8765419d0910914ff93808b21cd4",
+          "summary": {
+            "cycles_outside_layers": 5838,
+            "executor_cycles": 1586200,
+            "external_bytes": 4342552,
+            "pool_cycles": 26704,
+            "read_beats": 528469,
+            "read_bytes": 4227752,
+            "read_bytes_outside_layers": 1792,
+            "read_transactions": 49571,
+            "testbench_cycles": 1984411,
+            "top1": 6,
+            "total_cycles": 1984411,
+            "write_beats": 28700,
+            "write_bytes": 114800,
+            "write_transactions": 28700
+          },
+          "top1": 6
+        },
+        "zero": {
+          "checked_full_ddr_bytes": 1048576,
+          "checked_layers": 14,
+          "checked_model_bytes": 266880,
+          "checked_zero_tail_bytes": 781696,
+          "full_ddr_sha256": "8e7ca6c3e8f97ae1bf65e7c511fa076e3d33bd3e1f1a2af305bf384023eea82f",
+          "logits": [
+            33,
+            3,
+            7,
+            25,
+            33,
+            9,
+            31,
+            14,
+            22,
+            8
+          ],
+          "simulation_log_sha256": "a63580d15d9b8d5857cd499b0ab9f14e982ab2df7d2142cad38f9ff874a192f6",
+          "summary": {
+            "cycles_outside_layers": 5838,
+            "executor_cycles": 1586200,
+            "external_bytes": 4342552,
+            "pool_cycles": 26704,
+            "read_beats": 528469,
+            "read_bytes": 4227752,
+            "read_bytes_outside_layers": 1792,
+            "read_transactions": 49571,
+            "testbench_cycles": 1984411,
+            "top1": 0,
+            "total_cycles": 1984411,
+            "write_beats": 28700,
+            "write_bytes": 114800,
+            "write_transactions": 28700
+          },
+          "top1": 0
+        }
+      }
+    }
+  },
+  "rtl_reduction": {
+    "active_modules_after": 38,
+    "active_modules_before": 39,
+    "added_lines": 27,
+    "deleted_lines": 362,
+    "net_deleted_lines": 335,
+    "net_deleted_nonblank_noncomment_lines": 275
+  },
+  "schema_version": 1,
+  "source_identity_note": "Local measured commit and published implementation commit have identical complete Git trees; source hashes and actual local refs retained unchanged.",
+  "status": "PASS",
+  "validation": {
+    "design_compiler": {
+      "area_measured": false,
+      "check_design": {
+        "path": "build/npu-control-cleanup/elaborate/check_design.rpt",
+        "sha256": "ce6e9decbacd45b92121ef462c468ed15b984945469e1bb5a1b22d540eb4f083"
+      },
+      "check_design_lint_clean": false,
+      "log": {
+        "path": "build/npu-control-cleanup/validation/elaborate.log",
+        "sha256": "4851810167e031983b39d0ce7c3a00584bbba484879e1694f8e86648cde12970"
+      },
+      "mapped": false,
+      "script": {
+        "path": "build/npu-control-cleanup/elaborate/elaborate.tcl",
+        "sha256": "0ac41e286f10dcb06403c77e2d5f5a0fbaa16e8ade428e9271642b39899a4634"
+      },
+      "status": "ANALYZE_ELABORATE_LINK_PASS",
+      "timing_measured": false
+    },
+    "functional_regression": {
+      "driver_log": {
+        "path": "build/npu-control-cleanup/validation/regression.log",
+        "sha256": "3648032cc558ff90862aa3c1c083af33396a8b41dc80f335722987e93dc720c2"
+      },
+      "simulation_logs": {
+        "cnn_pool_global_avg_npu_tb": {
+          "path": "build/vcs/cnn_pool_global_avg_npu_tb/control-cleanup-final/simulation.log",
+          "sha256": "b1cca3b0de0627d219581864ef5da6d2162398027c52ff2085aeb9c5ea6bc189"
+        },
+        "cnn_pool_npu_tb": {
+          "path": "build/vcs/cnn_pool_npu_tb/control-cleanup-final/simulation.log",
+          "sha256": "8824aa7ef89507cf34c527ccac6964e618f16fc606641efa793d4f071bcbac8f"
+        },
+        "cnn_pool_per_channel_npu_tb": {
+          "path": "build/vcs/cnn_pool_per_channel_npu_tb/control-cleanup-final/simulation.log",
+          "sha256": "bf2fa9a058ffea08f24dd50e976e8327d4ac8dbca04bf49c329a16cb3e797784"
+        },
+        "conv2d_npu_tb": {
+          "path": "build/vcs/conv2d_npu_tb/control-cleanup-final/simulation.log",
+          "sha256": "40cb5f4246596b91f8bd52e47fd860f98017375fa39be4c7d7ea472686d64da3"
+        },
+        "conv_patch_reader_tb": {
+          "path": "build/vcs/conv_patch_reader_tb/control-cleanup-final/simulation.log",
+          "sha256": "86d909dcb07843f3ceaf88dbd8a290b5d0ad55d1b3ed0ec383a73c06ad1dabee"
+        },
+        "conv_pool_fused_npu_tb": {
+          "path": "build/vcs/conv_pool_fused_npu_tb/control-cleanup-final/simulation.log",
+          "sha256": "4a909ef2f6424ded22db9ece9e516a5fe2357c5656f01088a4338a25837778fd"
+        },
+        "fc_pool_fused_npu_tb": {
+          "path": "build/vcs/fc_pool_fused_npu_tb/control-cleanup-final/simulation.log",
+          "sha256": "e87e61d2335de0fa803800852b20405fee8a5828bbc2a4b8071c4d4493ddc444"
+        },
+        "gemm_array_tb": {
+          "path": "build/vcs/gemm_array_tb/control-cleanup-final/simulation.log",
+          "sha256": "ca6141000065a23791935b98996ac545137731bc9ea1f439d34cd4e81033d221"
+        },
+        "gemm_cycle_controller_tb": {
+          "path": "build/vcs/gemm_cycle_controller_tb/control-cleanup-final/simulation.log",
+          "sha256": "4a0b0501c30f4811cb306067d45254bfbc5b9d48d0c9112eb8b96a61c21a35cc"
+        },
+        "gemm_dma_integration_tb": {
+          "path": "build/vcs/gemm_dma_integration_tb/control-cleanup-final/simulation.log",
+          "sha256": "7751cf7e525bc633330b870efa0d013421e49f9d6a7b93bdaa5c96a361f05aac"
+        },
+        "gemm_output_tb": {
+          "path": "build/vcs/gemm_output_tb/control-cleanup-final/simulation.log",
+          "sha256": "33a0e3a835d2abf3acd504b3702d8da519bb2e0fbe37a99af10c40f6eabf0fa7"
+        },
+        "gemm_pe_tb": {
+          "path": "build/vcs/gemm_pe_tb/control-cleanup-final/simulation.log",
+          "sha256": "597085c8b69904bbf7a16cbeca6d224f2cce4559b27a88d318c6d77e75f0e4e9"
+        },
+        "gemm_postprocess_tb": {
+          "path": "build/vcs/gemm_postprocess_tb/control-cleanup-final/simulation.log",
+          "sha256": "c67cd7c6840b5ade1108e58dc5b91121f6444ba19411898c6fff5aa0d88a0ed9"
+        },
+        "gemm_tile_compute_tb": {
+          "path": "build/vcs/gemm_tile_compute_tb/control-cleanup-final/simulation.log",
+          "sha256": "eb71bd382d6bfc8640654388ab258206df25dc2ac12185d8091757ad2a280573"
+        },
+        "gemm_tile_order_multik_tb": {
+          "path": "build/vcs/gemm_tile_order_multik_tb/control-cleanup-final/simulation.log",
+          "sha256": "6e54e5169bf71942c3de68d24e7ae1aa178d45c8015f4898ea154d867b8b9a68"
+        },
+        "gemm_tile_order_pool_channel_tb": {
+          "path": "build/vcs/gemm_tile_order_pool_channel_tb/control-cleanup-final/simulation.log",
+          "sha256": "2e1652f01e9216659f42bd72bdec9e060759d1d1a535b195a1174f911331c3fb"
+        },
+        "gemm_tile_scheduler_early_done_tb": {
+          "path": "build/vcs/gemm_tile_scheduler_early_done_tb/control-cleanup-final/simulation.log",
+          "sha256": "ccaac73c98e7915c47defac39bcadf70950cebf8e847639802f5d8429aee555f"
+        },
+        "gemm_tile_scheduler_tb": {
+          "path": "build/vcs/gemm_tile_scheduler_tb/control-cleanup-final/simulation.log",
+          "sha256": "25964759618701f6985b5d265bcc1daa08bdd0c1211cf19049cb31d7fd0ed0e4"
+        },
+        "maxpool_padding_npu_tb": {
+          "path": "build/vcs/maxpool_padding_npu_tb/control-cleanup-final/simulation.log",
+          "sha256": "39504b932c837c23d75f8d096c63ddd537781b258ce22d9d15a6de622e52f7b3"
+        },
+        "npu_command_reader_tb": {
+          "path": "build/vcs/npu_command_reader_tb/control-cleanup-final/simulation.log",
+          "sha256": "6365e0fb132df55789be7dc79d4aef3f4c7dcd2065e8790b09153f4af156ab87"
+        },
+        "npu_gemm_engine_tb": {
+          "path": "build/vcs/npu_gemm_engine_tb/control-cleanup-final/simulation.log",
+          "sha256": "cc4c006ef56b8d0de9fe025c295270839ed9731cd18544aa58355b4592339187"
+        },
+        "npu_top_tb": {
+          "path": "build/vcs/npu_top_tb/control-cleanup-final/simulation.log",
+          "sha256": "0abde06b32a5840e70f9c20338f060166f7c0ae6f85cac33e334de5878687c2b"
+        },
+        "operand_bank_controller_tb": {
+          "path": "build/vcs/operand_bank_controller_tb/control-cleanup-final/simulation.log",
+          "sha256": "18ea9fc781a1e8db98556fa614d6ca44e595d75f6a0a42f85828ce8d5e5ceae1"
+        },
+        "operand_packer_tb": {
+          "path": "build/vcs/operand_packer_tb/control-cleanup-final/simulation.log",
+          "sha256": "3bd43ab09c70cd8076e76a71931f8d4246de8d464267e3c2e221a59f9c2b788f"
+        },
+        "operand_path_tb": {
+          "path": "build/vcs/operand_path_tb/control-cleanup-final/simulation.log",
+          "sha256": "374a19766a81e0cc7a9258b6a13913af722f29ef092b3e5f429781773b1a5dde"
+        },
+        "pool2d_configurable_tb": {
+          "path": "build/vcs/pool2d_configurable_tb/control-cleanup-final/simulation.log",
+          "sha256": "061e48873ba6936763da52e589290d697ed278466fbdfb62020523494862239d"
+        },
+        "pool2d_global_avg_tb": {
+          "path": "build/vcs/pool2d_global_avg_tb/control-cleanup-final/simulation.log",
+          "sha256": "37ea66c18318e5cfb6ad57706a8cd8fdfd466240ac28a6e496546c97c4930a05"
+        },
+        "pool_coordinate_mapper_tb": {
+          "path": "build/vcs/pool_coordinate_mapper_tb/control-cleanup-final/simulation.log",
+          "sha256": "17424b6966f529be7da46d55beba94742b444b417f322ced70281ff78e0a5948"
+        },
+        "pool_result_dma_tb": {
+          "path": "build/vcs/pool_result_dma_tb/control-cleanup-final/simulation.log",
+          "sha256": "2ad2c1bc16ec2a862407934bc10d219f1be19fd4938bc5e53c4b62d3a5b8a56b"
+        },
+        "pool_window_buffer_tb": {
+          "path": "build/vcs/pool_window_buffer_tb/control-cleanup-final/simulation.log",
+          "sha256": "3c1f9f725f88fd3f995c7de90d28467b14c0b4a9d2a3743d7b4c4f04d0443488"
+        },
+        "result_param_buffer_tb": {
+          "path": "build/vcs/result_param_buffer_tb/control-cleanup-final/simulation.log",
+          "sha256": "d3b76ba561b883ada4dd980002c660fd9aa38d4179dc7a7740f920a074181e02"
+        },
+        "result_write_dma_tb": {
+          "path": "build/vcs/result_write_dma_tb/control-cleanup-final/simulation.log",
+          "sha256": "3f2648d7308aadac72abcf12d37b38433e313be62a1514c95210a090f2416532"
+        },
+        "stream_maxpool2x2_tb": {
+          "path": "build/vcs/stream_maxpool2x2_tb/control-cleanup-final/simulation.log",
+          "sha256": "637c332728734dfd9ee7e443b926095c7c5e625233a9afee8e0e848e65d0fcd9"
+        },
+        "tail_tiles_npu_tb": {
+          "path": "build/vcs/tail_tiles_npu_tb/control-cleanup-final/simulation.log",
+          "sha256": "4e5d4c1b6e4370d7e045f48883a41be313eab68add348ef5c5490ed230797675"
+        }
+      },
+      "status": "PASS",
+      "tests": 34
+    },
+    "python": {
+      "analysis": {
+        "log_path": "build/npu-control-cleanup/validation/python-analysis.log",
+        "log_sha256": "74c03fc16fde9a2dfeff03db0ec8f472a5a8dfed04e9e982a912b4b7f64faee3",
+        "status": "PASS",
+        "tests": 7
+      },
+      "compiler": {
+        "log_path": "build/npu-control-cleanup/validation/python-compiler.log",
+        "log_sha256": "38c7a3b523a00d838d218ec4440e2810d5bd0f26f59dfe9e979e63d5e8544af8",
+        "status": "PASS",
+        "tests": 145
+      },
+      "model": {
+        "log_path": "build/npu-control-cleanup/validation/python-model.log",
+        "log_sha256": "a51f67f955e72148c8277957bfc1a143de82c8723c53bc7b7837252c0ec1967d",
+        "status": "PASS",
+        "tests": 38
+      }
+    },
+    "small_parameters": {
+      "log": {
+        "path": "build/npu-control-cleanup/validation/small-parameters.log",
+        "sha256": "8a53326bfa15201afd5b1846adae5f2418e7b6e55a34e649ebee0be2e106d6e3"
+      },
+      "status": "PASS"
+    },
+    "suites": {
+      "fusion-check": {
+        "log": {
+          "path": "build/npu-control-cleanup/validation/fusion-check.log",
+          "sha256": "18f9500c1a7b26f4b9f522da06062d58d5fd858ec76657a4e70d21b354ae5ee9"
+        },
+        "simulations": 19,
+        "status": "PASS"
+      },
+      "pool-fifo-check": {
+        "log": {
+          "path": "build/npu-control-cleanup/validation/pool-fifo-check.log",
+          "sha256": "597e25ae850916394e2460fadd97a6a71ccf9522bcba5137b2a14cc47510d020"
+        },
+        "simulations": 7,
+        "status": "PASS"
+      }
+    }
+  }
+}
