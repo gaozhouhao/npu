@@ -65,7 +65,7 @@ endif
 
 .PHONY: help list-tests compile test regression tail-check fusion-check pool-fifo-check fc-pool-check fc-alignment-check parameter-check stress wave uvm-pe uvm-pe-compile \
 	mnist mnist-all mnist-fused resnet8-model resnet8 resnet8-perf resnet8-benchmark compiler-test compiler-check \
-	resnet50-prepare resnet50-model resnet50-reference resnet50-benchmark resnet50-compare \
+	resnet50-prepare resnet50-model resnet50-reference resnet50-benchmark resnet50-compare resnet50-readpath-benchmark \
 	synth synth-hold sram-lib sram-generate dft-precheck dft atpg atpg-resume \
 	atpg-smoke mbist mbist-sim clean
 
@@ -91,6 +91,7 @@ help:
 	  'make resnet50-prepare      Normalize real ResNet-50 and emit a calibration template' \
 	  'make resnet50-benchmark    Full real-weight integer workload; no classification accuracy claim' \
 	  'make resnet50-compare      Matched baseline/current full-network performance comparison' \
+	  'make resnet50-readpath-benchmark  Matched cache/prefetch ablation; reuses prepared model/goldens' \
 	  'make synth [DESIGN=npu|gemm_pe] Synthesis using local process libraries' \
 	  'make dft-precheck | dft | atpg | atpg-smoke | mbist | mbist-sim' \
 	  'make list-tests            Available testbench names' \
@@ -165,6 +166,28 @@ resnet50-compare: resnet50-reference
 	$(PYTHON) scripts/analysis/compare_graph_benchmarks.py \
 		--baseline "$(RESNET50_CHECK_DIR)/baseline-report.json" \
 		--current "$(RESNET50_CHECK_DIR)/current-report.json" --out "$(RESNET50_CHECK_DIR)/comparison.json"
+
+RESNET50_READPATH_DIR ?= $(BUILD_DIR)/resnet50-readpath-benchmark
+RESNET50_READPATH_REF ?= f7419986f24fb7a2ba9902eb5e451e147d6b7abc
+resnet50-readpath-benchmark:
+	$(PYTHON) scripts/model/benchmark_resnet50_readpath.py prepare \
+		--package "$(RESNET50_MODEL_DIR)" --reference "$(RESNET50_CHECK_DIR)" --out "$(RESNET50_READPATH_DIR)"
+	$(PYTHON) scripts/model/benchmark_resnet50_readpath.py run \
+		--package "$(RESNET50_MODEL_DIR)" --reference "$(RESNET50_CHECK_DIR)" --out "$(RESNET50_READPATH_DIR)" \
+		--source-ref "$(RESNET50_READPATH_REF)" --variant baseline \
+		--read-latency $(DDR_RD_LATENCY) --write-latency $(DDR_WR_LATENCY)
+	$(PYTHON) scripts/model/benchmark_resnet50_readpath.py check \
+		--package "$(RESNET50_MODEL_DIR)" --reference "$(RESNET50_CHECK_DIR)" --out "$(RESNET50_READPATH_DIR)" --variant baseline \
+		--read-latency $(DDR_RD_LATENCY) --write-latency $(DDR_WR_LATENCY)
+	$(PYTHON) scripts/model/benchmark_resnet50_readpath.py run \
+		--package "$(RESNET50_MODEL_DIR)" --reference "$(RESNET50_CHECK_DIR)" --out "$(RESNET50_READPATH_DIR)" \
+		--source-ref "$(RESNET50_READPATH_REF)" --variant optimized \
+		--read-latency $(DDR_RD_LATENCY) --write-latency $(DDR_WR_LATENCY)
+	$(PYTHON) scripts/model/benchmark_resnet50_readpath.py check \
+		--package "$(RESNET50_MODEL_DIR)" --reference "$(RESNET50_CHECK_DIR)" --out "$(RESNET50_READPATH_DIR)" --variant optimized \
+		--read-latency $(DDR_RD_LATENCY) --write-latency $(DDR_WR_LATENCY)
+	$(PYTHON) scripts/model/benchmark_resnet50_readpath.py compare \
+		--package "$(RESNET50_MODEL_DIR)" --reference "$(RESNET50_CHECK_DIR)" --out "$(RESNET50_READPATH_DIR)"
 
 compiler-check:
 	$(FC_PYTHON) compiler/test_target_compat.py
