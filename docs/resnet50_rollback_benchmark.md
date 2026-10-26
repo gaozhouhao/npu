@@ -2,15 +2,15 @@
 
 本实验按GitHub历史恢复优化前的计算与读取实现，使用与当前版本相同的完整ResNet50部署包、非零输入和独立整数黄金结果。当前生产RTL不回退、不修改。历史实现只在隔离仿真目录中补齐运行该网络必需的功能，并逐项保留补丁与来源。
 
-这里的00组已经包含早期A/B双缓冲预取，并非所有架构优化之前的版本。按用户进一步要求，去掉该预取并使用A/B各一个Bank的对照另见[串行供数基线](resnet50_serial_baseline.md)；两种基线不要混用。
+用户于2026-10-27要求所有对照保留Burst，因此旧00组及[卷积无Burst串行基线](resnet50_serial_baseline.md)的未完成整网运行已取消（`CANCELLED_BY_USER`）。后续测量转为[Burst三组对照](resnet50_burst_matrix.md)：相同Burst的无双缓冲、有双缓冲，以及当前精简优化版。这里已完成的legacy46→current结果继续有效；legacy46已有复用、PSUM及写回解耦，不能作为新三组中的有双缓冲组。
 
 ## 历史节点
 
-| 组 | 固定提交 | 保留的历史实现 |
-| --- | --- | --- |
-| legacy00 | `00fd93c6f0deabf8c427fa34a6f6ac1d58e9ce47` | 双Bank、内部32位操作数、Conv逐字节单拍读取；无A复用、连续段Burst和C SRAM PSUM |
-| legacy46 | `46f756efffccfb9da44fd255661507afca353c05` | 原生64位之前的内部32位实现，已具备早期A复用、Burst、部分和、运行时数据流及写回解耦 |
-| current | 已验证精简实现，发布提交 `34358ce46fb3df5d925a9e95910f0c7b179b7679` | 内部64位、早期复用/Burst和现有功能；卷积读缓存与后期获取快路径已删除 |
+| 组 | 固定提交 | 保留的历史实现 | 整网状态 |
+| --- | --- | --- | --- |
+| legacy00 | `00fd93c6f0deabf8c427fa34a6f6ac1d58e9ce47` | 双Bank、内部32位操作数、Conv逐字节单拍读取；无A复用、连续段Burst和C SRAM PSUM | `CANCELLED_BY_USER`，无完整结果 |
+| legacy46 | `46f756efffccfb9da44fd255661507afca353c05` | 原生64位之前的内部32位实现，已具备早期A复用、Burst、部分和、运行时数据流及写回解耦 | `PASS`，历史中间阶段 |
+| current | 已验证精简实现，发布提交 `34358ce46fb3df5d925a9e95910f0c7b179b7679` | 内部64位、早期复用/Burst和现有功能；卷积读缓存与后期获取快路径已删除 | `PASS` |
 
 GitHub确认的早期优化链为 [00fd93c→5ab663a](https://github.com/gaozhouhao/npu/compare/00fd93c6f0deabf8c427fa34a6f6ac1d58e9ce47...5ab663ad082f58825e26b823543a8eb6f680a4a0)：`82d10c8` A复用、`fd4a041` 连续读取/流式打包、`fb4545a` C SRAM、`5ab663a` 多K复用。后期为 [46f756e→984c253](https://github.com/gaozhouhao/npu/compare/46f756efffccfb9da44fd255661507afca353c05...984c253c7adbd1daec1f6f6d80b2688d62e82ebd)，包含原生64位、卷积缓存/片段前瞻及调度快路径。
 
@@ -29,7 +29,7 @@ GitHub确认的早期优化链为 [00fd93c→5ab663a](https://github.com/gaozhou
 - 无效分类尾列不再解码邻接DDR中的伪量化参数；保持历史完整参数请求和FSM时序。历史多余lane的物理读取仍保留，所有外部地址继续由testbench检查。
 - 卷积权重行按同一部署包的8字节物理对齐，仅改变布局兼容，不引入原生64位读取。
 
-所有72条任务都由RTL执行，未以主机软件代算缺失层，也不省略其周期。输入、权重、描述符、黄金结果保持原始字节。完整网络为224×224×3、53Conv、16Add、1MaxPool、1GAP、1FC和1001输出，部署DDR为29,404,672字节；最终期望哈希为 `2c20633f1688bd23f1686548b8d1f4729b92a6863aa97f3cec1e056cf83e4f86`。固定scale0.0625及seed8非零输入仅用于整数执行/性能，分类精度未测量。
+完整验收要求72条任务都由RTL执行，不以主机软件代算缺失层，也不省略其周期；legacy46和current已满足该要求，00组取消前未完成整网。输入、权重、描述符、黄金结果保持原始字节。完整网络为224×224×3、53Conv、16Add、1MaxPool、1GAP、1FC和1001输出，部署DDR为29,404,672字节；最终期望哈希为 `2c20633f1688bd23f1686548b8d1f4729b92a6863aa97f3cec1e056cf83e4f86`。固定scale0.0625及seed8非零输入仅用于整数执行/性能，分类精度未测量。
 
 ## 当前测量状态
 
@@ -44,7 +44,7 @@ GitHub确认的早期优化链为 [00fd93c→5ab663a](https://github.com/gaozhou
 
 完整逐层对照、运行条件及源码/报告哈希归档于[机器可读结果](reference/resnet50_rollback_legacy46_to_current.json)。该文件保留实际测量的本地提交 `7c58e5c`，其源码树与发布提交 `34358ce` 相同；没有改写旧报告中的来源。
 
-最早00组仍在运行，尚未填写00到当前的完整优化链收益。中间阶段的21.26%不能替代该数字，也不能用于证明某个独立特性的单项收益。当前已删除卷积缓存和后期获取快路径，这里的收益包含保留下来的64位内部供数及其他版本演进。
+最早00组的未完成运行已按用户要求取消，不计算00到当前的整网优化链收益。保留的21.26%仅描述legacy46→current历史中间阶段，不能用于证明某个独立特性的单项收益，也不替代新Burst三组的结果。当前已删除卷积缓存和后期获取快路径，这里的收益包含保留下来的64位内部供数及其他版本演进。
 
 运行前已完成必要功能检查：七组历史writer场景通过，完整tile的36条总线事件及周期与未修改历史writer一致；逐通道算术560个独立预期lane向量、参数读取与尾列非法值专项通过；共用Pool的42项配置/补边检查及GAP四项检查通过。
 
@@ -61,7 +61,7 @@ python scripts/model/prepare_resnet50_rollback.py \
   --out build/resnet50-rollback-replay
 ```
 
-准备工具逐项校验原始Git文件、精确补丁和最终源码SHA256。用同一个现有ResNet50参考目录的 `reference.json`、`expected.bin`、`input.hex`、`layers.txt` 原样复制到新的 `build/resnet50-rollback-replay/check/`，保持原golden路径有效，然后分别运行：
+以下保留历史复现方法，不表示已取消的00组仍在后台运行。准备工具逐项校验原始Git文件、精确补丁和最终源码SHA256。用同一个现有ResNet50参考目录的 `reference.json`、`expected.bin`、`input.hex`、`layers.txt` 原样复制到新的 `build/resnet50-rollback-replay/check/`，保持原golden路径有效，可复核历史实验：
 
 ```bash
 python scripts/model/benchmark_resnet50_rollback.py --variant legacy00 \
@@ -72,13 +72,13 @@ python scripts/model/benchmark_resnet50_rollback.py --variant legacy46 \
   --package build/resnet50-benchmark/model --out build/resnet50-rollback-replay/check
 ```
 
-两组默认读首拍等待20周期，超时上限200,000,000,000周期，计数为64位。最早版本每个有效字节单独请求，完整仿真可能较长，不能把未结束的部分层计数当作整网结果。运行器使用同一个现有 `run_graph_model.py` 检查器；当前版本可按[精简对照入口](npu_control_cleanup.md)用相同包和时序运行后，再由 `compare_graph_benchmarks.py` 比较完整PASS报告。
+两组历史入口默认读首拍等待20周期，超时上限200,000,000,000周期，计数为64位。00版本每个有效字节单独请求，其旧整网运行已取消；保留的部分层计数不能当作整网结果。运行器使用同一个现有 `run_graph_model.py` 检查器；当前版本可按[精简对照入口](npu_control_cleanup.md)用相同包和时序运行后，再由 `compare_graph_benchmarks.py` 比较完整PASS报告。
 
 兼容性配方还保留两份未实例化的Pool验证模块，以精确复现本次已冻结的编译源码集合。VCS明确指定 `-top graph_model_npu_tb`，这两个模块不执行，也不贡献推理周期。
 
 ## 加快历史RTL仿真
 
-`scripts/model/benchmark_graph_verilator.py` 与 `rollback_compat/graph_driver.cpp` 提供逐时钟执行实际RTL的另一种入口。C++只承接原SV测试平台的DDR、复位/启动和检查职责；不代算算子，不跳过时钟，不向DDR注入golden。编译时保留所有冻结源码副本与SHA256，仅排除不再使用的SV测试平台及未实例化的验证模块。Verilator为两态仿真，VCS为四态仿真，因此采用它之前必须核对逐层周期、流量及完整DDR内容；小图已在两个历史版本上通过该核对，整网交叉检查也在进行中。
+`scripts/model/benchmark_graph_verilator.py` 与 `rollback_compat/graph_driver.cpp` 提供逐时钟执行实际RTL的另一种入口。C++只承接原SV测试平台的DDR、复位/启动和检查职责；不代算算子，不跳过时钟，不向DDR注入golden。编译时保留所有冻结源码副本与SHA256，仅排除不再使用的SV测试平台及未实例化的验证模块。Verilator为两态仿真，VCS为四态仿真，因此采用它之前必须核对逐层周期、流量及完整DDR内容；小图已在两个历史版本上通过该核对，legacy46及current也已完成72层整网交叉检查；无Burst旧组已取消，不再等待其整网交叉检查。
 
 快慢仿真器只影响主机等待时间，报告中的NPU周期均来自RTL性能计数器。完整对照要求相同模型与内存时序，以及同一驱动和工具条件，或明确记录已通过的完整交叉校验。小图和前缀运行均不能代替完整72层PASS。
 
@@ -93,4 +93,4 @@ python scripts/model/benchmark_graph_verilator.py \
   --out build/resnet50-rollback-cpp-replay --label legacy00
 ```
 
-入口从已有冻结运行的 `source.json` 及相邻 `source/` 恢复编译输入，并拒绝哈希不符、覆盖已有运行或在编译后修改驱动/源码。对已通过VCS的组，加 `--compare-report <对应VCS报告>` 可生成独立的交叉校验结果。最早版本仍须完成实际RTL推理；不会根据已完成层推算其整网周期。
+入口从已有冻结运行的 `source.json` 及相邻 `source/` 恢复编译输入，并拒绝哈希不符、覆盖已有运行或在编译后修改驱动/源码。对已通过VCS的组，加 `--compare-report <对应VCS报告>` 可生成独立的交叉校验结果。旧00组已取消，不再执行其整网测量，也不根据已完成层推算整网周期。

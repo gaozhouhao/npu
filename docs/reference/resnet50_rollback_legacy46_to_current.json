@@ -63,7 +63,12 @@
   "cycle_reduction_pct": 21.259035042304184,
   "cycles_saved": 132118490,
   "dataset_accuracy_measured": false,
-  "earliest_baseline_status": "RUNNING; no complete legacy00 speedup claimed",
+  "earliest_baseline_cancellation": {
+    "reason": "User requires Conv Burst in all comparison groups. Incomplete legacy00 byte-at-a-time runs cancelled; no complete legacy00 speedup claimed.",
+    "superseded_by": "docs/resnet50_burst_matrix.md",
+    "user_date": "2026-10-27"
+  },
+  "earliest_baseline_status": "CANCELLED_BY_USER",
   "full_ddr_identical": true,
   "interpretation": "Matched-model simulated performance; accuracy not measured",
   "layers": [
@@ -790,6 +795,7 @@
   ],
   "measurement_scope": "Historical microarchitecture rollback with declared functional backports and common external AXI64; composite version comparison, not isolated feature ablation",
   "model_sha256": "358c5906f4057cfff3506a63bcf7b502e69e566bdaa9ea598466fe002c3bd3fa",
+  "new_burst_matrix_role": "Historical intermediate comparison remains valid. legacy46 already includes reuse, PSUM and decoupled C writeback; it is not the matched double-buffer-only group in the new Burst matrix.",
   "nominal_macs": 4089186304,
   "read_latency_cycles": 20,
   "source": {

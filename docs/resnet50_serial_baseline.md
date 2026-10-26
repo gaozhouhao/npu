@@ -1,6 +1,6 @@
 # ResNet50 串行供数基线
 
-本轮按用户明确选择，连A/B双缓冲预取也去掉，再比较简历中的后续性能优化。生产RTL保持当前精简实现；历史基线仅在独立目录中恢复和测量。
+本页归档旧的卷积无Burst、A/B无双缓冲基线。用户于2026-10-27要求所有对照均保留Burst，该基线的未完成整网运行已取消（`CANCELLED_BY_USER`），由[Burst三组对照](resnet50_burst_matrix.md)取代。以下已完成的小图、断言和源码检查继续有效；生产RTL及构建证据保留。
 
 ## 基线包含什么
 
@@ -45,13 +45,13 @@
 
 ## 完整网络状态
 
-完整串行ResNet50已启动，尚未填写其总周期或加速比。模型、输入和golden原样复用之前的224×224×3、72条任务、1001输出部署包，DDR为29,404,672字节，期望最终SHA256为`2c20633f1688bd23f1686548b8d1f4729b92a6863aa97f3cec1e056cf83e4f86`。
+旧的卷积无Burst串行ResNet50运行已取消，状态为`CANCELLED_BY_USER`；取消时未完成全部72层，没有整网周期或加速比。其原模型、输入和golden为224×224×3、72条任务、1001输出部署包，DDR为29,404,672字节，期望最终SHA256为`2c20633f1688bd23f1686548b8d1f4729b92a6863aa97f3cec1e056cf83e4f86`。
 
-对照为同一驱动/工具条件下已完整复现VCS的当前实现：489,351,345周期。必须等串行组全部72层、完整DDR和54条Conv/FC的串行观察检查通过，才计算整网收益。固定scale及非零输入用于整数执行/性能，分类精度未验证。
+同一驱动/工具条件下，当前实现已完整复现VCS的489,351,345周期。这个有效结果予以保留，但不与已取消的部分层计数计算整网收益。后续使用保留Burst的无双缓冲、有双缓冲及当前精简实现三组；其中有双缓冲组仅启用对应的预取调度，不使用已含复用、PSUM和写回解耦的legacy46代替。固定scale及非零输入用于整数执行/性能，分类精度未验证。
 
 ## 复现
 
-保留完整Git历史、Python3/NumPy和已准备好的00功能兼容源码快照。00运行开始时已写出冻结`source.json`，不要求等其旧整网仿真结束；准备工具不会修改它，也拒绝覆盖已有输出目录：
+以下入口仅用于复核已归档的旧源码和小图；本轮性能测量使用[Burst三组对照](resnet50_burst_matrix.md)。需要完整Git历史、Python3/NumPy和已经冻结的00功能兼容源码快照；准备工具不会修改它，也拒绝覆盖已有输出目录：
 
 ```bash
 python scripts/model/prepare_resnet50_serial_baseline.py \
@@ -69,15 +69,4 @@ python scripts/model/benchmark_frozen_graph.py \
   --out build/resnet50-serial-replay/smoke-vcs --label serial
 ```
 
-逐时钟C++入口需要[回退报告](resnet50_rollback_benchmark.md)中声明的本机工具链。驱动不代算算子、不跳时钟、不向DDR注入golden；全网对照继续使用同一输入和参考目录：
-
-```bash
-python scripts/model/benchmark_graph_verilator.py \
-  --source-metadata build/resnet50-serial-replay/sources/source.json \
-  --driver-sha256 5c9f8707ebe6343f407a7237edb93835e7f3c0031933a5f29490840ff2fe750b \
-  --package build/resnet50-benchmark/model \
-  --reference build/resnet50-rollback-compare/check \
-  --out build/resnet50-serial-replay/full --label serial
-```
-
-本机实际运行位于`build/resnet50-serial-baseline/full-cpp/`；`final-status.json`记录自动汇总状态，完整通过后生成`serial-to-current.json`。未结束或失败的运行不能作为整网性能结果。
+逐时钟C++驱动及工具链说明保留在[回退报告](resnet50_rollback_benchmark.md)。旧整网构建、冻结源码与部分日志仍位于`build/resnet50-serial-baseline/full-cpp/`；`final-status.json`记录取消原因和状态，不再等待或自动生成旧基线的整网收益。驱动不代算算子、不跳时钟、不向DDR注入golden；部分层日志继续仅作为审计证据。
