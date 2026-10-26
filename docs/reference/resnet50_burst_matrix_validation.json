@@ -1,0 +1,592 @@
+{
+  "burst_prefetch_guard_tests": {
+    "cases": [
+      {
+        "case": 0,
+        "expected": "BURST_GUARD_UNIT_PASS",
+        "name": "serial_no_overlap",
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "case": 1,
+        "expected": "BURST_GUARD_UNIT_PASS",
+        "name": "prefetch_overlap",
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "case": 2,
+        "expected": "single-bank load/compute overlap",
+        "name": "reject_single_bank_overlap",
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "case": 3,
+        "expected": "compute requires fresh completed A/B loads",
+        "name": "reject_missing_reload",
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "case": 4,
+        "expected": "A must reload every M/N/K tile in order",
+        "name": "reject_wrong_load_order",
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "case": 5,
+        "expected": "A completion without an accepted load",
+        "name": "reject_unaccepted_completion",
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "case": 6,
+        "expected": "Conv requested/received word mismatch",
+        "name": "reject_missing_burst_data",
+        "passed": true,
+        "returncode": 0
+      },
+      {
+        "case": 7,
+        "expected": "unexpected executor bank counts",
+        "name": "reject_wrong_bank_count",
+        "passed": true,
+        "returncode": 0
+      }
+    ],
+    "guard_sha256": "42aaf8bf35c620fed4b214afadccd089cbb45527ae9558f57ede0a5d2feaf273",
+    "passed": true,
+    "source_unchanged": true
+  },
+  "comparison_tests": {
+    "comparison_script_sha256": "c95884a452de05d57924f8ad6858c86535748f5e317b4a7f92c98eb934087eef",
+    "errors": [],
+    "failures": [],
+    "passed": true,
+    "tests_run": 26
+  },
+  "dataset_accuracy_measured": false,
+  "full_network_comparison": "resnet50_burst_matrix.json",
+  "full_network_status": "PASS",
+  "measured_date": "2026-10-27",
+  "multi_k_fixture": "scripts/model/prepare_serial_baseline_smoke.py",
+  "multi_k_smoke": {
+    "burst_double": {
+      "checked_full_ddr_bytes": 59072,
+      "checked_layers": 5,
+      "exact_vcs_cpp_layers_counters_and_full_ddr": true,
+      "full_ddr_sha256": "8a0ccb08f8ad4456605e91b8ee42f47d7fa01ef8f121ec82e6f13c04911dd0f2",
+      "report_sha256": {
+        "build/resnet50-burst-matrix/smoke-cpp/burst_double-report.json": "e3b9d890b2d430c502d08d558f34f085da22431cc5454114ba219d54dc5342e9",
+        "build/resnet50-burst-matrix/smoke-vcs/burst_double-report.json": "72ed4efdefa0d13f98e23a8a55373b38fe4e17b759c183aa7fe9a42ceb224646"
+      },
+      "runtime_observation_lines": [
+        "BURST_PREFETCH_BANK_CHECK,PASS,a_banks=2,b_banks=2",
+        "BURST_PREFETCH_CHECK,PASS,command=0,conv=1,m=49,n=32,k=288,tiles=208,a_loads=208,b_loads=208,a_finished=208,b_finished=208,launched=208,completed=208,load_cycles=129902,core_busy_cycles=32136,overlap_cycles=30084,a_start_overlap=207,b_start_overlap=207,read_overlap=6970,sram_overlap=7916,conv_requests=1352,conv_words=23104,conv_max_beats=24,conv_multibeat_requests=1352,conv_received=23104",
+        "BURST_PREFETCH_CHECK,PASS,command=1,conv=0,m=1,n=1001,k=32,tiles=251,a_loads=251,b_loads=251,a_finished=251,b_finished=251,launched=251,completed=251,load_cycles=76022,core_busy_cycles=11295,overlap_cycles=11250,a_start_overlap=250,b_start_overlap=250,read_overlap=0,sram_overlap=0,conv_requests=0,conv_words=0,conv_max_beats=0,conv_multibeat_requests=0,conv_received=0"
+      ],
+      "simulation_log_sha256": {
+        "build/resnet50-burst-matrix/smoke-cpp/burst_double-rtl/simulation.log": "4af3abed97132f7c41ff28e6b4b3b30f2f7de15dccd21e988f0ae377f03c1038",
+        "build/resnet50-burst-matrix/smoke-vcs/burst_double-rtl/simulation.log": "2fd18cc7a6a8c989ef85d598af0b5a5431d2207dc784fa34b6ca014d1f889bf4"
+      },
+      "status": "PASS",
+      "summary": {
+        "cycles_outside_layers": 2086,
+        "effective_useful_mac_utilization": 0.0973462993982257,
+        "executor_cycles": 209480,
+        "external_bytes": 312593,
+        "nominal_macs": 483616,
+        "pool_cycles": 26312,
+        "read_beats": 38489,
+        "read_bytes": 307912,
+        "read_transactions": 6379,
+        "testbench_cycles": 257904,
+        "top1": 23,
+        "total_cycles": 257904,
+        "useful_macs": 401696,
+        "write_beats": 1171,
+        "write_bytes": 4681,
+        "write_transactions": 1171
+      }
+    },
+    "burst_serial": {
+      "checked_full_ddr_bytes": 59072,
+      "checked_layers": 5,
+      "exact_vcs_cpp_layers_counters_and_full_ddr": true,
+      "full_ddr_sha256": "8a0ccb08f8ad4456605e91b8ee42f47d7fa01ef8f121ec82e6f13c04911dd0f2",
+      "report_sha256": {
+        "build/resnet50-burst-matrix/smoke-cpp/burst_serial-report.json": "2ba1262fa85843c06b7f2dce5f20a900e568b51212dfad01c3cf9d1cf1ccdaf2",
+        "build/resnet50-burst-matrix/smoke-vcs/burst_serial-report.json": "22672f1eba241bd4687767a45d74e6f9e6e7e6c31e30cdc21e596c777d9ca38e"
+      },
+      "runtime_observation_lines": [
+        "BURST_PREFETCH_BANK_CHECK,PASS,a_banks=1,b_banks=1",
+        "BURST_PREFETCH_CHECK,PASS,command=0,conv=1,m=49,n=32,k=288,tiles=208,a_loads=208,b_loads=208,a_finished=208,b_finished=208,launched=208,completed=208,load_cycles=126478,core_busy_cycles=32136,overlap_cycles=0,a_start_overlap=0,b_start_overlap=0,read_overlap=0,sram_overlap=0,conv_requests=1352,conv_words=23104,conv_max_beats=24,conv_multibeat_requests=1352,conv_received=23104",
+        "BURST_PREFETCH_CHECK,PASS,command=1,conv=0,m=1,n=1001,k=32,tiles=251,a_loads=251,b_loads=251,a_finished=251,b_finished=251,launched=251,completed=251,load_cycles=67703,core_busy_cycles=11295,overlap_cycles=0,a_start_overlap=0,b_start_overlap=0,read_overlap=0,sram_overlap=0,conv_requests=0,conv_words=0,conv_max_beats=0,conv_multibeat_requests=0,conv_received=0"
+      ],
+      "simulation_log_sha256": {
+        "build/resnet50-burst-matrix/smoke-cpp/burst_serial-rtl/simulation.log": "c75247c90a604097ec1c0420a8b046be2de1e1d65948be376c7a45ee01307e17",
+        "build/resnet50-burst-matrix/smoke-vcs/burst_serial-rtl/simulation.log": "bca8e9dff9fb09acd893b0308617fb341129ee1c27d4b626e3227b0776cdb3d6"
+      },
+      "status": "PASS",
+      "summary": {
+        "cycles_outside_layers": 2086,
+        "effective_useful_mac_utilization": 0.0861408185882458,
+        "executor_cycles": 243029,
+        "external_bytes": 312593,
+        "nominal_macs": 483616,
+        "pool_cycles": 26312,
+        "read_beats": 38489,
+        "read_bytes": 307912,
+        "read_transactions": 6379,
+        "testbench_cycles": 291453,
+        "top1": 23,
+        "total_cycles": 291453,
+        "useful_macs": 401696,
+        "write_beats": 1171,
+        "write_bytes": 4681,
+        "write_transactions": 1171
+      }
+    }
+  },
+  "no_burst_full_runs": "CANCELLED_BY_USER; partial metrics excluded",
+  "optimized_full_report_reused": true,
+  "preparation_provenance": {
+    "actual_variant_difference_paths": [
+      "rtl.f",
+      "rtl/core/gemm_executor.sv",
+      "rtl/core/npu_top.sv",
+      "rtl/core/tile_scheduler.sv",
+      "rtl/verification/burst_prefetch_guard.sv",
+      "rtl/verification/serial_schedule_guard.sv"
+    ],
+    "base_metadata_sha256": "cee07f9ebd015d374794b927fc8e94d9d6aa444699f3cba45e333aa941e69d18",
+    "burst_loader_sha256": "30cbcdaed1b0ba4f254abf1ddcf9c1be1c4f42ec6bdd1c5be4d4630340865b74",
+    "burst_loader_source_ref": "fd4a041265034c466b9aa3056786dbe863684f4e",
+    "conclusion": "Sources prepared only; no performance or correctness result claimed.",
+    "mixed_source": true,
+    "observation_guard_template_sha256": "42aaf8bf35c620fed4b214afadccd089cbb45527ae9558f57ede0a5d2feaf273",
+    "preparation_script_sha256": "d23e53a96c2715e1ebce124a65c103c05f21c2932076b6a647733aaa32e1c63b",
+    "schema_version": 1,
+    "status": "PREPARED",
+    "variants": {
+      "burst_double": {
+        "measurement_parameters": {
+          "A_BUFFER_COUNT": 2,
+          "A_reuse": false,
+          "B_BUFFER_COUNT": 2,
+          "B_stationary": false,
+          "PSUM_slots": false,
+          "conv_burst": true,
+          "conv_cache": false,
+          "conv_max_request_beats": 64,
+          "conv_read_lookahead": false,
+          "decoupled_C_writeback": false,
+          "external_read_bits": 64,
+          "internal_operand_bits": 32,
+          "multi_k_A_reuse": false,
+          "native64_internal_operands": false,
+          "overlapping_operand_prefetch": true
+        },
+        "schedule_source_ref": "00fd93c6f0deabf8c427fa34a6f6ac1d58e9ce47",
+        "source_set_sha256": "cd89ab3d55fff33b9d9dd7e15dc223f5b5b044f16c76578b6efb03ce70f071e8"
+      },
+      "burst_serial": {
+        "measurement_parameters": {
+          "A_BUFFER_COUNT": 1,
+          "A_reuse": false,
+          "B_BUFFER_COUNT": 1,
+          "B_stationary": false,
+          "PSUM_slots": false,
+          "conv_burst": true,
+          "conv_cache": false,
+          "conv_max_request_beats": 64,
+          "conv_read_lookahead": false,
+          "decoupled_C_writeback": false,
+          "external_read_bits": 64,
+          "internal_operand_bits": 32,
+          "multi_k_A_reuse": false,
+          "native64_internal_operands": false,
+          "overlapping_operand_prefetch": false
+        },
+        "schedule_source_ref": "1dc5b2d5d1981f08a8c2cb6efeee73327d2846f4",
+        "source_set_sha256": "f8f89395ae13beb77e814ea3c32f883d3c82507b391c34d754e0a2a7d7d890d2"
+      }
+    }
+  },
+  "preparation_tests": {
+    "log": "build/resnet50-burst-matrix/verification/all-preparation-tests.log",
+    "log_sha256": "13d62aa8e5053af0dc4eaf6a4dbd663c362988ffd96bd4ecacb7fcf08bdc3c39",
+    "log_text": ".......................\n----------------------------------------------------------------------\nRan 23 tests in 1.084s\n\nOK\n",
+    "passed": true,
+    "tests_run": 23
+  },
+  "schema_version": 1,
+  "scope": "Source preparation, independent audit, cross-simulator multi-K and RGB validation, and complete three-group ResNet50 measurements",
+  "script_sha256": {
+    "scripts/analysis/compare_resnet50_burst_matrix.py": "c95884a452de05d57924f8ad6858c86535748f5e317b4a7f92c98eb934087eef",
+    "scripts/analysis/test_compare_resnet50_burst_matrix.py": "649826581fda184ff7029baf369cb22e8d0b8ccb094dcf650ff3d14d0c222540",
+    "scripts/model/prepare_resnet50_burst_matrix.py": "d23e53a96c2715e1ebce124a65c103c05f21c2932076b6a647733aaa32e1c63b",
+    "scripts/model/rollback_compat/burst_prefetch_guard.sv": "42aaf8bf35c620fed4b214afadccd089cbb45527ae9558f57ede0a5d2feaf273",
+    "scripts/model/rollback_compat/test_burst_matrix_prepare.py": "91d0efad1a77cc2ac754b065c65c2e9d96a34de22d82336fb215c84016ee4a75",
+    "scripts/model/rollback_compat/test_burst_prefetch_guard.py": "03a16d42adf6e8ec0bd341b16f8d81491e06853ce9121792f46191336bc7cef5"
+  },
+  "source_audit": {
+    "B_differences_from_validated_legacy00": [
+      "rtl.f",
+      "rtl/dma/conv_patch_loader.sv",
+      "rtl/verification/burst_prefetch_guard.sv"
+    ],
+    "B_existing_functional_RTL_differs_only_by": "rtl/dma/conv_patch_loader.sv",
+    "actual_AB_difference_paths": [
+      "rtl.f",
+      "rtl/core/gemm_executor.sv",
+      "rtl/core/npu_top.sv",
+      "rtl/core/tile_scheduler.sv",
+      "rtl/verification/burst_prefetch_guard.sv",
+      "rtl/verification/serial_schedule_guard.sv"
+    ],
+    "code_evidence": [
+      {
+        "file": "fd4a041:rtl/dma/conv_patch_loader.sv",
+        "finding": "Identical I/O declarations and unchanged operand_loader dependency; MAX_REQUEST_BEATS is added. Position tails/image/kernel bounds become zero padding. Segments bounded by K tile/kernel row/input row.",
+        "lines": "1-16,126-162,203-217,236-259"
+      },
+      {
+        "file": "fd4a041:rtl/dma/conv_patch_loader.sv",
+        "finding": "Masks segment trailing bytes, assembles logical SRAM words, carries leftovers under backpressure, verifies data_last. Both1/2 operand banks are legal.",
+        "lines": "296-344,451-482,534-541"
+      },
+      {
+        "file": "00fd93c:rtl/dma/axi_read_master.sv",
+        "finding": "Splits logical request into at most256 beats bounded by4KiB; loader need not split4KiB itself.",
+        "lines": "126-155"
+      },
+      {
+        "file": "46f756e:rtl/dma/axi_read_32to64.sv",
+        "finding": "Rounds start down/end up to8B and checks both4KiB bounds. Since4096 is8B-aligned, outward8B rounding of a legal aligned32-bit request cannot cross next4KiB.",
+        "lines": "59-62,112-129"
+      },
+      {
+        "file": "00fd93c:rtl/core/tile_scheduler.sv",
+        "finding": "Fresh A/B load per m/n/k tile; CP_IDLE/ACQUIRE/LAUNCH have no reuse or fast bank acquisition. Ready queue enables next tile prefetch.",
+        "lines": "270-276,549-558,620-650,745-830"
+      }
+    ],
+    "core_adapter_diffs": {
+      "rtl/core/gemm_executor.sv": "--- B/rtl/core/gemm_executor.sv\n+++ A/rtl/core/gemm_executor.sv\n@@ -501,10 +501,10 @@\n         .b_load_accept      (scheduler_b_load_accept),\n         .b_load_done        (scheduler_b_load_done),\n \n-        .load_m_tile_idx    (load_m_tile_idx),\n-        .load_n_tile_idx    (load_n_tile_idx),\n-        .load_k_tile_idx    (load_k_tile_idx),\n-        .load_k_size        (scheduler_load_k_size),\n+        .m_tile_idx         (load_m_tile_idx),\n+        .n_tile_idx         (load_n_tile_idx),\n+        .k_tile_idx         (load_k_tile_idx),\n+        .current_k_size     (scheduler_load_k_size),\n \n         .a_compute_req      (scheduler_a_compute_req),\n         .a_compute_grant    (scheduler_a_compute_grant),\n@@ -517,19 +517,19 @@\n         .b_release_bank     (scheduler_b_release_bank),\n \n         .matrix_start       (scheduler_matrix_start),\n-        .matrix_done        (core_done),\n-\n-        .writeback_done     (c_write_done),\n+        .matrix_done        ((core_done && !scheduler_writeback_en) || c_write_done),\n         .clear_acc          (scheduler_clear_acc),\n         .writeback_en       (scheduler_writeback_en),\n-\n-        .compute_k_size     (scheduler_compute_k_size),\n-        .compute_m_tile_idx (compute_m_tile_idx),\n-        .compute_n_tile_idx (compute_n_tile_idx),\n \n         .busy               (scheduler_busy),\n         .done               (scheduler_done)\n     );\n+\n+    // The historical serial scheduler has one coordinate set. It stays\n+    // stable until final C DDR writeback, matching the original 1dc executor.\n+    assign compute_m_tile_idx = load_m_tile_idx;\n+    assign compute_n_tile_idx = load_n_tile_idx;\n+    assign scheduler_compute_k_size = scheduler_load_k_size;\n \n     // ============================================================\n     // Address Generator\n",
+      "rtl/core/npu_top.sv": "--- B/rtl/core/npu_top.sv\n+++ A/rtl/core/npu_top.sv\n@@ -10,8 +10,8 @@\n     parameter int unsigned MEM_WORD_WIDTH = 32,\n     parameter int unsigned ID_WIDTH = 1,\n     parameter int unsigned K_TILE_SIZE = 256,\n-    parameter int unsigned A_BUFFER_COUNT = 2,\n-    parameter int unsigned B_BUFFER_COUNT = 2\n+    parameter int unsigned A_BUFFER_COUNT = 1,\n+    parameter int unsigned B_BUFFER_COUNT = 1\n ) (\n     input logic clk,\n     input logic reset,\n"
+    },
+    "direct_dependency_compatibility": {
+      "BUFFER_COUNT_accepts_1_and_2": true,
+      "module_IO_ports_identical_ignoring_comments_whitespace": true,
+      "unchanged_00_to_fd4a_and_shared_in_AB": {
+        "rtl/dma/axi_read_master.sv": "077c0df07fe927f6546b59fc66787492e18b7b84f7811b220e6ed36287210b80",
+        "rtl/dma/gemm_read_path.sv": "415f2aa76e5bf7ece891de75992cecda2c4dd7f721d34142de447f330bffe9dd",
+        "rtl/dma/operand_read_dma.sv": "1938c2aed1af60bc96ca61b7463d00be8ee1339f3e8837773293e7f272c55fd9",
+        "rtl/dma/strided_read_engine.sv": "f1e6c168ad2959a58a9f6c27480de18c82edf8b7edc45ff48f5972fdd45deeb8",
+        "rtl/memory/operand_loader.sv": "781c9a822ac4f5ed3c8e09e29f3aa23ff85d1d96d0d96c36f48fc3c5f4dc0675"
+      }
+    },
+    "frozen_network_padding_compatibility": {
+      "all_explicit_activation_zero_points": 0,
+      "compatible_with_historical_zero_padding": true,
+      "explicit_quantized_tensor_count": 71,
+      "quantization_path": "build/resnet50-benchmark/model/quantization.benchmark.json",
+      "sha256": "7617ad68199eb13e160a55ab10f212304e8b8553398cc00dceab7d553a592afa"
+    },
+    "historical_origins": {
+      "burst_loader": {
+        "commit": "fd4a041265034c466b9aa3056786dbe863684f4e",
+        "path": "rtl/dma/conv_patch_loader.sv",
+        "sha256": "30cbcdaed1b0ba4f254abf1ddcf9c1be1c4f42ec6bdd1c5be4d4630340865b74"
+      },
+      "double_scheduler": {
+        "commit": "00fd93c6f0deabf8c427fa34a6f6ac1d58e9ce47",
+        "sha256": "79aeb22d2eeb31a467c2f5b269e66723f6547e56aaba190fed2157c36bd93527"
+      },
+      "serial_scheduler": {
+        "commit": "1dc5b2d5d1981f08a8c2cb6efeee73327d2846f4",
+        "sha256": "cbf12ac6a5d377cc5cf252ad544a26c00e6ab1fa0a2875902cc16a263f9177e3"
+      }
+    },
+    "history_before_observation_guard": {
+      "actual_AB_difference_paths": [
+        "rtl.f",
+        "rtl/core/gemm_executor.sv",
+        "rtl/core/npu_top.sv",
+        "rtl/core/tile_scheduler.sv",
+        "rtl/verification/serial_schedule_guard.sv"
+      ],
+      "variants": {
+        "burst_double": {
+          "all_declared_bytes_match": true,
+          "file_count": 41,
+          "source_set_sha256": "df75746df9b1bd338905444b0a305268a1acc49e699a791f833fb1e620c303ef"
+        },
+        "burst_serial": {
+          "all_declared_bytes_match": true,
+          "file_count": 42,
+          "source_set_sha256": "661f8fc6352d26e739b3d6060dca02335810705a041cbd8ce28ef338aceadda1"
+        }
+      }
+    },
+    "identical_existing_AB_sv_files": 37,
+    "no_unexpected_AB_source_difference": true,
+    "observation_guard": {
+      "A_file_sha256": "2296d456ea018a28a9ba285852dcfb53ef6d4a78b6f9aad46a3288bda221a86b",
+      "B_file_sha256": "6a53da4caf9edc15b5fa2ab3bda856f00205a7ccd290fbb2432729deeb091871",
+      "does_not_drive_DUT": true,
+      "module_ports_input_only_no_force_release": true,
+      "path": "rtl/verification/burst_prefetch_guard.sv",
+      "same_body_except_prefixed_expected_bank_count": true,
+      "template_sha256": "42aaf8bf35c620fed4b214afadccd089cbb45527ae9558f57ede0a5d2feaf273"
+    },
+    "production_RTL_modified_by_this_audit": false,
+    "risks_and_limits": [
+      "Declared mixed-source functional compatibility baseline, not untouched historical whole NPU.",
+      "A to B delta includes physical bank counts plus historical scheduler/port/completion adaptation.",
+      "Padding zero matches frozen full-network input zero-points; all72 layers and completeDDR still require runtime validation.",
+      "Static audit does not establish gain or prove overlap exercised; require smoke serial/no-reuse assertions and matching A/B traffic."
+    ],
+    "runtime_corner_validation": {
+      "A_Conv_overlap_cycles": 0,
+      "A_cycles": 84415,
+      "B_Conv_SRAM_write_overlap_cycles": 527,
+      "B_Conv_overlap_cycles": 1600,
+      "B_Conv_read_overlap_cycles": 500,
+      "B_cycles": 79678,
+      "Conv_M_N_K": [
+        42,
+        4,
+        147
+      ],
+      "Conv_max_request_beats_both": 6,
+      "Conv_multibeat_requests_both": 238,
+      "Conv_words_both": 1226,
+      "RGB_shape": [
+        11,
+        13,
+        3
+      ],
+      "checked_full_DDR_bytes": 22912,
+      "checked_layers": 4,
+      "exact_VCS_CPP_cycles_counters_observations_DDR": true,
+      "full_DDR_sha256": "fc8f3c4c56ba8beb52b40ab3303e6b8897ea1f46f7fe44aef66810985b890337",
+      "path": "/home/ICer/eda/npu-vcs-learning/build/resnet50-burst-matrix/unaligned-tests.json",
+      "physical_row_stride_bytes": 39,
+      "read_bytes_both": 42448,
+      "sha256": "1cb34624e4844f3c58d17e5e93a7b21168c0e7caa084ed4a8c0188f0d039819e",
+      "status": "PASS",
+      "write_bytes_both": 1221
+    },
+    "schema_version": 1,
+    "scope": "Independent read-only final static source audit plus nonzero RGB VCS/CPP corner validation; no full-network performance claim",
+    "status": "PASS",
+    "variants": {
+      "burst_double": {
+        "all_declared_bytes_match": true,
+        "file_count": 42,
+        "source_set_sha256": "cd89ab3d55fff33b9d9dd7e15dc223f5b5b044f16c76578b6efb03ce70f071e8"
+      },
+      "burst_serial": {
+        "all_declared_bytes_match": true,
+        "file_count": 43,
+        "source_set_sha256": "f8f89395ae13beb77e814ea3c32f883d3c82507b391c34d754e0a2a7d7d890d2"
+      }
+    }
+  },
+  "status": "PASS",
+  "unaligned_rgb_generation": {
+    "calibrated": false,
+    "conv_shape": {
+      "k": 147,
+      "kernel": [
+        7,
+        7
+      ],
+      "m": 42,
+      "n": 4,
+      "pads": [
+        3,
+        3,
+        3,
+        3
+      ],
+      "strides": [
+        2,
+        2
+      ]
+    },
+    "dataset_accuracy_measured": false,
+    "descriptor_count": 4,
+    "expected_sha256": "fc8f3c4c56ba8beb52b40ab3303e6b8897ea1f46f7fe44aef66810985b890337",
+    "generator_sha256": "fa77d4dfe0f26692bfe190246839a167df857a965274cdeb1814c585e96af655",
+    "image_bytes": 22912,
+    "input_generator": "LCG seed8; signed nonzero INT8",
+    "input_physical_row_stride_bytes": 39,
+    "input_sha256": "ba2c8b94f27c057411150bfa782c584e76622766b58f110d2be2cb7cbf2ea24a",
+    "input_shape": [
+      11,
+      13,
+      3
+    ],
+    "nodes": [
+      {
+        "flags": 75,
+        "index": 0,
+        "op": "Conv",
+        "shape": [
+          6,
+          7,
+          4
+        ]
+      },
+      {
+        "flags": 0,
+        "index": 1,
+        "op": "MaxPool",
+        "shape": [
+          3,
+          4,
+          4
+        ]
+      },
+      {
+        "flags": 0,
+        "index": 2,
+        "op": "GlobalAveragePool",
+        "shape": [
+          1,
+          1,
+          4
+        ]
+      },
+      {
+        "flags": 11,
+        "index": 3,
+        "op": "FullyConnected",
+        "shape": [
+          1001
+        ]
+      }
+    ],
+    "package_sha256": {
+      "ddr.bin": "b29a45030c9dfb1fbd2648b317f2ab3b2bf64e676242e6c2fdeefe7c1cad48f7",
+      "descriptors.bin": "b4b129df61ec68b8189e725099cc683e17c613f3b4c7b751aa71807c9ec56cc3",
+      "manifest.json": "2850a044b877cae7a59e7e5d804315acf630e681e6d1731d95b363c3063a525f"
+    },
+    "pool_shape": [
+      3,
+      4,
+      4
+    ],
+    "purpose": "integer_performance_and_RGB_alignment_validation",
+    "reference_output_statistics": [
+      {
+        "bytes": 168,
+        "index": 0,
+        "maximum": 127,
+        "minimum": -112,
+        "nonzero_values": 167,
+        "sha256": "805f46f04a852909e47db695caac924e83b3722a256c4d57f041ef91795c5cae",
+        "unique_values": 97
+      },
+      {
+        "bytes": 48,
+        "index": 1,
+        "maximum": 127,
+        "minimum": 4,
+        "nonzero_values": 48,
+        "sha256": "36f282433a36ae46f011abaca0dc0b97f72ea8c27dc2eb68dd381a5a47e384e1",
+        "unique_values": 28
+      },
+      {
+        "bytes": 4,
+        "index": 2,
+        "maximum": 82,
+        "minimum": 18,
+        "nonzero_values": 4,
+        "sha256": "c51a716d7450ab42016b1f244c2dec5007164ed0baee9a3caee58d2fb15c96dc",
+        "unique_values": 4
+      },
+      {
+        "bytes": 1001,
+        "index": 3,
+        "maximum": 20,
+        "minimum": -13,
+        "nonzero_values": 935,
+        "sha256": "1d9ec68fab6a7f5439c687877a38ce6007d6443cfe4b2e1e8e13f740950a1c96",
+        "unique_values": 30
+      }
+    ],
+    "status": "PASS"
+  },
+  "unaligned_rgb_generator": {
+    "sha256": "fa77d4dfe0f26692bfe190246839a167df857a965274cdeb1814c585e96af655",
+    "source": "#!/usr/bin/env python3\n\"\"\"Independent nonzero RGB/odd-stride Conv Burst validation fixture.\"\"\"\nfrom pathlib import Path\nimport hashlib,json,sys\nroot=Path.cwd();out=root/'build/resnet50-burst-matrix/unaligned-model';check=root/'build/resnet50-burst-matrix/unaligned-check'\nfor path in (out,check):\n    if path.exists() or path.is_symlink():raise SystemExit('Refusing existing directory: '+str(path))\nsys.path.insert(0,str(root/'compiler'));sys.path.insert(0,str(root/'scripts/model'))\nfrom graph_compiler import compile_graph,write_package,benchmark_quantization\nfrom target import hardware_defaults\nfrom run_graph_model import prepare,read_dump\nclass SeededGraph(dict):\n    def load_weights(self,node):\n        n,k=node['weights']['shape']\n        return [(((channel*3+index*2)%11)-5)*(channel%4+1)*0.0075 for channel in range(n) for index in range(k)]\n    def load_tensor(self,name):\n        size=4 if name=='conv.b' else 1001\n        return [(i%9-4)*0.013 for i in range(size)]\nnodes=[dict(name='conv',op='Conv',inputs=['input'],output='conv',shape=[6,7,4],attrs=dict(kernel=[7,7],strides=[2,2],pads=[3,3,3,3]),weights=dict(name='conv.w',shape=[4,147]),bias=dict(name='conv.b',shape=[4])),\n       dict(name='pool',op='MaxPool',inputs=['conv'],output='pool',shape=[3,4,4],attrs=dict(kernel=[3,3],strides=[2,2],pads=[1,1,1,1])),\n       dict(name='gap',op='GlobalAveragePool',inputs=['pool'],output='gap',shape=[1,1,4]),\n       dict(name='fc',op='FullyConnected',inputs=['gap'],output='logits',shape=[1001],weights=dict(name='fc.w',shape=[1001,4]),bias=dict(name='fc.b',shape=[1001]))]\ngraph=SeededGraph(input=dict(name='input',shape=[11,13,3]),nodes=nodes,output='logits',source='RGB11x13x3 odd-stride historical Burst compatibility validation')\nprofile=benchmark_quantization(graph);cfg=hardware_defaults();cfg.update(ddr_capacity_bytes=1024*1024,ddr_base=0,alignment_bytes=8,activation_layout='HWC')\nseed=8;values=[]\nfor i in range(11*13*3):\n    seed=(1664525*seed+1013904223)&0xffffffff;value=((seed>>24)%255)-127;values.append((value if value else 1)&255)\ninputs=bytes(values);plan,image,descriptors=compile_graph(graph,cfg,profile,inputs,benchmark_only=True);write_package(str(out),plan,image,descriptors);reference=prepare(out,check)\nassert reference['status']=='PASS' and reference['descriptor_count']==4\nassert (plan['commands'][0]['m'],plan['commands'][0]['n'],plan['commands'][0]['k'])==(42,4,147)\nassert plan['commands'][0]['flags']&8 and plan['commands'][-1]['flags']&8\noutputs=[]\nfor layer in reference['layers']:\n    raw=read_dump(layer['expected_hex'])[:layer['logical_bytes']];vals=[b if b<128 else b-256 for b in raw]\n    assert len(set(vals))>1 and any(vals),(layer['index'],vals)\n    outputs.append(dict(index=layer['index'],bytes=len(raw),minimum=min(vals),maximum=max(vals),unique_values=len(set(vals)),nonzero_values=sum(v!=0 for v in vals),sha256=hashlib.sha256(raw).hexdigest()))\nsummary=dict(status='PASS',purpose='integer_performance_and_RGB_alignment_validation',calibrated=False,dataset_accuracy_measured=False,input_generator='LCG seed8; signed nonzero INT8',input_shape=[11,13,3],input_physical_row_stride_bytes=39,input_sha256=hashlib.sha256(inputs).hexdigest(),descriptor_count=4,image_bytes=len(image),conv_shape=dict(m=42,n=4,k=147,kernel=[7,7],strides=[2,2],pads=[3,3,3,3]),pool_shape=[3,4,4],expected_sha256=reference['expected_sha256'],package_sha256=reference['package_sha256'],nodes=[dict(index=i,op=n['op'],shape=n['shape'],flags=plan['commands'][i]['flags']) for i,n in enumerate(nodes)],reference_output_statistics=outputs,generator_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest())\n(out/'generation.json').write_text(json.dumps(summary,indent=2,sort_keys=True)+'\\n');print(json.dumps(summary,indent=2,sort_keys=True))\n"
+  },
+  "unaligned_rgb_smoke": {
+    "driver_source_sha256": "5c9f8707ebe6343f407a7237edb93835e7f3c0031933a5f29490840ff2fe750b",
+    "fixture_generation_path": "/home/ICer/eda/npu-vcs-learning/build/resnet50-burst-matrix/unaligned-model/generation.json",
+    "fixture_generation_sha256": "3baa14c5b68ff04596fe70d3b4fd4634c6283d192e979e4cc9fc3e19aa884616",
+    "read_latency_cycles": 20,
+    "same_AB_traffic_and_DDR": true,
+    "scope": "Nonzero RGB odd-row-stride four-operator functional/cycle cross-validation; not a full ResNet50 performance result",
+    "status": "PASS",
+    "variants": {
+      "burst_double": {
+        "checked_full_ddr_bytes": 22912,
+        "checked_layers": 4,
+        "cpp_report_path": "/home/ICer/eda/npu-vcs-learning/build/resnet50-burst-matrix/unaligned-cpp/burst_double-report.json",
+        "cpp_report_sha256": "b2312d4c68c462095c4f1527f1c4406158af3c59af06c8f34d6d5bbe853fec97",
+        "cycles": 79678,
+        "exact_vcs_cpp_observation_counters": true,
+        "exact_vcs_cpp_per_layer_cycles_and_DDR": true,
+        "full_ddr_sha256": "fc8f3c4c56ba8beb52b40ab3303e6b8897ea1f46f7fe44aef66810985b890337",
+        "observation_logs": [
+          "BURST_PREFETCH_CHECK,PASS,command=0,conv=1,m=42,n=4,k=147,tiles=11,a_loads=11,b_loads=11,a_finished=11,b_finished=11,launched=11,completed=11,load_cycles=12558,core_busy_cycles=1760,overlap_cycles=1600,a_start_overlap=10,b_start_overlap=10,read_overlap=500,sram_overlap=527,conv_requests=238,conv_words=1226,conv_max_beats=6,conv_multibeat_requests=238,conv_received=1226",
+          "BURST_PREFETCH_CHECK,PASS,command=1,conv=0,m=1,n=1001,k=4,tiles=251,a_loads=251,b_loads=251,a_finished=251,b_finished=251,launched=251,completed=251,load_cycles=61782,core_busy_cycles=4267,overlap_cycles=4250,a_start_overlap=250,b_start_overlap=250,read_overlap=0,sram_overlap=0,conv_requests=0,conv_words=0,conv_max_beats=0,conv_multibeat_requests=0,conv_received=0"
+        ],
+        "original_build_metadata_sha256": "3f9cbece45e68eba5ceeacbb3e8231354fd04b5f8a4b4f540a0d8af313c97772",
+        "read_bytes": 42448,
+        "reused_binary_path": "/home/ICer/eda/npu-vcs-learning/build/resnet50-burst-matrix/smoke-cpp/burst_double-rtl/obj/Vnpu_top",
+        "reused_binary_sha256": "70a7cd49e34e66f53732472a3f93d67b6dcd42bfdcee64bbf6c40d11adfc28d6",
+        "source_set_sha256": "cd89ab3d55fff33b9d9dd7e15dc223f5b5b044f16c76578b6efb03ce70f071e8",
+        "status": "PASS",
+        "vcs_report_path": "/home/ICer/eda/npu-vcs-learning/build/resnet50-burst-matrix/unaligned-vcs-burst_double/burst_double-report.json",
+        "vcs_report_sha256": "57fcaeacdfdf1a03f2f34e7077f16a60bacf1e6b73b4979cc0bdc16fa152be91",
+        "write_bytes": 1221
+      },
+      "burst_serial": {
+        "checked_full_ddr_bytes": 22912,
+        "checked_layers": 4,
+        "cpp_report_path": "/home/ICer/eda/npu-vcs-learning/build/resnet50-burst-matrix/unaligned-cpp/burst_serial-report.json",
+        "cpp_report_sha256": "9356d3be6432b926d98017ae4de2ffc4962b207114f980036f88997be1ac737e",
+        "cycles": 84415,
+        "exact_vcs_cpp_observation_counters": true,
+        "exact_vcs_cpp_per_layer_cycles_and_DDR": true,
+        "full_ddr_sha256": "fc8f3c4c56ba8beb52b40ab3303e6b8897ea1f46f7fe44aef66810985b890337",
+        "observation_logs": [
+          "SERIAL_SCHEDULE_CHECK PASS tiles=11 a_loads=11 b_loads=11 no_overlap=1 no_reuse=1",
+          "BURST_PREFETCH_CHECK,PASS,command=0,conv=1,m=42,n=4,k=147,tiles=11,a_loads=11,b_loads=11,a_finished=11,b_finished=11,launched=11,completed=11,load_cycles=12229,core_busy_cycles=1760,overlap_cycles=0,a_start_overlap=0,b_start_overlap=0,read_overlap=0,sram_overlap=0,conv_requests=238,conv_words=1226,conv_max_beats=6,conv_multibeat_requests=238,conv_received=1226",
+          "SERIAL_SCHEDULE_CHECK PASS tiles=251 a_loads=251 b_loads=251 no_overlap=1 no_reuse=1",
+          "BURST_PREFETCH_CHECK,PASS,command=1,conv=0,m=1,n=1001,k=4,tiles=251,a_loads=251,b_loads=251,a_finished=251,b_finished=251,launched=251,completed=251,load_cycles=53463,core_busy_cycles=4267,overlap_cycles=0,a_start_overlap=0,b_start_overlap=0,read_overlap=0,sram_overlap=0,conv_requests=0,conv_words=0,conv_max_beats=0,conv_multibeat_requests=0,conv_received=0"
+        ],
+        "original_build_metadata_sha256": "d83fcc23a8a453a11fb601669646513ef2573791bc68e1f063fed0aea42a0f43",
+        "read_bytes": 42448,
+        "reused_binary_path": "/home/ICer/eda/npu-vcs-learning/build/resnet50-burst-matrix/smoke-cpp/burst_serial-rtl/obj/Vnpu_top",
+        "reused_binary_sha256": "fb90299aaefe09f785f67b969a2e3fa76b9ead36b521bb3ba5e3c71f7be28709",
+        "source_set_sha256": "f8f89395ae13beb77e814ea3c32f883d3c82507b391c34d754e0a2a7d7d890d2",
+        "status": "PASS",
+        "vcs_report_path": "/home/ICer/eda/npu-vcs-learning/build/resnet50-burst-matrix/unaligned-vcs-burst_serial/burst_serial-report.json",
+        "vcs_report_sha256": "86125e7632e918ae4d3323f7279e56e60da0a1619e4cfdfc0d7425a362cb9f22",
+        "write_bytes": 1221
+      }
+    },
+    "write_latency_cycles": 0
+  }
+}

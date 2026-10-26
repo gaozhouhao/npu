@@ -68,16 +68,23 @@
     "verification_module": "rtl/verification/serial_schedule_guard.sv",
     "verification_only": true
   },
+  "completed_validation_status": "SMOKE_PASS",
   "dataset_accuracy_measured": false,
   "full_resnet50": {
     "baseline_cycles": null,
+    "cancellation": {
+      "reason": "User requires all comparison groups to retain Conv Burst. Incomplete byte-at-a-time serial baseline cancelled; no full-network cycle count or gain inferred.",
+      "superseded_by": "docs/resnet50_burst_matrix.md",
+      "user_date": "2026-10-27"
+    },
+    "complete_network": false,
     "current_verified_cycles": 489351345,
     "cycle_reduction_pct": null,
     "ddr_bytes": 29404672,
     "descriptor_count": 72,
     "expected_full_ddr_sha256": "2c20633f1688bd23f1686548b8d1f4729b92a6863aa97f3cec1e056cf83e4f86",
     "read_latency_cycles": 20,
-    "status": "RUNNING",
+    "status": "CANCELLED_BY_USER",
     "write_latency_cycles": 0
   },
   "guard_tests": {
@@ -230,5 +237,6 @@
     "source_set_sha256": "262af25da19469bccc2a6d72845eac58ceb30a2e9e4280566b672b437b2013e2",
     "status": "PASS"
   },
-  "status": "SMOKE_PASS_FULL_RESNET50_RUNNING"
+  "status": "CANCELLED_BY_USER",
+  "superseded_by": "docs/resnet50_burst_matrix.md"
 }
