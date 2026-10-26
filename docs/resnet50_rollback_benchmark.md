@@ -20,7 +20,7 @@ GitHub确认的早期优化链为 [00fd93c→5ab663a](https://github.com/gaozhou
 
 必要功能兼容包括：
 
-- 00组补逐通道量化的参数与算术功能，继续使用原单参数bank，不导入PSUM、输入复用、参数槽或写回解耦。
+- 00组补逐通道量化的参数与算术功能，继续使用原单参数bank，不导入PSUM、输入复用、参数槽或写回解耦。为支持同一网络，其参数头/每tile记录由原2/4个word变为4/12个word，并增加全局参数就绪等待；这是明确纳入基线周期的功能开销，并非原版所有时序均不变。
 - 两组采用相同的独立Pool/GAP/Add硬件，支持真实网络的3×3补边MaxPool；兼容模块仅从固定当前源码做模块名替换。
 - 允许M49卷积进入原计算路径；原loader已经会将无效空间位置填零。
 - 原输出DMA只增加逻辑行列边界和末拍WSTRB，完整块的状态与总线事件时序不变。
@@ -31,7 +31,18 @@ GitHub确认的早期优化链为 [00fd93c→5ab663a](https://github.com/gaozhou
 
 ## 当前测量状态
 
-两组历史整网RTL已启动，结果仍在运行中，尚不填写完整网络加速比。当前精简版已通过72层及完整DDR，为489,351,345周期；只有历史组全部通过同一数值检查后，才计算前后差异。
+46组已通过全部72层、独立AXI计数及完整29,404,672字节DDR检查。以下两个完整VCS运行采用同一模型、输入、golden、测试平台、运行器、读等待20周期与写等待0周期：
+
+| 版本 | 整网周期 | 外部读取字节 | 外部写入字节 |
+| --- | ---: | ---: | ---: |
+| legacy46：内部32位 | 621,469,835 | 1,278,799,472 | 16,837,097 |
+| current：精简后的内部64位 | 489,351,345 | 1,278,406,224 | 16,837,097 |
+
+该阶段周期减少132,118,490，降低 **21.259035%**，加速 **1.269987倍**。53个卷积合计由537,172,494降至405,341,653周期，降低24.541622%；这些卷积的外部读取量完全一致，均为1,250,357,584字节。因此这部分收益主要体现为内部供数/执行效率提高，不能说成DDR读取流量降低。FC由930,498降至642,849周期；共用Add、MaxPool和GAP周期完全相同。
+
+完整逐层对照、运行条件及源码/报告哈希归档于[机器可读结果](reference/resnet50_rollback_legacy46_to_current.json)。该文件保留实际测量的本地提交 `7c58e5c`，其源码树与发布提交 `34358ce` 相同；没有改写旧报告中的来源。
+
+最早00组仍在运行，尚未填写00到当前的完整优化链收益。中间阶段的21.26%不能替代该数字，也不能用于证明某个独立特性的单项收益。当前已删除卷积缓存和后期获取快路径，这里的收益包含保留下来的64位内部供数及其他版本演进。
 
 运行前已完成必要功能检查：七组历史writer场景通过，完整tile的36条总线事件及周期与未修改历史writer一致；逐通道算术560个独立预期lane向量、参数读取与尾列非法值专项通过；共用Pool的42项配置/补边检查及GAP四项检查通过。
 
@@ -62,3 +73,22 @@ python scripts/model/benchmark_resnet50_rollback.py --variant legacy46 \
 两组默认读首拍等待20周期，超时上限200,000,000,000周期，计数为64位。最早版本每个有效字节单独请求，完整仿真可能较长，不能把未结束的部分层计数当作整网结果。运行器使用同一个现有 `run_graph_model.py` 检查器；当前版本可按[精简对照入口](npu_control_cleanup.md)用相同包和时序运行后，再由 `compare_graph_benchmarks.py` 比较完整PASS报告。
 
 兼容性配方还保留两份未实例化的Pool验证模块，以精确复现本次已冻结的编译源码集合。VCS明确指定 `-top graph_model_npu_tb`，这两个模块不执行，也不贡献推理周期。
+
+## 加快历史RTL仿真
+
+`scripts/model/benchmark_graph_verilator.py` 与 `rollback_compat/graph_driver.cpp` 提供逐时钟执行实际RTL的另一种入口。C++只承接原SV测试平台的DDR、复位/启动和检查职责；不代算算子，不跳过时钟，不向DDR注入golden。编译时保留所有冻结源码副本与SHA256，仅排除不再使用的SV测试平台及未实例化的验证模块。Verilator为两态仿真，VCS为四态仿真，因此采用它之前必须核对逐层周期、流量及完整DDR内容；小图已在两个历史版本上通过该核对，整网交叉检查也在进行中。
+
+快慢仿真器只影响主机等待时间，报告中的NPU周期均来自RTL性能计数器。完整对照要求相同模型与内存时序，以及同一驱动和工具条件，或明确记录已通过的完整交叉校验。小图和前缀运行均不能代替完整72层PASS。
+
+本机快速入口需要先准备 `build/rollback-tools/bin/verilator`、`bin/zig-cxx` 两个包装器，以及其使用的 `python/verilator/bin/verilator_bin`、`python/ziglang/zig`。本次使用Verilator wheel 5.48.0内的开发版二进制（自报5.49）及Zig 0.13.0，均只放在build目录，实际二进制和包装器SHA256记录在运行元数据中。它们不是仓库自带或自动安装的依赖；旧VCS入口不依赖这些工具。
+
+```bash
+python scripts/model/benchmark_graph_verilator.py \
+  --source-metadata build/resnet50-rollback-replay/check/legacy00-rtl/source.json \
+  --driver-sha256 5c9f8707ebe6343f407a7237edb93835e7f3c0031933a5f29490840ff2fe750b \
+  --package build/resnet50-benchmark/model \
+  --reference build/resnet50-rollback-replay/check \
+  --out build/resnet50-rollback-cpp-replay --label legacy00
+```
+
+入口从已有冻结运行的 `source.json` 及相邻 `source/` 恢复编译输入，并拒绝哈希不符、覆盖已有运行或在编译后修改驱动/源码。对已通过VCS的组，加 `--compare-report <对应VCS报告>` 可生成独立的交叉校验结果。最早版本仍须完成实际RTL推理；不会根据已完成层推算其整网周期。
