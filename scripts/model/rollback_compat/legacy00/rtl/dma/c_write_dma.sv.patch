@@ -1,0 +1,105 @@
+--- a/rtl/dma/c_write_dma.sv
++++ b/rtl/dma/c_write_dma.sv
+@@ -25,6 +25,11 @@
+ 
+     input  logic [31:0]
+         tile_stride_bytes,
++
++    // Bounds are used only for INT8 output; complete tiles retain the old FSM.
++    input logic [ADDR_WIDTH-1:0] matrix_base,
++    input logic [31:0] matrix_rows,
++    input logic [31:0] matrix_cols,
+ 
+     // 0 -> INT32 output
+     // 1 -> packed INT8 output
+@@ -195,6 +200,31 @@
+     logic [COLS*ACC_WIDTH-1:0]
+         row_data_q;
+ 
++    logic [31:0] valid_rows_q, valid_cols_q;
++    logic [ADDR_WIDTH-1:0] tile_offset, tile_start_row, tile_start_col;
++    logic [31:0] tile_rows, tile_cols;
++    always_comb begin
++        tile_offset = tile_addr - matrix_base;
++        tile_start_row = 0;
++        tile_start_col = 0;
++        if (tile_stride_bytes != 0) begin
++            tile_start_row = tile_offset / ADDR_WIDTH'(tile_stride_bytes);
++            tile_start_col = tile_offset % ADDR_WIDTH'(tile_stride_bytes);
++        end
++        tile_rows = ROWS;
++        tile_cols = COLS;
++        if (int8_mode) begin
++            if (tile_start_row >= ADDR_WIDTH'(matrix_rows))
++                tile_rows = 0;
++            else if (ADDR_WIDTH'(matrix_rows) - tile_start_row < ROWS)
++                tile_rows = 32'(ADDR_WIDTH'(matrix_rows) - tile_start_row);
++            if (tile_start_col >= ADDR_WIDTH'(matrix_cols))
++                tile_cols = 0;
++            else if (ADDR_WIDTH'(matrix_cols) - tile_start_col < COLS)
++                tile_cols = 32'(ADDR_WIDTH'(matrix_cols) - tile_start_col);
++        end
++    end
++
+ 
+     // ============================================================
+     // Status
+@@ -281,8 +311,14 @@
+     end
+ 
+ 
+-    assign m_axi_wstrb =
+-        {AXI_BYTES{1'b1}};
++    always_comb begin
++        m_axi_wstrb = {AXI_BYTES{1'b1}};
++        if (int8_mode_q) begin
++            for (int lane = 0; lane < AXI_BYTES; lane++)
++                m_axi_wstrb[lane] =
++                    (int'(beat_index_q) * AXI_BYTES + lane < valid_cols_q);
++        end
++    end
+ 
+ 
+     assign m_axi_wlast =
+@@ -323,6 +359,8 @@
+ 
+             tile_stride_q <=
+                 '0;
++            valid_rows_q <= ROWS;
++            valid_cols_q <= COLS;
+ 
+             int8_mode_q <=
+                 1'b0;
+@@ -362,6 +400,8 @@
+ 
+                         tile_stride_q <=
+                             tile_stride_bytes;
++                        valid_rows_q <= tile_rows;
++                        valid_cols_q <= tile_cols;
+ 
+                         int8_mode_q <=
+                             int8_mode;
+@@ -393,8 +433,12 @@
+                         end
+ 
+ 
+-                        state <=
+-                            ST_READ_REQ;
++                        if (tile_rows == 0 || tile_cols == 0) begin
++                            error <= 1'b1;
++                            state <= ST_DONE;
++                        end else begin
++                            state <= ST_READ_REQ;
++                        end
+ 
+                     end
+ 
+@@ -503,7 +547,7 @@
+ 
+                         if (
+                             row_index_q ==
+-                            ROW_INDEX_WIDTH'(ROWS - 1)
++                            ROW_INDEX_WIDTH'(valid_rows_q - 1)
+                         ) begin
+ 
+                             state <=

@@ -1,0 +1,2 @@
+# Preserve exact historical source context, including blank lines, in recipe diffs.
+*.patch -whitespace

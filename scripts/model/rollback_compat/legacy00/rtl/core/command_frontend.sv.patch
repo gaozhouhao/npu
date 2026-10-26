@@ -1,0 +1,27 @@
+--- a/rtl/core/command_frontend.sv
++++ b/rtl/core/command_frontend.sv
+@@ -54,6 +54,7 @@
+ 
+     output logic [31:0] cfg_param0,
+     output logic [31:0] cfg_param1,
++    output logic [31:0] cfg_pool_config,
+ 
+ 
+     // ============================================================
+@@ -175,6 +176,7 @@
+ 
+             cfg_param0 <= '0;
+             cfg_param1 <= '0;
++            cfg_pool_config <= '0;
+ 
+         end else begin
+ 
+@@ -298,7 +300,7 @@
+                             end
+ 
+                             4'd15: begin
+-                                // Reserved word.
++                                cfg_pool_config <= mem_read_data;
+                             end
+ 
+                             default: begin

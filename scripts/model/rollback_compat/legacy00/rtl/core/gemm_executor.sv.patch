@@ -1,0 +1,166 @@
+--- a/rtl/core/gemm_executor.sv
++++ b/rtl/core/gemm_executor.sv
+@@ -75,6 +75,7 @@
+     input logic cmd_bias_en,
+     input logic cmd_requant_en,
+     input logic cmd_relu_en,
++    input logic cmd_per_channel_en,
+     input logic [ADDR_WIDTH-1:0] cmd_param_base,
+ 
+     // ============================================================
+@@ -162,6 +163,9 @@
+     logic bias_en_q;
+     logic requant_en_q;
+     logic relu_en_q;
++    logic per_channel_en_q;
++    logic [31:0] logical_m_q;
++    logic [31:0] logical_n_q;
+ 
+     logic [ADDR_WIDTH-1:0] param_base_q;
+ 
+@@ -232,6 +236,7 @@
+         (cmd_n == 32'd0) ||
+         (cmd_k == 32'd0) ||
+         (cmd_relu_en && !cmd_requant_en) ||
++        (cmd_per_channel_en && !cmd_requant_en) ||
+         (
+             (cmd_bias_en || cmd_requant_en) &&
+             (cmd_param_base[1:0] != 2'b00)
+@@ -387,6 +392,15 @@
+ 
+     logic [31:0] requant_multiplier;
+     logic [5:0] requant_shift;
++    logic signed [7:0] input_zero_point;
++    logic signed [7:0] output_zero_point;
++    logic [31:0] loaded_multiplier_lane [COLS];
++    logic [31:0] param_valid_cols;
++    assign param_valid_cols = (logical_n_q - 32'(compute_n_tile_idx) * COLS < COLS)
++        ? (logical_n_q - 32'(compute_n_tile_idx) * COLS) : COLS;
++    logic [5:0] loaded_shift_lane [COLS];
++    logic [31:0] pp_multiplier [COLS];
++    logic [5:0] pp_shift [COLS];
+     logic signed [ACC_WIDTH-1:0] bias_values [COLS];
+ 
+     logic [ADDR_WIDTH-1:0] bias_tile_addr_q;
+@@ -437,11 +451,12 @@
+     // ============================================================
+ 
+     assign cmd_ready = (exec_state == EX_IDLE);
+-    assign scheduler_start = (exec_state == EX_LAUNCH);
++    assign scheduler_start = (exec_state == EX_LAUNCH) &&
++        (!per_channel_en_q || global_param_ready_q);
+     assign done = (exec_state == EX_DONE);
+ 
+     assign postprocess_ready =
+-        (!bias_en_q || bias_ready_q) &&
++        (!(bias_en_q || per_channel_en_q) || bias_ready_q) &&
+         (!requant_en_q || global_param_ready_q);
+ 
+     assign busy =
+@@ -702,10 +717,16 @@
+         .bias_load_req      (bias_request_pending_q),
+         .bias_load_accept   (bias_load_accept),
+         .bias_addr          (bias_tile_addr_q),
++        .per_channel_en     (per_channel_en_q),
++        .valid_cols         (param_valid_cols),
+         .bias_load_done     (bias_load_done),
+ 
+         .multiplier_out     (requant_multiplier),
+         .shift_out          (requant_shift),
++        .input_zero_point_out(input_zero_point),
++        .output_zero_point_out(output_zero_point),
++        .multiplier_lane_out(loaded_multiplier_lane),
++        .shift_lane_out     (loaded_shift_lane),
+         .bias_out           (bias_values),
+ 
+         .busy               (param_loader_busy),
+@@ -884,6 +905,16 @@
+ 
+     endgenerate
+ 
++    // Functional per-channel quantization only. The historical scheduler
++    // completes writeback before changing output tiles, so its single
++    // original parameter bank suffices; no PSUM/slot-bank is introduced.
++    for (genvar pc = 0; pc < COLS; pc++) begin : gen_pc_select
++        assign pp_multiplier[pc] = per_channel_en_q
++            ? loaded_multiplier_lane[pc] : requant_multiplier;
++        assign pp_shift[pc] = per_channel_en_q
++            ? loaded_shift_lane[pc] : requant_shift;
++    end
++
+     postprocess_unit #(
+         .LANES     (COLS),
+         .ACC_WIDTH (ACC_WIDTH),
+@@ -895,8 +926,9 @@
+ 
+         .data_in        (c_lane_raw),
+         .bias           (bias_values),
+-        .multiplier     (requant_multiplier),
+-        .shift          (requant_shift),
++        .multiplier     (pp_multiplier),
++        .shift          (pp_shift),
++        .output_zero_point(output_zero_point),
+ 
+         .data_out_int32 (c_lane_int32),
+         .data_out_int8  (c_lane_int8)
+@@ -952,6 +984,9 @@
+         .tile_accept       (c_write_tile_accept),
+         .tile_addr         (c_tile_addr),
+         .tile_stride_bytes (c_stride_q),
++        .matrix_base       (c_base_q),
++        .matrix_rows       (logical_m_q),
++        .matrix_cols       (logical_n_q),
+         .int8_mode         (requant_en_q),
+ 
+         .c_ren             (c_ren),
+@@ -1016,7 +1051,7 @@
+             if (
+                 scheduler_matrix_start &&
+                 scheduler_clear_acc &&
+-                bias_en_q
++                (bias_en_q || per_channel_en_q)
+             ) begin
+ 
+                 bias_tile_addr_q <=
+@@ -1024,7 +1059,8 @@
+                     ADDR_WIDTH'(PARAM_BIAS_OFFSET) +
+                     (
+                         ADDR_WIDTH'(compute_n_tile_idx) *
+-                        ADDR_WIDTH'(BIAS_TILE_BYTES)
++                        ADDR_WIDTH'(per_channel_en_q
++                            ? (3 * BIAS_TILE_BYTES) : BIAS_TILE_BYTES)
+                     );
+ 
+                 bias_request_pending_q <= 1'b1;
+@@ -1112,6 +1148,9 @@
+             bias_en_q <= 1'b0;
+             requant_en_q <= 1'b0;
+             relu_en_q <= 1'b0;
++            per_channel_en_q <= 1'b0;
++            logical_m_q <= '0;
++            logical_n_q <= '0;
+             param_base_q <= '0;
+ 
+             conv_mode_q <= 1'b0;
+@@ -1162,6 +1201,9 @@
+                             bias_en_q <= cmd_bias_en;
+                             requant_en_q <= cmd_requant_en;
+                             relu_en_q <= cmd_relu_en;
++                            per_channel_en_q <= cmd_per_channel_en;
++                            logical_m_q <= cmd_m;
++                            logical_n_q <= cmd_n;
+                             param_base_q <= cmd_param_base;
+ 
+                             conv_mode_q <= cmd_conv_mode;
+@@ -1192,9 +1234,8 @@
+                 end
+ 
+                 EX_LAUNCH: begin
+-
+-                    exec_state <= EX_RUN;
+-
++                    if (!per_channel_en_q || global_param_ready_q)
++                        exec_state <= EX_RUN;
+                 end
+ 
+                 EX_RUN: begin

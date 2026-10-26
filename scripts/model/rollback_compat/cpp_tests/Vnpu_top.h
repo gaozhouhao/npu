@@ -1,0 +1,69 @@
+#pragma once
+#include <cstdint>
+class VerilatedContext;
+struct Vnpu_top {
+ explicit Vnpu_top(VerilatedContext*) {}
+ Vnpu_top() {}
+ void eval() {}
+ void final() {}
+ uint64_t busy=0;
+ uint64_t clk=0;
+ uint64_t desc_base=0;
+ uint64_t desc_count=0;
+ uint64_t done=0;
+ uint64_t error=0;
+ uint64_t m_axi_araddr=0;
+ uint64_t m_axi_arburst=0;
+ uint64_t m_axi_arid=0;
+ uint64_t m_axi_arlen=0;
+ uint64_t m_axi_arready=0;
+ uint64_t m_axi_arsize=0;
+ uint64_t m_axi_arvalid=0;
+ uint64_t m_axi_awaddr=0;
+ uint64_t m_axi_awburst=0;
+ uint64_t m_axi_awid=0;
+ uint64_t m_axi_awlen=0;
+ uint64_t m_axi_awready=0;
+ uint64_t m_axi_awsize=0;
+ uint64_t m_axi_awvalid=0;
+ uint64_t m_axi_bid=0;
+ uint64_t m_axi_bready=0;
+ uint64_t m_axi_bresp=0;
+ uint64_t m_axi_bvalid=0;
+ uint64_t m_axi_rdata=0;
+ uint64_t m_axi_rid=0;
+ uint64_t m_axi_rlast=0;
+ uint64_t m_axi_rready=0;
+ uint64_t m_axi_rresp=0;
+ uint64_t m_axi_rvalid=0;
+ uint64_t m_axi_wdata=0;
+ uint64_t m_axi_wlast=0;
+ uint64_t m_axi_wready=0;
+ uint64_t m_axi_wstrb=0;
+ uint64_t m_axi_wvalid=0;
+ uint64_t perf_ar_stall_cycles=0;
+ uint64_t perf_ar_transactions=0;
+ uint64_t perf_aw_stall_cycles=0;
+ uint64_t perf_aw_transactions=0;
+ uint64_t perf_b_wait_cycles=0;
+ uint64_t perf_completed_layer_ar=0;
+ uint64_t perf_completed_layer_aw=0;
+ uint64_t perf_completed_layer_cycles=0;
+ uint64_t perf_completed_layer_executor_cycles=0;
+ uint64_t perf_completed_layer_index=0;
+ uint64_t perf_completed_layer_opcode=0;
+ uint64_t perf_completed_layer_pool_cycles=0;
+ uint64_t perf_completed_layer_r_beats=0;
+ uint64_t perf_completed_layer_w_beats=0;
+ uint64_t perf_executor_cycles=0;
+ uint64_t perf_layer_done_pulse=0;
+ uint64_t perf_pool_cycles=0;
+ uint64_t perf_r_beats=0;
+ uint64_t perf_r_wait_cycles=0;
+ uint64_t perf_total_cycles=0;
+ uint64_t perf_w_beats=0;
+ uint64_t perf_w_stall_cycles=0;
+ uint64_t perf_written_bytes=0;
+ uint64_t reset=0;
+ uint64_t start=0;
+};
