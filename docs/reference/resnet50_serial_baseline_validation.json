@@ -1,0 +1,234 @@
+{
+  "baseline_source_metadata": {
+    "cnn_functional_source_ref": "00fd93c6f0deabf8c427fa34a6f6ac1d58e9ce47",
+    "common_external_read_bits": 64,
+    "compatibility_note": "Mixed-source declared baseline: exact 1dc historical serial scheduler; legacy00 byte-at-a-time Conv/internal32 implementation and previously validated functional compatibility; common AXI64 external shell; one physical A bank and one B bank. Not an untouched original 1dc whole NPU.",
+    "functional_compatibility": true,
+    "legacy_internal_operand_bits": 32,
+    "makefile_sha256": "7c68a77b36d719a5d3de664f7b2a0f83269d65534c59fcbb9a488e572fde28cd",
+    "measurement_parameters": {
+      "A_BUFFER_COUNT": 1,
+      "B_BUFFER_COUNT": 1,
+      "external_read_bits": 64,
+      "internal_operand_bits": 32,
+      "overlapping_operand_prefetch": false
+    },
+    "resolved_commit": "1dc5b2d5d1981f08a8c2cb6efeee73327d2846f4",
+    "rollback_runner_sha256": "989910a63db62f448450d95a7f36228c0b8d38caccae709363582be27ce3b919",
+    "runner_sha256": "2e01665b03ba62862e9af1856ff712d53e671e7a65ffa76d7c9178a0ab448049",
+    "schedule_source_ref": "1dc5b2d5d1981f08a8c2cb6efeee73327d2846f4",
+    "source_ref": "1dc5b2d5d1981f08a8c2cb6efeee73327d2846f4",
+    "source_set_sha256": "262af25da19469bccc2a6d72845eac58ceb30a2e9e4280566b672b437b2013e2",
+    "source_sha256": {
+      "compat/compat_add_engine.sv": "69e0213b6ab68f1a302215f86940b97fcd4bb6002a24abbdbd595f767e605bf1",
+      "compat/compat_axi_read_master.sv": "10a94b84c75211640bc7dd1ca119f132c710127474c395162d28a3a1d4a9ff59",
+      "compat/compat_axi_write_master.sv": "6f84ca5795f8eb8302d2cba55e1268c92f49e6c1ff3932bcc552c96892125d1f",
+      "compat/compat_pool_engine.sv": "5e09c761f1864f93ef1592bf2a297fd1cd47c4ce286ef20cb64ead0278cc3b66",
+      "compat/pool2d_configurable_tb.sv": "473d7c82ba936d4a69d5ebcc479efc0226e9cdab004f78e9d07aa8fc658e9d2f",
+      "compat/pool2d_global_avg_tb.sv": "026e89e50e71e869fabe8c20da5887b1694f48164cc1d16aa69300485766fc45",
+      "rtl/compute/input_skew.sv": "dd43090f18f52cf29d8c9e17ff81046409efc5faf74c5daf9477fb227d37ddc7",
+      "rtl/compute/matrix_engine.sv": "b8f3376828539906608e68af8b83dde3daa1b2cf68bde0d77f70396bbe1beae8",
+      "rtl/compute/pe.sv": "63b40ea551590a4f5c306dc62d2d8cf0c930644a6414f4929e09083f8c6d4e07",
+      "rtl/compute/pool2d_engine.sv": "e64f3f955e4a9115edab56085facd77d70a596e147f4dbfd7ff9e241f04faa61",
+      "rtl/compute/postprocess_unit.sv": "21969c9df53e5dc7439e8ca77caebfdb6c543eaad0e2c2243583cbbd1adec86d",
+      "rtl/compute/systolic_array.sv": "0480f6d7aba638d1f93da8d876156061d177b0014903a29f04eb1160ee0bb45f",
+      "rtl/core/command_frontend.sv": "9a7f458fa6563fb521af215676ed97577b909ce78bd4bad2483d091c356aa137",
+      "rtl/core/gemm_address_generator.sv": "b5fc0ae6fb4793c9899e65958e162d80678fe9ac8c93cac8ab404276c1a7fb08",
+      "rtl/core/gemm_core.sv": "74bac018e089582dceb91001f26af2f02dc10ff6f89600638ea60d9dc39d9b75",
+      "rtl/core/gemm_executor.sv": "6cc7cd4b7ae5831123c282ae8b23d1ccc3fb186821da910efc387347141f4f13",
+      "rtl/core/matrix_controller.sv": "f8c872996d99000ac95270e1f607ec7ede879978cfcaa5eaf3b8e5208068b64e",
+      "rtl/core/npu_perf_monitor.sv": "d0a7d35fc7b7f0165613f1268ccb757edc61a00e166b59b7c058e5b08e28a049",
+      "rtl/core/npu_top.sv": "0174dc3a3a4585ac409bf2875f664d8326cdc1fcdeb34cd1ce2ceff7b6fa0d53",
+      "rtl/core/tile_scheduler.sv": "cbf12ac6a5d377cc5cf252ad544a26c00e6ab1fa0a2875902cc16a263f9177e3",
+      "rtl/dma/axi_read_32to64.sv": "d29af52304a5e5b3fa12437c6e1df267571a26f91619583a9cceff7f6f1e352a",
+      "rtl/dma/axi_read_master.sv": "077c0df07fe927f6546b59fc66787492e18b7b84f7811b220e6ed36287210b80",
+      "rtl/dma/axi_read_mux.sv": "f76e855950387c1b4eb36733d29543ab266b26eeb6fc19723c54f8d9eb5713b6",
+      "rtl/dma/axi_write_master.sv": "bf0534f3669b2431dc9417b3902f6146b013644aeb1fa0008db56a0601531534",
+      "rtl/dma/bias_loader.sv": "0c7d1440acb94528dc64ab3ca43d620be7d56d6b6f1d383805b804a771c1bbb0",
+      "rtl/dma/c_write_dma.sv": "d5804774b2fa48c81c05e64580ffa20758e2204db79e82f832b0d5c3c3fa2615",
+      "rtl/dma/conv_patch_loader.sv": "8fb54912342e7f1dae655fc075fe1271e43977bd3d31afb6c2149b8abda30e1d",
+      "rtl/dma/gemm_read_path.sv": "415f2aa76e5bf7ece891de75992cecda2c4dd7f721d34142de447f330bffe9dd",
+      "rtl/dma/operand_read_dma.sv": "1938c2aed1af60bc96ca61b7463d00be8ee1339f3e8837773293e7f272c55fd9",
+      "rtl/dma/postprocess_param_loader.sv": "b6b3190ccf4fb56261066bc985fa963a67ef2a15cc715d737303950cbf3af99f",
+      "rtl/dma/read_request_arbiter.sv": "81913aecdc5435f06fc790069615cb901fd59f2bf2bb987aa4d54551dd2a8725",
+      "rtl/dma/strided_read_engine.sv": "f1e6c168ad2959a58a9f6c27480de18c82edf8b7edc45ff48f5972fdd45deeb8",
+      "rtl/memory/buffer_manager.sv": "71c118f37b9d46d44810a7d10fd185c586984f5f7faae820e747ec4f2bc9a734",
+      "rtl/memory/operand_buffer.sv": "9303806a1cadaa889c7e9fbfc4da7d4c6831ff1427ac9b53ad200ae1445a00a6",
+      "rtl/memory/operand_loader.sv": "781c9a822ac4f5ed3c8e09e29f3aa23ff85d1d96d0d96c36f48fc3c5f4dc0675",
+      "rtl/memory/scratchpad.sv": "141be8228bf0a519f762ff8ac741efcf43a9e355d6620f6ffe5b05590a4980f4",
+      "rtl/memory/sram_model.sv": "63a9498eb4035d92a3bcdb0f0f3ebb8ab8be13e49cf0a62854eec39ab18da555",
+      "rtl/verification/serial_schedule_guard.sv": "9c962ffde10c1bb3aff130ccc88173399c13c5f7877193f9f457a249b0dae125",
+      "sim/filelists/rtl.f": "7863bb837b773c937956fa01c04dae2e0c0f5a6dbcaa86d25e47fde3ecf2e43a",
+      "sim/tb/support/axi_memory_model.sv": "518440c63f03b795ca60f930c7131e57284acd9202e163a63be54b38c5ff383f",
+      "sim/tb/support/npu_perf_v2_monitor.sv": "8f02830b96eaf8cc318b3becfec87024701e4ec1e4d61e8d93f0bfba61b53db7",
+      "sim/tb/system/graph_model_npu_tb.sv": "ac5a551651c06b017d0a1fe268d2c7db58d1bff7362534fedb818e8a7c5b9d27"
+    },
+    "status": "PREPARED",
+    "variant": "legacy_serial",
+    "verification_module": "rtl/verification/serial_schedule_guard.sv",
+    "verification_only": true
+  },
+  "dataset_accuracy_measured": false,
+  "full_resnet50": {
+    "baseline_cycles": null,
+    "current_verified_cycles": 489351345,
+    "cycle_reduction_pct": null,
+    "ddr_bytes": 29404672,
+    "descriptor_count": 72,
+    "expected_full_ddr_sha256": "2c20633f1688bd23f1686548b8d1f4729b92a6863aa97f3cec1e056cf83e4f86",
+    "read_latency_cycles": 20,
+    "status": "RUNNING",
+    "write_latency_cycles": 0
+  },
+  "guard_tests": {
+    "cases": [
+      {
+        "case": 0,
+        "exit_code": 0,
+        "expected": "SERIAL_GUARD_UNIT_PASS",
+        "name": "two_K_tiles_complete",
+        "passed": true
+      },
+      {
+        "case": 1,
+        "exit_code": 0,
+        "expected": "operand load overlaps compute/writeback",
+        "name": "load_during_compute",
+        "passed": true
+      },
+      {
+        "case": 2,
+        "exit_code": 0,
+        "expected": "every K tile requires one fresh completed A and B load",
+        "name": "missing_fresh_operands",
+        "passed": true
+      },
+      {
+        "case": 3,
+        "exit_code": 0,
+        "expected": "expected historical M/N/K tile order",
+        "name": "wrong_tile_order",
+        "passed": true
+      },
+      {
+        "case": 4,
+        "exit_code": 0,
+        "expected": "operand load overlaps compute/writeback",
+        "name": "load_while_final_K_writeback_pending",
+        "passed": true
+      }
+    ],
+    "frozen_source_unchanged": true,
+    "guard_sha256": "9c962ffde10c1bb3aff130ccc88173399c13c5f7877193f9f457a249b0dae125",
+    "guard_source": "/home/ICer/eda/npu-vcs-learning/build/resnet50-serial-baseline/legacy-serial/source/rtl/verification/serial_schedule_guard.sv",
+    "passed": true,
+    "tested_module_sha256": "aab0a77dcbab55e073b281f4cf4f8b836dd874006eb42d49fbcd7f7ea4046d83"
+  },
+  "multi_k_smoke": {
+    "cross_simulator": {
+      "checked_full_ddr_bytes": 59072,
+      "checked_layers": 5,
+      "cycles": 2998508,
+      "cycles_bytes_all_layers_and_full_ddr_identical": true,
+      "full_ddr_sha256": "8a0ccb08f8ad4456605e91b8ee42f47d7fa01ef8f121ec82e6f13c04911dd0f2",
+      "reports": {
+        "build/resnet50-serial-baseline/multik-cpp/serial-report.json": "106d0618acfaf36b9590889653acd5e0791cdf5ce99f75055254238ad98e66e3",
+        "build/resnet50-serial-baseline/multik-vcs/serial-report.json": "1cb602a0823463c150be4e169fb1e10fb9ba6ae7c3a31f04bfe068e15ed738bf"
+      },
+      "status": "PASS",
+      "summary": {
+        "cycles_outside_layers": 2086,
+        "effective_useful_mac_utilization": 0.008372830754495235,
+        "executor_cycles": 2950084,
+        "external_bytes": 959505,
+        "nominal_macs": 483616,
+        "pool_cycles": 26312,
+        "read_beats": 119353,
+        "read_bytes": 954824,
+        "read_transactions": 97443,
+        "testbench_cycles": 2998508,
+        "top1": 23,
+        "total_cycles": 2998508,
+        "useful_macs": 401696,
+        "write_beats": 1171,
+        "write_bytes": 4681,
+        "write_transactions": 1171
+      }
+    },
+    "current_summary": {
+      "cycles_outside_layers": 2086,
+      "effective_useful_mac_utilization": 0.19052895196175154,
+      "executor_cycles": 83346,
+      "external_bytes": 211057,
+      "nominal_macs": 483616,
+      "pool_cycles": 26312,
+      "read_beats": 25797,
+      "read_bytes": 206376,
+      "read_transactions": 3609,
+      "testbench_cycles": 131770,
+      "top1": 23,
+      "total_cycles": 131770,
+      "useful_macs": 401696,
+      "write_beats": 1171,
+      "write_bytes": 4681,
+      "write_transactions": 1171
+    },
+    "scope_note": "Five-operator validation only; its speedup does not represent full ResNet50",
+    "source_sha256": {
+      "multik-cpp/current-report.json": "44c602355e966a43c8282c0f7354082c01b6fc2146d2d3b66ba22f7093b14816",
+      "multik-cpp/serial-report.json": "106d0618acfaf36b9590889653acd5e0791cdf5ce99f75055254238ad98e66e3",
+      "multik-vcs/serial-report.json": "1cb602a0823463c150be4e169fb1e10fb9ba6ae7c3a31f04bfe068e15ed738bf"
+    },
+    "value_diversity": [
+      {
+        "index": 0,
+        "max": 127,
+        "min": -128,
+        "operation": "Conv",
+        "unique_values": 243
+      },
+      {
+        "index": 1,
+        "max": 127,
+        "min": -128,
+        "operation": "Add",
+        "unique_values": 255
+      },
+      {
+        "index": 2,
+        "max": 127,
+        "min": -83,
+        "operation": "MaxPool",
+        "unique_values": 102
+      },
+      {
+        "index": 3,
+        "max": 122,
+        "min": 77,
+        "operation": "GlobalAveragePool",
+        "unique_values": 24
+      },
+      {
+        "index": 4,
+        "max": 17,
+        "min": -16,
+        "operation": "FullyConnected",
+        "unique_values": 34
+      }
+    ]
+  },
+  "preparation_tests": {
+    "passed": 16,
+    "total": 16
+  },
+  "scope": "Serial historical control with declared functional backports; not an untouched historical whole NPU",
+  "source_reproduction": {
+    "all_sv_bytes_equal": true,
+    "checked_sv_files": 41,
+    "frozen_source": "/home/ICer/eda/npu-vcs-learning/build/resnet50-serial-baseline/legacy-serial/source",
+    "reproduced_source": "/home/ICer/eda/npu-vcs-learning/build/resnet50-serial-baseline/repro-source-check/source",
+    "source_set_sha256": "262af25da19469bccc2a6d72845eac58ceb30a2e9e4280566b672b437b2013e2",
+    "status": "PASS"
+  },
+  "status": "SMOKE_PASS_FULL_RESNET50_RUNNING"
+}

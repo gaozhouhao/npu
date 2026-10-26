@@ -77,3 +77,46 @@ The unit test covers first-beat latency, burst reads, backpressure, old-state
 AW/W/B ordering, zero/delayed B, byte strobes, 4 KiB crossing rejection and reset.
 The port's frozen SHA256 is
 `5c9f8707ebe6343f407a7237edb93835e7f3c0031933a5f29490840ff2fe750b`.
+
+To remove operand double-buffer prefetch as well, prepare the declared serial
+baseline from an existing `legacy00-rtl/source.json` and its adjacent frozen
+`source/` directory:
+
+```sh
+python3 scripts/model/prepare_resnet50_serial_baseline.py \
+  --base-metadata /path/to/legacy00-rtl/source.json \
+  --out /tmp/resnet50-serial-sources
+```
+
+The base metadata is created before its benchmark starts; its long full-network
+run need not finish before its frozen sources can be reused. The destination
+must be new and outside the base snapshot. `--repo` selects another Git checkout
+containing the pinned history. The base is read only: every declared byte must
+match its metadata, all RTL must match `legacy00.json`, and the common graph
+verification sources must match the pinned common commit.
+
+This variant uses the exact `1dc5b2d` single-state-machine tile scheduler, one
+physical bank for each operand, and its original completion protocol: intermediate
+K tiles advance after computation; a final K tile advances after the entire C
+tile finishes DDR writeback. Only executor port names and coordinate aliases are
+bridged. The existing legacy00 Conv/per-channel quantization, Add/Pool/GAP,
+SAME padding, output-tail compatibility, and shared external AXI64 shell remain.
+It retains the original 4x4 array, tiling and output-stationary K accumulation.
+It does not import the later operand reuse, Conv Burst assembly, PSUM slots,
+internal native64 operand path, Conv cache/lookahead or decoupled C writeback.
+This is a declared historical serial microarchitecture with functional backports,
+not an untouched original 1dc whole NPU.
+
+`source.json` works with `benchmark_graph_verilator.py --source-metadata`.
+`provenance.json` records the originals, every changed file and its exact diff.
+The observation-only `serial_schedule_guard.sv` checks the physical bank counts,
+prohibits operand load requests/acceptances while compute or final writeback is
+active, requires one fresh completed A/B load for every K tile, and checks the
+historical M/N/K order and accumulation controls. It never drives a DUT signal.
+Every final source and the entire final source set have pinned hashes. A failed
+write removes only the newly created destination; existing snapshots are never
+overwritten. Preparation regression checks can be run with:
+
+```sh
+python3 scripts/model/rollback_compat/test_serial_prepare.py -v
+```
