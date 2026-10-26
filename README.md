@@ -16,7 +16,7 @@
 
 真实ResNet50的72层与完整29,404,672字节DDR已通过整数RTL检查，503,021,224周期；原ResNet8的14层及完整1MiB DDR也通过，1,735,928周期。FIFO改动前后两网的周期和流量均相同，实测加速0%，因为均未使用融合池化输出路径。两网均未测数据集分类精度。
 
-`make resnet50-readpath-benchmark` 用真实ResNet50测量卷积缓存、片段前瞻与tile调度快路径的受控消融，保留相同native64、尾块和补边池化能力，复用相同部署包和黄金结果。对照边界与结果见[ResNet50读取优化消融](docs/resnet50_readpath_ablation.md)。
+`make resnet50-readpath-benchmark` 用真实ResNet50测量卷积缓存、片段前瞻与tile调度快路径的受控消融，保留相同native64、尾块和补边池化能力，复用相同部署包和黄金结果。实测四项开启后读字节减少9.36%，整网周期增加2.79%，两组均通过72层及完整DDR检查。对照边界与结果见[ResNet50读取优化消融](docs/resnet50_readpath_ablation.md)。
 
 [分类层软件对齐](docs/fc_alignment.md)说明原TFLite入口的1×1001到物理4×1004布局，已通过真实分类层尺寸的整数硬件用例。新增ONNX入口使用尾块支持直接提交逻辑1×1001，保留同一硬件ABI。
 

@@ -152,3 +152,9 @@ make resnet50-compare \
 ```
 
 `make resnet50-model` 只生成性能包，`make resnet50-benchmark` 运行参考和候选RTL。`RESNET50_ONNX` 可指定本地ONNX路径，`RESNET50_INPUT_SEED`、`RESNET50_BENCH_SCALE` 指定输入与性能量化配置；Python3需安装NumPy，RTL需本地VCS。分类精度留待真实校准数据和独立精度流程完成后另行记录。
+
+## ResNet50：卷积读取与调度消融补充（2026-10-26）
+
+上文比较的是池化FIFO前后版本，两组整网周期相同。另以同一支持完整网络的RTL做四项功能共同开关的受控消融：原生64位读取始终保留，仅改变卷积读缓存、片段前瞻、B驻留预取和计算bank获取快路径。两组全部72层和完整DDR检查通过。
+
+关闭组489,351,345周期，原配置503,021,224周期，整网慢2.79%；读字节1,278,406,224→1,158,799,696，减少9.36%。1×1卷积多花24,775,039周期，超过7×7和3×3节省周期之和；这不是可用于简历的ResNet50整网加速。详细条件、分组与证据见[读取与调度消融](resnet50_readpath_ablation.md)和[实测摘要](reference/resnet50_readpath_summary.json)。该实验不替代历史版本重放，也不单独测量native64的贡献。
