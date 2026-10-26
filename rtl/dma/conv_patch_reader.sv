@@ -465,23 +465,7 @@ module conv_patch_reader #(
                         if (rd_error)
                             error <= 1'b1;
 
-                        // Prepare next segment during completion
-                        // of the current read request.
-                        if (!rd_error &&
-                            (index_q < load_size_q) &&
-                            !is_padding) begin
-
-                            request_addr_q <= word_addr;
-                            request_beats_q <= planned_beats;
-                            stream_bytes_left_q <= planned_bytes;
-
-                            // AXI64: 8 bytes per beat
-                            stream_offset_q <= byte_addr[2:0];
-
-                            state_q <= ST_RD_REQ;
-                        end else begin
-                            state_q <= ST_PREP;
-                        end
+                        state_q <= ST_PREP;
                     end
                 end
 

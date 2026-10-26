@@ -14,7 +14,6 @@ module conv_pool_fused_npu_tb #(
     parameter int unsigned POOL_SW = 2,
     parameter int unsigned LINE_WORDS = POOL_KH*OUT_W*(COUT/4),
     parameter bit CAPACITY_FALLBACK = 0,
-    parameter int unsigned CONV_CACHE_LINES = 256,
     parameter int unsigned WRITE_RESPONSE_DELAY = 5,
     parameter bit REQUIRE_FULL_BUFFER = 0,
     parameter int unsigned POOL_OUTPUT_FIFO_DEPTH = 16,
@@ -66,14 +65,12 @@ module conv_pool_fused_npu_tb #(
     int read_beats_q, write_bytes_q, conv_read_bursts_q;
     int conv_write_bytes_q, logical_pool_read_bytes_q;
     int full_buffer_cycles_q;
-    int conv_cache_flushes_q;
     int pool_inputs_while_b_pending_q, source_retire_while_b_pending_q;
     int pool_backpressure_cycles_q, final_response_wait_cycles_q;
     int launch_write_start = 0;
 
     npu_top #(
         .ROWS(ROWS), .COLS(COLS), .K_TILE_SIZE(32),
-        .CONV_CACHE_LINES(CONV_CACHE_LINES),
         .POOL_LINE_WORDS(LINE_WORDS),
         .POOL_OUTPUT_FIFO_DEPTH(POOL_OUTPUT_FIFO_DEPTH)
     ) u_dut (
@@ -143,7 +140,6 @@ module conv_pool_fused_npu_tb #(
             conv_write_bytes_q <= 0;
             logical_pool_read_bytes_q <= 0;
             full_buffer_cycles_q <= 0;
-            conv_cache_flushes_q <= 0;
             pool_inputs_while_b_pending_q <= 0;
             source_retire_while_b_pending_q <= 0;
             pool_backpressure_cycles_q <= 0;
@@ -169,8 +165,6 @@ module conv_pool_fused_npu_tb #(
                     !u_dut.u_npu_gemm_engine.pool_in_ready)
                     pool_backpressure_cycles_q <= pool_backpressure_cycles_q + 1;
             end
-            if (u_dut.u_npu_gemm_engine.u_read_path.conv_cache_invalidate)
-                conv_cache_flushes_q <= conv_cache_flushes_q + 1;
             if (phase == 1 &&
                 u_dut.u_npu_gemm_engine.u_result_tile_buffer.bank_state_q[0] >= 2 &&
                 u_dut.u_npu_gemm_engine.u_result_tile_buffer.bank_state_q[1] >= 2)
@@ -390,7 +384,7 @@ module conv_pool_fused_npu_tb #(
         int cycles, fused_cycles;
         int write_before, read_before, logical_before, conv_read_before, conv_write_before;
         int baseline_write_bytes, baseline_logical_reads, fused_write_bytes;
-        int baseline_read_beats, flushes_before;
+        int baseline_read_beats;
         int final_wait_before;
         int expected, address;
         kernel_size = kernel;
@@ -433,8 +427,8 @@ module conv_pool_fused_npu_tb #(
                  baseline_write_bytes,baseline_logical_reads,baseline_read_beats);
         if ($test$plusargs("BASELINE_ONLY")) return;
 
-        // Run again without reset: command state, cache invalidation and line
-        // buffer initialization must all work across launches.
+        // Run again without reset: command state and line-buffer
+        // initialization must both work across launches.
         for (int i=0; i<conv_bytes/4; i++) mem[CONV_BASE/4+i] = 'h5a5a5a5a;
         for (int i=0; i<pool_bytes/4; i++) mem[POOL_BASE/4+i] = 'h5a5a5a5a;
         phase = 1;
@@ -444,7 +438,6 @@ module conv_pool_fused_npu_tb #(
         logical_before = logical_pool_read_bytes_q;
         conv_read_before = conv_read_bursts_q;
         conv_write_before = conv_write_bytes_q;
-        flushes_before = conv_cache_flushes_q;
         final_wait_before = final_response_wait_cycles_q;
         launch(CAPACITY_FALLBACK,fused_cycles);
         if (CAPACITY_FALLBACK) begin
@@ -458,8 +451,6 @@ module conv_pool_fused_npu_tb #(
         if (u_dut.u_npu_gemm_engine.pool_channel_tiling_q !==
             ((POOL_KH*OUT_W*(COUT/4)) > LINE_WORDS))
             $fatal(1,"Unexpected pooling channel-tiling mode");
-        if (conv_cache_flushes_q-flushes_before != 1)
-            $fatal(1,"Conv input cache must be invalidated once per layer");
         fused_write_bytes = write_bytes_q-write_before;
         if (fused_write_bytes != pool_bytes || logical_pool_read_bytes_q != logical_before ||
             conv_read_bursts_q != conv_read_before || conv_write_bytes_q != conv_write_before)

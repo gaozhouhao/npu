@@ -4,7 +4,6 @@ module npu_top_tb #(
     parameter int unsigned K_TILE_SIZE = 256,
     parameter int unsigned PSUM_SLOT_COUNT = 4,
     parameter int unsigned A_REUSE_BLOCK_SIZE = 4,
-    parameter int unsigned CONV_CACHE_LINES = 256,
     parameter int unsigned CONV_MAX_REQUEST_BEATS = 64
 );
 
@@ -396,7 +395,6 @@ module npu_top_tb #(
         .B_BUFFER_COUNT   (B_BUFFER_COUNT),
         .PSUM_SLOT_COUNT  (PSUM_SLOT_COUNT),
         .A_REUSE_BLOCK_SIZE(A_REUSE_BLOCK_SIZE),
-        .CONV_CACHE_LINES(CONV_CACHE_LINES),
         .CONV_MAX_REQUEST_BEATS(CONV_MAX_REQUEST_BEATS)
     ) u_dut (
         .clk           (clk),

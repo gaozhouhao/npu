@@ -92,7 +92,7 @@ DDR A / B --AXI64--> operand_fetch         |                     |
 
 GEMM和卷积保留逻辑M/N/K尺寸，按向上取整的块数执行。操作数读取器只读取有效源lane，结果缓冲携带有效行列数，DMA通过动态字节掩码和有效行数结束条件处理尾块。卷积输出仍是紧凑HWC，融合池化跳过物理补齐行。实现与约束见[通用计算尾块](tail_tiles.md)。
 
-设置 Conv 描述符 flags bit7 后，一条描述符执行 Conv → 原 Bias/Requant/ReLU → 可配置 MaxPool。word15 的四个字节依次指定窗口高、窗口宽、纵向步长、横向步长，每项为1～255；word15=0兼容原2×2/步长2。`result_tile_buffer` 的 bank 同时保存空间起点和通道起点；融合消费者按行读取量化后的结果，交给历史模块名 `stream_maxpool2x2`。池化用片上原始 INT8 行缓冲跨计算块保留窗口输入，窗口就绪后读取原始样本交给最大值运算，只将最终池化张量通过 AXI 写回。容量足够时，多K A复用的部分和路径继续使用同一个融合消费者；全通道状态超限时改为 N→M→K，完成一组COLS通道的全部空间位置再复用缓冲，关闭跨N的A复用。只有最小通道块也放不下才保留独立卷积、池化任务。输入字缓存每层失效一次，在层内跨通道块保留。独立池化引擎使用相同几何配置。容量、标志、实测输入重读代价与软件使用方式见 [融合说明](conv_pool_fusion.md)。
+设置 Conv 描述符 flags bit7 后，一条描述符执行 Conv → 原 Bias/Requant/ReLU → 可配置 MaxPool。word15 的四个字节依次指定窗口高、窗口宽、纵向步长、横向步长，每项为1～255；word15=0兼容原2×2/步长2。`result_tile_buffer` 的 bank 同时保存空间起点和通道起点；融合消费者按行读取量化后的结果，交给历史模块名 `stream_maxpool2x2`。池化用片上原始 INT8 行缓冲跨计算块保留窗口输入，窗口就绪后读取原始样本交给最大值运算，只将最终池化张量通过 AXI 写回。容量足够时，多K A复用的部分和路径继续使用同一个融合消费者；全通道状态超限时改为 N→M→K，完成一组COLS通道的全部空间位置再复用缓冲，关闭跨N的A复用。只有最小通道块也放不下才保留独立卷积、池化任务。卷积输入直接从DDR读取，跨通道块的重复读取不经过字缓存。独立池化引擎使用相同几何配置。容量、标志、实测输入重读代价与软件使用方式见 [融合说明](conv_pool_fusion.md)。
 
 ## 实际实例关系
 
@@ -100,7 +100,7 @@ GEMM和卷积保留逻辑M/N/K尺寸，按向上取整的块数执行。操作�
 
 融合池化结果通过 `pool_result_dma` 的输出 FIFO 交给独立 AXI writer。FIFO 保存绝对地址与 32 位数据，默认 16 项；地址随数据入队，通道分块产生的非连续地址保持原样。计算端的 ready 由本地窗口缓冲和逐级背压决定，写响应不直接关停输入。源 tile 的有效行全部交接后即可释放，整层完成仍等待窗口、归约、FIFO 和在途写响应排空。
 
-下图按源码中的模块实例展开。`×2` 表示独立的 A/B 实例，`×R×C` 或 `×bank×lane` 表示生成循环；性能计数器由 `NPU_PERF_ENABLE` 决定是否实例化。活动清单包含顶层和 38 个功能子模块，共 39 个模块定义。
+下图按源码中的模块实例展开。`×2` 表示独立的 A/B 实例，`×R×C` 或 `×bank×lane` 表示生成循环；性能计数器由 `NPU_PERF_ENABLE` 决定是否实例化。活动清单包含顶层和 37 个功能子模块，共 38 个模块定义。
 
 ```text
 npu_top
@@ -116,7 +116,6 @@ npu_top
 |   |   |   `-- u_operand_packer : operand_packer
 |   |   |-- u_conv_patch_reader : conv_patch_reader
 |   |   |   `-- u_operand_packer : operand_packer
-|   |   |-- u_conv_word_cache : conv_word_cache
 |   |   |-- u_read_arbiter : operand_request_arbiter
 |   |   `-- u_axi_read_master : axi_read_master          [64-bit operand]
 |   |-- u_quant_param_loader : quant_param_loader
@@ -193,7 +192,6 @@ npu_top
 | `matrix_operand_reader` | 将一个矩阵 tile 的逐行读取和操作数装载配合起来 | `load_req`、X 位基址、32 位 stride、K 位 load_size；bank 授权；共享读流、done/error | 加载接受/完成；bank 请求/完成；读请求；对应 SRAM 的 bank/lane/word 写地址与打包词；`busy/error` |
 | `strided_axi_reader` | 按 base、行数、有效行字节数及 stride 生成二维读请求 | `start`、X 位 `base_addr`；32 位 `row_count/bytes_per_row/stride_bytes`；共享读流和完成状态；`out_ready` | 各行的读请求；保持行优先顺序的 `out_valid/out_data`；`busy/done/error`；数据宽度取实例 `DATA_WIDTH`，整机操作数为 64 位 |
 | `conv_patch_reader` | 从 HWC 输入按卷积坐标采样、补 padding、拼出本地 A tile | 加载请求；32 位图像/卷积几何、M/K 起始位置；8 位 padding 零点；K 位长度；bank 授权；64 位读流 | 64 位读请求与接收握手；64 位缓存写数据和 bank/lane/word 地址；加载/bank 完成；`busy/error` |
-| `conv_word_cache` | 卷积专用、直接映射的 64 位读穿缓存；命中返回本地数据，缺失下发读取 | `invalidate`；上游 `s_req_*`；下游 `m_data_* / m_done / m_error`；上游接收许可 | 上游 `s_data_* / s_done / s_error`；下游 `m_req_*` 和数据接收许可；默认 256 行，每行 64 位 |
 | `operand_request_arbiter` | 在 A 与 B 请求之间选择一个，并把完整请求的数据和完成路由回原申请者 | `m0_req_*`、`m1_req_*`；两端读流接收许可；共享 `s_data_* / s_done / s_error` | 共享 `s_req_*`；两端各自的 `m0/m1_data_* / done / error`；读数据按实例宽度，整机为 64 位 |
 | `quant_param_loader` | 读取逐张量量化头、逐 tile Bias 与可选逐通道乘数/移位 | `global_load_req`、X 位参数头地址；`bias_load_req`、X 位 Bias 地址、逐通道使能；32 位参数读流 | 全局/通道加载接受与完成；全局 32 位 multiplier、6 位 shift、8 位输入/输出零点；C 路 32 位 Bias/乘数和 6 位 shift；读请求及 `busy/error` |
 | `axi_read_master` | 将一条内部连续读请求拆成合法 AXI INCR burst，并组合返回流 | X 位 `req_addr`、32 位 `req_beats`；`data_ready`；AXI R 返回和 AR 接收许可 | `req_ready`；AXI AR；内部读流和请求级 `data_last`；`busy/done/error`。数据宽度按实例取 32 或 64 位 |
@@ -277,8 +275,6 @@ Python 模型工具通过 `compiler/target.py` 的 `hardware_defaults()` 读取�
 | `B_BUFFER_COUNT` | 2 | GEMM引擎 → B bank控制器、读取/装载器、B存储bank | 1或2，可与A独立配置 |
 | `PSUM_SLOT_COUNT` | 4 | GEMM引擎 → `gemm_psum_accumulator/psum_sram/result_param_buffer` | 正整数；启用多K A复用时至少覆盖 `A_REUSE_BLOCK_SIZE` 个槽 |
 | `A_REUSE_BLOCK_SIZE` | 4 | GEMM引擎 → scheduler/order；同时用于PSUM与参数槽号计算 | 正整数；须不大于PSUM槽数。值大于1且存在多个K/N tile时才能形成相应复用 |
-| `CONV_CACHE_LINES` | 256 | GEMM引擎 → `operand_fetch → conv_word_cache` | 至少2，取2的幂；地址宽度须为缓存索引和tag保留足够位数 |
-| `CONV_CACHE_ENABLE` | 1 | GEMM引擎 → `operand_fetch → conv_word_cache.ENABLE` | 0或1；关闭时卷积读请求经旁路发送 |
 | `CONV_MAX_REQUEST_BEATS` | 64 | GEMM引擎 → `operand_fetch → conv_patch_reader.MAX_REQUEST_BEATS` | 1～256，以64位拍计；决定连续卷积片段的请求上限，底层AXI主机继续负责burst和4KB边界拆分 |
 | `POOL_LINE_WORDS` | 1024 | GEMM引擎 → 融合池化原始输入行缓冲 | 以32位字计，容量按窗口高、输入宽和活跃通道数计算 |
 | `POOL_OUTPUT_FIFO_DEPTH` | 16 | GEMM引擎 → `stream_maxpool2x2.OUTPUT_FIFO_DEPTH → pool_result_dma.FIFO_DEPTH` | 正整数，支持1及非二次幂；每项保存ADDR_WIDTH位地址和32位结果，活动写另存一项 |
@@ -304,7 +300,7 @@ ROW/LANE/SLOT位宽  = max(1, clog2(对应数量))
 make list-tests
 make test TEST=gemm_tile_compute_tb
 make test TEST=gemm_tile_compute_tb CONFIG=rect PARAMS="ROWS=2 COLS=3 A_BUFFER_COUNT=2 B_BUFFER_COUNT=1"
-make test TEST=npu_top_tb CONFIG=small PARAMS="K_TILE_SIZE=16 PSUM_SLOT_COUNT=2 A_REUSE_BLOCK_SIZE=2 CONV_CACHE_LINES=32 CONV_MAX_REQUEST_BEATS=8"
+make test TEST=npu_top_tb CONFIG=small PARAMS="K_TILE_SIZE=16 PSUM_SLOT_COUNT=2 A_REUSE_BLOCK_SIZE=2 CONV_MAX_REQUEST_BEATS=8"
 make regression
 make parameter-check
 make stress
@@ -336,7 +332,7 @@ make wave
 
 最终目录下的VCS自检覆盖23个功能testbench、10组参数配置和3组stress配置；PE波形入口生成VCD/FSDB。参数配置包括2×3、3×2和1×1阵列、独立A/B bank、4×3阵列且本地K深度为1、INT4/ACC24/word32、INT16/ACC48/word64，以及结果DMA的2/3/4/5列。两组非默认位宽各比较176项计算/结果数据；深度1配置比较84项。
 
-完整顶层的 `K_TILE_SIZE=16、PSUM_SLOT_COUNT=2、A_REUSE_BLOCK_SIZE=2、CONV_CACHE_LINES=32、CONV_MAX_REQUEST_BEATS=8` 配置已通过三条描述符的纯GEMM、Bias INT32、Bias+Requant+ReLU INT8结果核对。该用例运行13213周期，原始最终累加器为6500，操作数读请求1632次，总读请求1689次，写地址请求48次、写数据144拍。这个用例证明这些顶层参数能够一起传播并完成系统执行；卷积缓存的运行行为还需结合卷积自检判断。
+完整顶层可用 `K_TILE_SIZE=16、PSUM_SLOT_COUNT=2、A_REUSE_BLOCK_SIZE=2、CONV_MAX_REQUEST_BEATS=8` 运行三条描述符的纯GEMM、Bias INT32、Bias+Requant+ReLU INT8检查。2026-10-26起删除卷积读缓存及其参数，卷积patch请求直接进入共享读取通路；计算bank统一经 `CP_ACQUIRE` 获取，下一卷积片段统一经 `ST_PREP` 规划。历史缓存版本的计数见验证记录，当前验证见[控制逻辑精简](npu_control_cleanup.md)。
 
 MNIST四张图的五层输出均与仓库黄金张量逐字节一致，预测分别为7、2、1、0；每图68542周期。四图使用相同描述符及权重，不重新训练或修改黄金张量。部署manifest的62个文件均通过长度与SHA256核对。
 

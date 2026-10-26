@@ -242,7 +242,6 @@ module gemm_dma_integration_tb;
         .B_BUFFER_COUNT (B_BUFFER_COUNT)
     ) u_read_path (
         .a_valid_lanes(32'(ROWS)), .b_valid_lanes(32'(COLS)),
-        .layer_start(1'b0),
         .conv_mode(1'b0), .conv_input_base(64'd0),
         .conv_input_h(32'd0), .conv_input_w(32'd0), .conv_input_c(32'd0),
         .conv_kernel_h(32'd0), .conv_kernel_w(32'd0), .conv_stride_h(32'd1), .conv_stride_w(32'd1),

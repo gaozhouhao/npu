@@ -1,8 +1,8 @@
 # INT8 NPU
 
-这是一个由 DDR 描述符驱动的 SystemVerilog NPU。默认 4×4 脉动阵列，执行 GEMM、Conv2D、MaxPool、全局平均池化和残差 ADD；全连接层使用 GEMM。矩阵运算支持 Bias、逐通道重定量和 ReLU。
+这是一个由 DDR 描述符驱动的 SystemVerilog NPU。卷积读取直接进入共享AXI通路，片段规划和计算bank获取各走一条固定状态路径；卷积读缓存与提前获取快路径已删除。默认 4×4 脉动阵列，执行 GEMM、Conv2D、MaxPool、全局平均池化和残差 ADD；全连接层使用 GEMM。矩阵运算支持 Bias、逐通道重定量和 ReLU。
 
-项目的完整阅读入口是 [架构与模块说明](docs/architecture.md)，包括逻辑框图、实际实例树、模块职责和输入输出、参数传播、数据布局及接口时序。[接口索引](docs/module_interfaces.md) 说明当前 39 个模块的接口。[验证记录](docs/validation.md) 说明当前已验证的范围。
+项目的完整阅读入口是 [架构与模块说明](docs/architecture.md)，包括逻辑框图、实际实例树、模块职责和输入输出、参数传播、数据布局及接口时序。[接口索引](docs/module_interfaces.md) 说明当前 38 个模块的接口。[验证记录](docs/validation.md) 说明当前已验证的范围。
 
 不同命令之间保持独立执行、通过 DDR 交接，保留已有局部融合，不增加跨层特征驻留或片上/DDR混合溢出控制。[层间流式结构路线图](docs/streaming_roadmap.md) 保留此前的技术讨论；真实 ResNet 网络的整数执行与性能结果见下文。
 
@@ -51,7 +51,7 @@ make wave
 make uvm-pe
 make list-tests
 make test TEST=gemm_tile_compute_tb
-make test TEST=npu_top_tb CONFIG=small PARAMS="K_TILE_SIZE=16 PSUM_SLOT_COUNT=2 A_REUSE_BLOCK_SIZE=2 CONV_CACHE_LINES=32 CONV_MAX_REQUEST_BEATS=8"
+make test TEST=npu_top_tb CONFIG=small PARAMS="K_TILE_SIZE=16 PSUM_SLOT_COUNT=2 A_REUSE_BLOCK_SIZE=2 CONV_MAX_REQUEST_BEATS=8"
 ```
 
 使用 `SIM=verilator` 切换仿真器。`PARAMS` 覆盖所选 testbench 暴露的参数，`RUN_ARGS` 传递 plusargs，`DEFINES` 增加宏，`CONFIG` 区分输出目录。日志位于 `build/<SIM>/<TEST>/<CONFIG>/`。
