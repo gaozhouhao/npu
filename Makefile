@@ -269,7 +269,6 @@ fusion-check:
 	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=channel-tiling PARAMS="COUT=12 LINE_WORDS=16"
 	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=channel-tiling-overlap PARAMS="COUT=12 POOL_SH=1 POOL_SW=1 LINE_WORDS=16 WRITE_RESPONSE_DELAY=30"
 	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=channel-tiling-cols8 PARAMS="COUT=24 COLS=8 LINE_WORDS=32"
-	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=channel-tiling-cache-pressure PARAMS="COUT=12 LINE_WORDS=16 CONV_CACHE_LINES=2"
 	$(MAKE) test TEST=conv_pool_fused_npu_tb CONFIG=full-buffer-stall PARAMS="POOL_SH=1 POOL_SW=1 WRITE_RESPONSE_DELAY=2000 POOL_OUTPUT_FIFO_DEPTH=1 REQUIRE_FULL_BUFFER=1"
 	$(MAKE) test TEST=pool2d_configurable_tb
 

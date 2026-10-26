@@ -120,9 +120,8 @@ module gemm_tile_scheduler #(
     // ============================================================
     // B residency: B(N), K_tiles=1
     //
-    // The tag identifies the newest accepted B tile.
-    // During prefetch the old B may still be COMPUTING,
-    // while the new B is LOADING in the other bank.
+    // Keep the current N tile resident until its last M tile
+    // completes. A different N tile loads after that release.
     // ============================================================
 
     logic resident_b_valid_q;
@@ -268,20 +267,17 @@ module gemm_tile_scheduler #(
         a_reuse_q || a_load_done;
 
     // ============================================================
-    // B load with double-buffer prefetch
+    // B load
     //
-    // Unlike the previous version, a valid resident B tag
-    // does not block a miss for the next N tile.
-    //
-    // operand_bank_controller selects an EMPTY physical bank.
-    // When the current B is COMPUTING, the other bank
-    // can be used for the next B DMA load.
+    // In B-stationary mode, reuse the resident N tile across M.
+    // Wait for its release before loading a different N tile.
     // ============================================================
 
     assign b_load_req =
         (load_state == LD_REQ) &&
         !b_load_issued_q &&
-        !b_reuse_q;
+        !b_reuse_q &&
+        (!b_stationary_q || !resident_b_valid_q);
 
     assign b_load_accept_effective =
         b_reuse_q || b_load_accept;
@@ -293,20 +289,12 @@ module gemm_tile_scheduler #(
     // Compute acquisition
     // ============================================================
 
-    // Fast path: issue bank requests as soon as a ready tile
-    // is visible, without spending a cycle only entering
-    // CP_ACQUIRE. The fallback state handles partial grants.
+    // Acquire each bank once, remembering grants until both arrive.
     assign a_compute_req =
-        (
-            ((compute_state == CP_IDLE) && ready_valid_q) ||
-            (compute_state == CP_ACQUIRE)
-        ) && !a_acquired_q;
+        (compute_state == CP_ACQUIRE) && !a_acquired_q;
 
     assign b_compute_req =
-        (
-            ((compute_state == CP_IDLE) && ready_valid_q) ||
-            (compute_state == CP_ACQUIRE)
-        ) && !b_acquired_q;
+        (compute_state == CP_ACQUIRE) && !b_acquired_q;
 
     assign matrix_start =
         (compute_state == CP_LAUNCH);
@@ -575,24 +563,9 @@ module gemm_tile_scheduler #(
 
                     CP_IDLE: begin
                         if (ready_valid_q) begin
-                            // The bank managers see compute_req in
-                            // this cycle. If both banks grant, latch
-                            // the tile and skip CP_ACQUIRE entirely.
-                            if (a_compute_grant && b_compute_grant) begin
-                                compute_m_q <= ready_m_q;
-                                compute_n_q <= ready_n_q;
-                                compute_k_q <= ready_k_q;
-                                ready_valid_q <= 1'b0;
-                                a_acquired_q <= 1'b0;
-                                b_acquired_q <= 1'b0;
-                                compute_state <= CP_LAUNCH;
-                            end else begin
-                                // Record either partial grant: a bank
-                                // manager consumes it on this edge.
-                                a_acquired_q <= a_compute_grant;
-                                b_acquired_q <= b_compute_grant;
-                                compute_state <= CP_ACQUIRE;
-                            end
+                            a_acquired_q <= 1'b0;
+                            b_acquired_q <= 1'b0;
+                            compute_state <= CP_ACQUIRE;
                         end
                     end
 
@@ -641,12 +614,8 @@ module gemm_tile_scheduler #(
                                 resident_a_valid_q <= 1'b0;
                             end
 
-                            // Only invalidate the B tag when the
-                            // completed computation corresponds
-                            // to the tagged B tile.
-                            //
-                            // If the next B was prefetched,
-                            // its tag must remain valid.
+                            // Release the matching resident B tag
+                            // after the last M tile completes.
                             if (
                                 b_stationary_q &&
                                 b_release_bank &&

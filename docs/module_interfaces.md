@@ -24,8 +24,6 @@
 | `B_BUFFER_COUNT` | `int unsigned` | `2` |
 | `PSUM_SLOT_COUNT` | `int unsigned` | `4` |
 | `A_REUSE_BLOCK_SIZE` | `int unsigned` | `4` |
-| `CONV_CACHE_LINES` | `int unsigned` | `256` |
-| `CONV_CACHE_ENABLE` | `bit` | `1'b1` |
 | `CONV_MAX_REQUEST_BEATS` | `int unsigned` | `64` |
 | `POOL_LINE_WORDS` | `int unsigned` | `1024` |
 | `POOL_OUTPUT_FIFO_DEPTH` | `int unsigned` | `16` |
@@ -242,8 +240,6 @@
 | `B_BUFFER_COUNT` | `int unsigned` | `2` |
 | `PSUM_SLOT_COUNT` | `int unsigned` | `4` |
 | `A_REUSE_BLOCK_SIZE` | `int unsigned` | `4` |
-| `CONV_CACHE_LINES` | `int unsigned` | `256` |
-| `CONV_CACHE_ENABLE` | `bit` | `1'b1` |
 | `CONV_MAX_REQUEST_BEATS` | `int unsigned` | `64` |
 | `POOL_LINE_WORDS` | `int unsigned` | `1024` |
 | `POOL_OUTPUT_FIFO_DEPTH` | `int unsigned` | `16` |
@@ -932,43 +928,6 @@
 | `buffer_waddr` | 输出 | `[WORD_ADDR_WIDTH-1:0]` | — |
 | `buffer_wdata` | 输出 | `[MEM_WORD_WIDTH-1:0]` | — |
 
-## conv_word_cache
-
-源码：[rtl/dma/conv_word_cache.sv](../rtl/dma/conv_word_cache.sv)
-
-| 参数 | 类型 | 默认值/派生表达式 |
-|---|---|---|
-| `ADDR_WIDTH` | `int unsigned` | `64` |
-| `DATA_WIDTH` | `int unsigned` | `64` |
-| `CACHE_LINES` | `int unsigned` | `256` |
-| `ENABLE` | `bit` | `1'b1` |
-
-| 端口 | 方向 | 数据类型/每项位宽 | 数组维度 |
-|---|---|---|---|
-| `clk` | 输入 | `1 位` | — |
-| `reset` | 输入 | `1 位` | — |
-| `invalidate` | 输入 | `1 位` | — |
-| `s_req_valid` | 输入 | `1 位` | — |
-| `s_req_ready` | 输出 | `1 位` | — |
-| `s_req_addr` | 输入 | `[ADDR_WIDTH-1:0]` | — |
-| `s_req_beats` | 输入 | `[31:0]` | — |
-| `s_data_valid` | 输出 | `1 位` | — |
-| `s_data_ready` | 输入 | `1 位` | — |
-| `s_data` | 输出 | `[DATA_WIDTH-1:0]` | — |
-| `s_data_last` | 输出 | `1 位` | — |
-| `s_done` | 输出 | `1 位` | — |
-| `s_error` | 输出 | `1 位` | — |
-| `m_req_valid` | 输出 | `1 位` | — |
-| `m_req_ready` | 输入 | `1 位` | — |
-| `m_req_addr` | 输出 | `[ADDR_WIDTH-1:0]` | — |
-| `m_req_beats` | 输出 | `[31:0]` | — |
-| `m_data_valid` | 输入 | `1 位` | — |
-| `m_data_ready` | 输出 | `1 位` | — |
-| `m_data` | 输入 | `[DATA_WIDTH-1:0]` | — |
-| `m_data_last` | 输入 | `1 位` | — |
-| `m_done` | 输入 | `1 位` | — |
-| `m_error` | 输入 | `1 位` | — |
-
 ## matrix_operand_reader
 
 源码：[rtl/dma/matrix_operand_reader.sv](../rtl/dma/matrix_operand_reader.sv)
@@ -1062,8 +1021,6 @@
 | `K_DEPTH` | `int unsigned` | `256` |
 | `A_BUFFER_COUNT` | `int unsigned` | `2` |
 | `B_BUFFER_COUNT` | `int unsigned` | `2` |
-| `CONV_CACHE_LINES` | `int unsigned` | `256` |
-| `CONV_CACHE_ENABLE` | `bit` | `1'b1` |
 | `CONV_MAX_REQUEST_BEATS` | `int unsigned` | `64` |
 | `K_SIZE_WIDTH` | `int unsigned` | `$clog2(K_DEPTH + 1)` |
 | `ELEMS_PER_WORD` | `int unsigned` | `MEM_WORD_WIDTH / ELEM_WIDTH` |
@@ -1078,7 +1035,6 @@
 |---|---|---|---|
 | `clk` | 输入 | `1 位` | — |
 | `reset` | 输入 | `1 位` | — |
-| `layer_start` | 输入 | `1 位` | — |
 | `conv_mode` | 输入 | `1 位` | — |
 | `conv_input_base` | 输入 | `[ADDR_WIDTH-1:0]` | — |
 | `conv_input_h` | 输入 | `[31:0]` | — |

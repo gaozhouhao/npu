@@ -3,6 +3,7 @@
 
 import hashlib
 from pathlib import Path
+import subprocess
 import tempfile
 import unittest
 
@@ -16,7 +17,10 @@ class ReadpathVariantTests(unittest.TestCase):
         for name in FILES:
             path = self.source / name
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_bytes((ROOT / name).read_bytes())
+            # The experiment is pinned; live RTL may have removed these features.
+            path.write_bytes(subprocess.check_output(
+                ["git", "show", "f7419986f24fb7a2ba9902eb5e451e147d6b7abc:"+name],
+                cwd=str(ROOT)))
 
     def tearDown(self):
         self.temporary.cleanup()
