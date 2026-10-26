@@ -1,0 +1,98 @@
+--- a/rtl/dma/postprocess_param_loader.sv
++++ b/rtl/dma/postprocess_param_loader.sv
+@@ -30,6 +30,7 @@
+ 
+     input  logic [ADDR_WIDTH-1:0] bias_addr,
+     input  logic per_channel_en,
++    input  logic [31:0] valid_cols,
+ 
+     output logic                  bias_load_done,
+ 
+@@ -122,6 +123,7 @@
+     logic [INDEX_WIDTH-1:0]
+         index_q;
+     logic [INDEX_WIDTH-1:0] global_last_index_q;
++    logic [31:0] valid_cols_q;
+ 
+ 
+     // ============================================================
+@@ -201,6 +203,7 @@
+             index_q <=
+                 '0;
+             global_last_index_q <= '0;
++            valid_cols_q <= COLS;
+ 
+             multiplier_out <=
+                 '0;
+@@ -261,6 +264,17 @@
+                             ST_REQ;
+ 
+                     end else if (bias_load_req) begin
++                        // Functional tail compatibility. Preserve the original
++                        // full-COLS read request and FSM timing, but ignore
++                        // records outside the command's logical output N.
++                        valid_cols_q <= per_channel_en ? valid_cols : COLS;
++                        for (int lane = 0; lane < COLS; lane++) begin
++                            if (per_channel_en && lane >= valid_cols) begin
++                                bias_out[lane] <= '0;
++                                multiplier_lane_out[lane] <= '0;
++                                shift_lane_out[lane] <= '0;
++                            end
++                        end
+ 
+                         mode_q <=
+                             per_channel_en ?
+@@ -399,28 +413,31 @@
+                             // Division/modulo by constant three
+                             // is only in the parameter load path.
+ 
+-                            if ((int'($unsigned(index_q)) % 3) == 0) begin
+-                                bias_out[
+-                                    int'($unsigned(index_q)) / 3
+-                                ] <= BIAS_WIDTH'(read_data);
+-
+-                            end else if (
+-                                (int'($unsigned(index_q)) % 3) == 1
+-                            ) begin
+-                                multiplier_lane_out[
+-                                    int'($unsigned(index_q)) / 3
+-                                ] <= read_data;
+-
+-                                if (read_data[31])
+-                                    error <= 1'b1;
+-
+-                            end else begin
+-                                shift_lane_out[
+-                                    int'($unsigned(index_q)) / 3
+-                                ] <= read_data[5:0];
+-
+-                                if (read_data > 32'd62)
+-                                    error <= 1'b1;
++                            if (int'($unsigned(index_q)) / 3 < valid_cols_q) begin
++                                if ((int'($unsigned(index_q)) % 3) == 0) begin
++                                    bias_out[
++                                        int'($unsigned(index_q)) / 3
++                                    ] <= BIAS_WIDTH'(read_data);
++
++                                end else if (
++                                    (int'($unsigned(index_q)) % 3) == 1
++                                ) begin
++                                    multiplier_lane_out[
++                                        int'($unsigned(index_q)) / 3
++                                    ] <= read_data;
++
++                                    if (read_data[31])
++                                        error <= 1'b1;
++
++                                end else begin
++                                    shift_lane_out[
++                                        int'($unsigned(index_q)) / 3
++                                    ] <= read_data[5:0];
++
++                                    if (read_data > 32'd62)
++                                        error <= 1'b1;
++                                end
++
+                             end
+ 
+                             if (index_q == INDEX_WIDTH'(3 * COLS - 1)) begin

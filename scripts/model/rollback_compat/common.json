@@ -1,0 +1,95 @@
+{
+  "changes": "Lexical module and instantiation renames only. Pool has original legacyports pluscmd_pool_config and cmd_pool_padding; Add ports match legacy residual_add_engine.",
+  "files": [
+    {
+      "classification": "shared_functional_operator",
+      "compat_sha256": "5e09c761f1864f93ef1592bf2a297fd1cd47c4ce286ef20cb64ead0278cc3b66",
+      "original_path": "rtl/compute/npu_pool_engine.sv",
+      "original_sha256": "0f1935cefce7180e4c414ff7bb8dbc1e887b96508bff5640bd2bb8e9da4a42d4",
+      "output_path": "compat/compat_pool_engine.sv",
+      "renames": {
+        "axi_read_master": {
+          "renamed_to": "compat_axi_read_master",
+          "replacement_count": 1
+        },
+        "axi_write_master": {
+          "renamed_to": "compat_axi_write_master",
+          "replacement_count": 1
+        },
+        "npu_pool_engine": {
+          "renamed_to": "compat_pool_engine",
+          "replacement_count": 1
+        }
+      }
+    },
+    {
+      "classification": "shared_functional_operator",
+      "compat_sha256": "69e0213b6ab68f1a302215f86940b97fcd4bb6002a24abbdbd595f767e605bf1",
+      "original_path": "rtl/compute/npu_add_engine.sv",
+      "original_sha256": "1539a2879d2e2bf38dd524c0957c2568e484c4194534b95754432bb943b114bb",
+      "output_path": "compat/compat_add_engine.sv",
+      "renames": {
+        "npu_add_engine": {
+          "renamed_to": "compat_add_engine",
+          "replacement_count": 2
+        }
+      }
+    },
+    {
+      "classification": "shared_functional_operator",
+      "compat_sha256": "10a94b84c75211640bc7dd1ca119f132c710127474c395162d28a3a1d4a9ff59",
+      "original_path": "rtl/dma/axi_read_master.sv",
+      "original_sha256": "8702d5227e52750f8e83fe2718c8767f66f09d1a481272bdad93548724372ebc",
+      "output_path": "compat/compat_axi_read_master.sv",
+      "renames": {
+        "axi_read_master": {
+          "renamed_to": "compat_axi_read_master",
+          "replacement_count": 1
+        }
+      }
+    },
+    {
+      "classification": "shared_functional_operator",
+      "compat_sha256": "6f84ca5795f8eb8302d2cba55e1268c92f49e6c1ff3932bcc552c96892125d1f",
+      "original_path": "rtl/dma/axi_write_master.sv",
+      "original_sha256": "9a6d54908dba73c4bcc3bff89d23877a74420248a243d7e27e99ec9322fa28e2",
+      "output_path": "compat/compat_axi_write_master.sv",
+      "renames": {
+        "axi_write_master": {
+          "renamed_to": "compat_axi_write_master",
+          "replacement_count": 1
+        }
+      }
+    },
+    {
+      "classification": "verification_only_not_elaborated",
+      "compat_sha256": "473d7c82ba936d4a69d5ebcc479efc0226e9cdab004f78e9d07aa8fc658e9d2f",
+      "original_path": "sim/tb/unit/compute/pool2d_configurable_tb.sv",
+      "original_sha256": "2970ec8b772b0a0d7662a7729898eb9473e0887be8bb016359ed12a6655ac08a",
+      "output_path": "compat/pool2d_configurable_tb.sv",
+      "renames": {
+        "npu_pool_engine": {
+          "renamed_to": "compat_pool_engine",
+          "replacement_count": 1
+        }
+      }
+    },
+    {
+      "classification": "verification_only_not_elaborated",
+      "compat_sha256": "026e89e50e71e869fabe8c20da5887b1694f48164cc1d16aa69300485766fc45",
+      "original_path": "sim/tb/unit/compute/pool2d_global_avg_tb.sv",
+      "original_sha256": "ef17e6542d862f945f37af53e1916fb2f8855a62948016469dd53cc344226df2",
+      "output_path": "compat/pool2d_global_avg_tb.sv",
+      "renames": {
+        "npu_pool_engine": {
+          "renamed_to": "compat_pool_engine",
+          "replacement_count": 1
+        }
+      }
+    }
+  ],
+  "purpose": "Identical functional Pool/GAP/Add hardware for historical32/native64 rollback runs; no operand performance feature backport.",
+  "schema_version": 1,
+  "shared_shell_ref": "46f756efffccfb9da44fd255661507afca353c05",
+  "source_ref": "af66f524875d78d443309a25754f049dbe4d4999"
+}

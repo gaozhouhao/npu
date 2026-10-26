@@ -1,0 +1,73 @@
+--- a/rtl/core/npu_top.sv
++++ b/rtl/core/npu_top.sv
+@@ -197,6 +197,7 @@
+ 
+     logic [31:0] frontend_cfg_param0;
+     logic [31:0] frontend_cfg_param1;
++    logic [31:0] frontend_cfg_pool_config;
+ 
+     logic frontend_exec_done;
+     logic frontend_busy;
+@@ -357,8 +358,8 @@
+             64'(conv_input_c);
+ 
+         conv_b_stride_calc =
+-            (64'(frontend_cfg_k) + 64'd3) &
+-            64'hffff_ffff_ffff_fffc;
++            (64'(frontend_cfg_k) + 64'd7) &
++            64'hffff_ffff_ffff_fff8;
+ 
+         conv_c_stride_calc =
+             64'(frontend_cfg_n) *
+@@ -381,7 +382,6 @@
+         conv_m_calc == 64'(frontend_cfg_m) &&
+         conv_k_calc == 64'(frontend_cfg_k) &&
+         frontend_cfg_n != 32'd0 &&
+-        frontend_cfg_m % 32'(ROWS) == 32'd0 &&
+         frontend_cfg_n % 32'(COLS) == 32'd0 &&
+         conv_b_stride_calc <= 64'hffff_ffff &&
+         conv_c_stride_calc <= 64'hffff_ffff &&
+@@ -456,7 +456,7 @@
+         frontend_cfg_a_base[1:0] == 2'b00 &&
+         frontend_cfg_c_base[1:0] == 2'b00 &&
+         frontend_cfg_b_base == 64'd0 &&
+-        frontend_cfg_a_stride == 32'd0 &&
++        ((frontend_cmd_opcode == OP_MAXPOOL) || frontend_cfg_a_stride == 32'd0) &&
+         frontend_cfg_b_stride == 32'd0 &&
+         frontend_cfg_c_stride == 32'd0 &&
+         frontend_cfg_param0 == 32'd0 &&
+@@ -571,6 +571,7 @@
+         .cfg_c_stride(frontend_cfg_c_stride),
+         .cfg_param0(frontend_cfg_param0),
+         .cfg_param1(frontend_cfg_param1),
++        .cfg_pool_config(frontend_cfg_pool_config),
+         .exec_done(frontend_exec_done),
+         .busy(frontend_busy),
+         .done(frontend_done)
+@@ -713,7 +714,7 @@
+     // MaxPool Engine
+     // ============================================================
+ 
+-    pool2d_engine #(
++    compat_pool_engine #(
+         .ADDR_WIDTH(ADDR_WIDTH),
+         .ID_WIDTH(ID_WIDTH)
+     ) u_pool (
+@@ -733,6 +734,8 @@
+         .cmd_input_h(frontend_cfg_m),
+         .cmd_input_w(frontend_cfg_n),
+         .cmd_channels(frontend_cfg_k),
++        .cmd_pool_config(frontend_cfg_pool_config),
++        .cmd_pool_padding(frontend_cfg_a_stride),
+         .busy(pool_busy),
+         .done(pool_done),
+         .error(pool_error),
+@@ -773,7 +776,7 @@
+     // ResNet Residual Add
+     // ============================================================
+ 
+-    residual_add_engine #(
++    compat_add_engine #(
+         .ADDR_WIDTH(ADDR_WIDTH), .ID_WIDTH(ID_WIDTH)
+     ) u_residual_add (
+         .clk(clk), .reset(reset),

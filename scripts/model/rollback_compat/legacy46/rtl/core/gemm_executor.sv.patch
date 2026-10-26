@@ -1,0 +1,57 @@
+--- a/rtl/core/gemm_executor.sv
++++ b/rtl/core/gemm_executor.sv
+@@ -134,6 +134,8 @@
+     logic [31:0] a_stride_q;
+     logic [31:0] b_stride_q;
+     logic [31:0] c_stride_q;
++    // Functional compatibility only: logical write limits for partial tiles.
++    logic [31:0] output_m_q, output_n_q;
+ 
+     logic bias_en_q;
+     logic requant_en_q;
+@@ -414,6 +416,9 @@
+ 
+     logic [PSUM_SLOT_WIDTH-1:0] param_fill_slot_q;
+     logic [TILE_COUNT_WIDTH-1:0] param_fill_n_tile_q;
++    logic [31:0] param_valid_cols;
++    assign param_valid_cols = (output_n_q - 32'(param_fill_n_tile_q) * COLS < COLS)
++        ? (output_n_q - 32'(param_fill_n_tile_q) * COLS) : COLS;
+ 
+     logic param_bank_fill_ready;
+     logic param_bank_read_hit;
+@@ -815,6 +820,7 @@
+         .bias_load_accept(bias_load_accept),
+         .bias_addr(bias_tile_addr_q),
+         .per_channel_en(per_channel_en_q),
++        .valid_cols(param_valid_cols),
+         .bias_load_done(bias_load_done),
+ 
+         .multiplier_out(requant_multiplier),
+@@ -1573,6 +1579,9 @@
+         .tile_accept(c_write_tile_accept),
+         .tile_addr(use_psum_path ? c_tile_addr : snapshot_addr),
+         .tile_stride_bytes(use_psum_path ? c_stride_q : snapshot_stride),
++        .matrix_base(c_base_q),
++        .matrix_rows(output_m_q),
++        .matrix_cols(output_n_q),
+         .int8_mode(use_psum_path ? requant_en_q : snapshot_int8),
+ 
+         .c_ren(c_dma_ren),
+@@ -1720,6 +1729,8 @@
+             a_stride_q <= '0;
+             b_stride_q <= '0;
+             c_stride_q <= '0;
++            output_m_q <= '0;
++            output_n_q <= '0;
+ 
+             bias_en_q <= 1'b0;
+             requant_en_q <= 1'b0;
+@@ -1766,6 +1777,8 @@
+                             a_stride_q <= cmd_a_stride_bytes;
+                             b_stride_q <= cmd_b_stride_bytes;
+                             c_stride_q <= cmd_c_stride_bytes;
++                            output_m_q <= cmd_m;
++                            output_n_q <= cmd_n;
+ 
+                             bias_en_q <= cmd_bias_en;
+                             requant_en_q <= cmd_requant_en;
